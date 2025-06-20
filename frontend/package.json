@@ -1,0 +1,27 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^2.0.0",
+    "autoprefixer": "^10",
+    "postcss": "^8",
+    "svelte": "^4",
+    "svelte-preprocess": "^5",
+    "tailwindcss": "^3",
+    "typescript": "^5",
+    "vite": "^4",
+    "vitest": "^0.34.6",
+    "@testing-library/svelte": "^4",
+    "jsdom": "^22"
+  },
+  "dependencies": {
+    "chart.js": "^4"
+  }
+}
