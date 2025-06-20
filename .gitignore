@@ -1,0 +1,12 @@
+# General
+node_modules/
+**/node_modules/
+vendor/
+backend/target/
+backend/.env
+frontend/node_modules/
+frontend/dist/
+
+# Docker volumes
+data/
+
