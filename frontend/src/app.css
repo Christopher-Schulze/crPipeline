@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-base text-gray-900 min-h-screen; font-family: 'SF Pro Display', sans-serif; }
+
+.glass {
+  @apply bg-white/60 backdrop-blur-lg border border-white/40 shadow-md;
+}
+.depth-2 {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+.depth-3 {
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+}
+
+.glass-input {
+  @apply bg-white/40 backdrop-blur-sm border border-white/30 rounded px-2 py-1;
+}
