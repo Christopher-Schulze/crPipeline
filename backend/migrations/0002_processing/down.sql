@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS analysis_jobs;
+DROP TABLE IF EXISTS pipelines;
+DROP TABLE IF EXISTS documents;

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2017",
+    "importsNotUsedAsValues": "error",
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "lib": [
+      "DOM",
+      "ES2017"
+    ],
+    "types": [
+      "svelte",
+      "vitest/globals"
+    ],
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.svelte"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
