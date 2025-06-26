@@ -1,38 +1,34 @@
 <script lang="ts">
-  /**
-   * Shadow depth. Higher values use a larger drop shadow.
-   */
-  export let depth: 1 | 2 | 3 = 1;
-  /**
-   * Glass opacity from 0 (fully transparent) to 1.
-   */
-  export let opacity = 0.6;
-  /**
-   * Blur radius in pixels.
-   */
-  export let blur = 20;
+  export let title: string | undefined = undefined;
+  export let titleClass: string = "text-2xl font-semibold mb-4 text-gray-800"; // Added prop for title class
+
+  // Props for future enhancements, matching typical Tailwind scales or direct values
+  export let bgOpacity: string = 'bg-white/60'; // e.g., bg-white/60, bg-neutral-100/70
+  export let backdropBlur: string = 'backdrop-blur-lg'; // e.g., backdrop-blur-sm, backdrop-blur-md, backdrop-blur-lg
+  export let borderStyle: string = 'border border-white/40'; // e.g., border border-white/40, border-neutral-200/50
+  export let borderRadius: string = 'rounded-2xl'; // e.g., rounded-lg, rounded-xl, rounded-2xl
+  export let shadow: string = 'shadow-lg'; // e.g., shadow-md, shadow-lg, shadow-xl
+  export let padding: string = 'p-6'; // e.g., p-4, p-6, p-8
+  export let customClass: string = ''; // Allow passing additional classes
+
+  // Combine all classes
+  $: cardClasses = `${bgOpacity} ${backdropBlur} ${borderStyle} ${borderRadius} ${shadow} ${padding} ${customClass}`;
 </script>
 
-<div
-  class="glass rounded-2xl p-6"
-  class:depth-2={depth === 2}
-  class:depth-3={depth === 3}
-  style="--glass-opacity:{opacity}; --glass-blur:{blur}px"
->
+<div class="{cardClasses}">
+  {#if title}
+    <h2 class="{titleClass}">{title}</h2>
+  {/if}
   <slot />
 </div>
 
-<style>
-  .glass {
-    background-color: rgba(255, 255, 255, var(--glass-opacity));
-    backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  }
-  .depth-2 {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-  }
-  .depth-3 {
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
-  }
+<style lang="postcss">
+  /* This style block is primarily for documentation or very specific overrides. */
+  /* Tailwind utility classes are applied dynamically via props. */
+
+  /*
+    Ensure your project's Tailwind CSS configuration includes the necessary classes,
+    especially if using arbitrary values like `bg-white/60`.
+    Standard Tailwind JIT mode should handle this fine.
+  */
 </style>

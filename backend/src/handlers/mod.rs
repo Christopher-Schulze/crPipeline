@@ -9,6 +9,7 @@ pub mod health;
 pub mod settings;
 pub mod audit;
 pub mod dashboard;
+pub mod admin; // New module
 
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/api")
@@ -20,6 +21,7 @@ pub fn init(cfg: &mut web::ServiceConfig) {
         .configure(settings::routes)
         .configure(audit::routes)
         .configure(dashboard::routes)
+        .configure(admin::routes) // Add this line
         .configure(health::routes)
     );
 }
