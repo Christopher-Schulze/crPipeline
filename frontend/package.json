@@ -6,22 +6,24 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "lint": "svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^2.0.0",
-    "autoprefixer": "^10",
-    "postcss": "^8",
-    "svelte": "^4",
-    "svelte-preprocess": "^5",
-    "tailwindcss": "^3",
-    "typescript": "^5",
-    "vite": "^4",
-    "vitest": "^0.34.6",
-    "@testing-library/svelte": "^4",
-    "jsdom": "^22"
+    "@testing-library/svelte": "^4.0.0",
+    "autoprefixer": "^10.4.14",
+    "jsdom": "^22.1.0",
+    "postcss": "^8.4.24",
+    "svelte": "^4.2.0",
+    "svelte-check": "^3.6.2",
+    "svelte-preprocess": "^5.0.4",
+    "tailwindcss": "^3.3.2",
+    "typescript": "^5.1.3",
+    "vite": "^4.3.9",
+    "vitest": "^0.34.6"
   },
   "dependencies": {
-    "chart.js": "^4"
+    "chart.js": "^4.3.0"
   }
 }

@@ -5,17 +5,24 @@ use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordVerifier};
 use chrono::{DateTime, Utc};
 
-#[derive(Serialize, FromRow, Debug)]
+#[derive(Serialize, FromRow, Debug, Clone)]
 pub struct User {
     pub id: Uuid,
     pub org_id: Uuid,
     pub email: String,
+    #[serde(skip_serializing)]
     pub password_hash: String,
     pub role: String,
     pub confirmed: bool,
+    #[serde(skip_serializing)]
     pub confirmation_token: Option<Uuid>,
+    #[serde(skip_serializing)]
     pub reset_token: Option<Uuid>,
     pub reset_expires_at: Option<DateTime<Utc>>,
+    // New fields
+    pub is_active: bool,
+    pub deactivated_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>, // New field
 }
 
 #[derive(Debug)]
@@ -95,5 +102,40 @@ impl User {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    pub async fn update_confirmation_token(pool: &PgPool, user_id: Uuid, new_token: Uuid) -> sqlx::Result<u64> {
+        let result = sqlx::query(
+            "UPDATE users SET confirmation_token = $1, confirmed = false WHERE id = $2 AND confirmed = false"
+        )
+        .bind(new_token)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    pub async fn find_by_id_for_admin(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<User>> {
+        sqlx::query_as("SELECT * FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+    }
+
+    pub async fn update_email_and_set_unconfirmed(
+        pool: &PgPool,
+        user_id: Uuid,
+        new_email: &str,
+        new_confirmation_token: Uuid,
+    ) -> sqlx::Result<u64> {
+        let result = sqlx::query(
+            "UPDATE users SET email = $1, confirmed = false, confirmation_token = $2 WHERE id = $3"
+        )
+        .bind(new_email)
+        .bind(new_confirmation_token)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
     }
 }

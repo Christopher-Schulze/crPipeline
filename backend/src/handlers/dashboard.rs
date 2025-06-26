@@ -2,8 +2,20 @@ use actix_web::{get, web, HttpResponse};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 use crate::middleware::auth::AuthUser;
-use crate::models::{OrgSettings};
+use crate::models::OrgSettings; // Assuming OrgSettings is used elsewhere or can be if dashboard grows
 use serde::Serialize;
+use chrono::{DateTime, Utc}; // Added for DateTime<Utc>
+
+// New struct for the response of get_recent_analyses
+#[derive(Serialize, sqlx::FromRow)]
+struct RecentAnalysisJob {
+    job_id: Uuid,
+    document_name: String,
+    pipeline_name: String,
+    status: String,
+    created_at: DateTime<Utc>,
+    document_id: Uuid,
+}
 
 #[get("/dashboard/{org_id}")]
 async fn dashboard(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
@@ -83,7 +95,54 @@ async fn usage(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -
     HttpResponse::Ok().json(data)
 }
 
+#[get("/dashboard/{org_id}/recent_analyses")]
+async fn get_recent_analyses(
+    path: web::Path<Uuid>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    let org_id = *path;
+    // Authorization check
+    if org_id != user.org_id {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    let query = r#"
+        SELECT
+            aj.id as job_id,
+            d.display_name as document_name,
+            p.name as pipeline_name,
+            aj.status,
+            aj.created_at,
+            aj.document_id
+        FROM
+            analysis_jobs aj
+        JOIN
+            documents d ON aj.document_id = d.id
+        JOIN
+            pipelines p ON aj.pipeline_id = p.id
+        WHERE
+            aj.org_id = $1
+        ORDER BY
+            aj.created_at DESC
+        LIMIT 5
+    "#;
+
+    match sqlx::query_as::<_, RecentAnalysisJob>(query)
+        .bind(org_id)
+        .fetch_all(pool.as_ref())
+        .await
+    {
+        Ok(jobs) => HttpResponse::Ok().json(jobs),
+        Err(e) => {
+            log::error!("Failed to fetch recent analyses: {}", e);
+            HttpResponse::InternalServerError().finish()
+        }
+    }
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(dashboard)
-        .service(usage);
+        .service(usage)
+        .service(get_recent_analyses); // Added new route
 }

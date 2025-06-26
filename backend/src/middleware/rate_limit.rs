@@ -1,14 +1,21 @@
 use actix_service::{Service, Transform, forward_ready};
-use actix_web::{dev::{ServiceRequest, ServiceResponse}, Error};
+use actix_web::{
+    dev::{ServiceRequest, ServiceResponse},
+    Error, HttpResponse
+};
 use futures_util::future::{LocalBoxFuture, ready, Ready};
 use std::rc::Rc;
-use std::time::{Duration, Instant};
-use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::env;
 
-static LIMITS: Lazy<DashMap<String, (u32, Instant)>> = Lazy::new(DashMap::new);
-const WINDOW: Duration = Duration::from_secs(60);
-const MAX_REQ: u32 = 100;
+use crate::middleware::jwt::{verify_jwt, Claims}; // Assuming Claims is pub
+use redis::{AsyncCommands, Client as RedisClient};
+use actix_web::http::header::{AUTHORIZATION, COOKIE, HeaderName, HeaderValue};
+use log::{error, warn}; // For logging
+
+// Define constants for rate limiting
+const WINDOW_SECONDS: u64 = 60; // 1 minute window
+const MAX_REQUESTS: u32 = 100; // Max requests per window
+const X_API_KEY_HEADER: HeaderName = HeaderName::from_static("x-api-key");
 
 pub struct RateLimit;
 
@@ -44,18 +51,92 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let key = req.connection_info().realip_remote_addr().unwrap_or("unknown").to_string();
-        let mut entry = LIMITS.entry(key).or_insert((0, Instant::now()));
-        if entry.1.elapsed() > WINDOW {
-            *entry = (1, Instant::now());
-        } else {
-            entry.0 += 1;
-        }
-        if entry.0 > MAX_REQ {
-            let fut = async move { Err(actix_web::error::ErrorTooManyRequests("rate limit")) };
-            return Box::pin(fut);
-        }
         let srv = Rc::clone(&self.service);
-        Box::pin(async move { srv.call(req).await })
+
+        Box::pin(async move {
+            let mut identifier_key: Option<String> = None;
+
+            // 1. Try to extract org_id from JWT
+            let mut jwt_token_str: Option<String> = None;
+
+            // Try Authorization header first
+            if let Some(auth_header) = req.headers().get(AUTHORIZATION) {
+                if let Ok(auth_str) = auth_header.to_str() {
+                    if auth_str.starts_with("Bearer ") {
+                        jwt_token_str = Some(auth_str[7..].to_string());
+                    }
+                }
+            }
+
+            // If not in Authorization header, try 'token' cookie
+            if jwt_token_str.is_none() {
+                if let Some(cookie) = req.request().cookie("token") { // Use req.request().cookie()
+                    jwt_token_str = Some(cookie.value().to_string());
+                }
+            }
+
+            if let Some(token_str) = jwt_token_str {
+                if let Some(claims) = verify_jwt(&token_str) { // verify_jwt uses env var for secret
+                    identifier_key = Some(format!("rate_limit:org_id:{}", claims.org));
+                }
+            }
+
+            // 2. If no org_id from JWT, try X-API-Key header
+            if identifier_key.is_none() {
+                if let Some(api_key_value) = req.headers().get(&X_API_KEY_HEADER) {
+                    if let Ok(api_key_str) = api_key_value.to_str() {
+                        if !api_key_str.is_empty() {
+                             identifier_key = Some(format!("rate_limit:api_key:{}", api_key_str));
+                        }
+                    }
+                }
+            }
+
+            if let Some(key) = identifier_key {
+                match env::var("REDIS_URL") {
+                    Ok(redis_url) => {
+                        match RedisClient::open(redis_url) {
+                            Ok(client) => {
+                                match client.get_async_connection().await {
+                                    Ok(mut conn) => {
+                                        let count_res: redis::RedisResult<u32> = conn.incr(&key, 1).await;
+                                        match count_res {
+                                            Ok(count) => {
+                                                if count == 1 {
+                                                    // Set expiry only if it's a new key in this window
+                                                    let _ : redis::RedisResult<()> = conn.expire(&key, WINDOW_SECONDS).await;
+                                                }
+                                                if count > MAX_REQUESTS {
+                                                    error!("Rate limit exceeded for key: {}", key);
+                                                    return Err(actix_web::error::ErrorTooManyRequests("Rate limit exceeded"));
+                                                }
+                                            }
+                                            Err(e) => {
+                                                error!("Redis INCR command failed for key {}: {}. Allowing request (fail-open).", key, e);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to get Redis connection: {}. Allowing request (fail-open).", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to create Redis client: {}. Allowing request (fail-open).", e);
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        error!("REDIS_URL not set. Rate limiting disabled. Allowing request (fail-open).");
+                    }
+                }
+            } else {
+                // No identifier found, allow request (or apply global limit if desired later)
+                warn!("No JWT org_id or API key found for rate limiting. Request allowed.");
+            }
+
+            // Proceed with the request if not rate-limited
+            srv.call(req).await
+        })
     }
 }

@@ -2,7 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-base text-gray-900 min-h-screen; font-family: 'SF Pro Display', sans-serif; }
+body {
+  @apply bg-base text-gray-900 min-h-screen font-sans; /* Use Tailwind's font-sans */
+  /* Dark mode default text color (if not handled by specific component text colors on dark backgrounds) */
+  @apply dark:text-gray-200;
+}
 
 .glass {
   @apply bg-white/60 backdrop-blur-lg border border-white/40 shadow-md;

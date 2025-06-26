@@ -2,12 +2,17 @@ use actix_web::{post, get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use crate::models::{User, NewUser};
-use crate::utils::log_action;
-use crate::middleware::jwt::create_jwt;
-use crate::middleware::auth::AuthUser;
+use crate::middleware::jwt::create_jwt; // Keep for login, not for register response
+use crate::middleware::auth::AuthUser; // Keep for 'me' handler
 use crate::email::send_email;
 use argon2::{Argon2, PasswordHasher};
+// log_action removed from here, as it's not suitable for public registration without an actor AuthUser
+// For admin actions, log_action would be used in those specific admin handlers.
+use log;
+use serde_json;
 use argon2::password_hash::SaltString;
+use actix_web::cookie::SameSite; // For cookie SameSite attribute
+use actix_web::cookie::time::Duration as ActixDuration; // For cookie Max-Age
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -37,22 +42,42 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
         .hash_password(data.password.as_bytes(), &salt)
         .unwrap()
         .to_string();
-    let role = data.role.clone().unwrap_or_else(|| "user".to_string());
-    let user = NewUser { org_id: data.org_id, email: data.email.clone(), password_hash, role };
-    match User::create(&pool, user).await {
+    let new_user_role = data.role.clone().unwrap_or_else(|| "user".to_string());
+    // Further validation for `new_user_role` could be added here if needed,
+    // e.g., ensuring only specific roles can be set, or that "admin" cannot be self-assigned.
+    // For now, it directly uses the provided role or defaults to "user".
+
+    let user_to_create = NewUser {
+        org_id: data.org_id,
+        email: data.email.clone(),
+        password_hash,
+        role: new_user_role,
+    };
+
+    match User::create(&pool, user_to_create).await {
         Ok(u) => {
-            log_action(&pool, u.org_id, u.id, "register").await;
+            // log_action removed for public registration endpoint
             let base = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
-            let link = format!("{}/api/confirm/{}", base, u.confirmation_token.unwrap());
-            let _ = send_email(&u.email, "Confirm your account", &link).await;
-            let token = create_jwt(u.id, u.org_id, &u.role);
-            let cookie = actix_web::cookie::Cookie::build("token", token)
-                .path("/")
-                .http_only(true)
-                .finish();
-            HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true })
-        },
-        Err(_) => HttpResponse::InternalServerError().finish(),
+            // u.confirmation_token should always be Some due to User::create logic
+            let link = format!("{}/api/confirm/{}", base, u.confirmation_token.unwrap_or_else(Uuid::new_v4));
+
+            if let Err(e) = send_email(&u.email, "Confirm your account", &link).await {
+                log::warn!("Failed to send confirmation email to {}: {:?}", u.email, e);
+                // Still return Ok for registration, email is auxiliary. User can request another confirmation.
+            }
+
+            // Do not auto-login. Client should redirect to login page or prompt to check email.
+            HttpResponse::Ok().json(AuthResponse { success: true })
+        }
+        Err(e) => {
+            log::error!("Failed to create user {}: {:?}", data.email, e);
+            if let Some(db_err) = e.as_database_error() {
+                if db_err.is_unique_violation() {
+                    return HttpResponse::Conflict().json(serde_json::json!({"error": "Email address already in use."}));
+                }
+            }
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to register user."}))
+        }
     }
 }
 
@@ -61,18 +86,52 @@ pub struct LoginInput { pub email: String, pub password: String }
 
 #[post("/login")]
 pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> HttpResponse {
-    if let Ok(user) = User::find_by_email(&pool, &data.email).await {
-        if user.verify_password(&data.password) {
-            let token = create_jwt(user.id, user.org_id, &user.role);
-            let cookie = actix_web::cookie::Cookie::build("token", token)
-                .path("/")
-                .http_only(true)
-                .finish();
-            log_action(&pool, user.org_id, user.id, "login").await;
-            return HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true });
+    match User::find_by_email(&pool, &data.email).await {
+        Ok(user) => {
+            if !user.is_active {
+                log::warn!("Login attempt for deactivated user: {}", data.email);
+                return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Your account has been deactivated. Please contact an administrator."}));
+            }
+            if user.verify_password(&data.password) {
+                if !user.confirmed {
+                     log::warn!("Login attempt for unconfirmed user: {}", data.email);
+                     return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Account not confirmed. Please check your email or contact an administrator to resend confirmation."}));
+                }
+
+                let token = create_jwt(user.id, user.org_id, &user.role); // JWT has 24h expiry
+
+                // Determine if 'Secure' flag should be set based on BASE_URL
+                let base_url_str = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
+                let secure_cookie = base_url_str.starts_with("https://");
+
+                let mut cookie_builder = actix_web::cookie::Cookie::build("token", token)
+                    .path("/")
+                    .http_only(true)      // Already set, good
+                    .same_site(SameSite::Lax) // Add SameSite=Lax
+                    .max_age(ActixDuration::hours(24)); // Align with JWT expiry
+
+                if secure_cookie {
+                    cookie_builder = cookie_builder.secure(true); // Set Secure flag if served over HTTPS
+                }
+
+                let cookie = cookie_builder.finish();
+
+                log::info!("User {} logged in successfully. Secure cookie: {}", user.email, secure_cookie);
+                HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true })
+            } else {
+                log::warn!("Failed login attempt for user: {} (invalid password)", data.email);
+                HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid email or password."}))
+            }
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            log::warn!("Failed login attempt: User {} not found.", data.email);
+            HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid email or password."}))
+        }
+        Err(e) => {
+            log::error!("Database error during login for user {}: {:?}", data.email, e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Login failed due to a server error."}))
         }
     }
-    HttpResponse::Unauthorized().finish()
 }
 
 #[get("/confirm/{token}")]
