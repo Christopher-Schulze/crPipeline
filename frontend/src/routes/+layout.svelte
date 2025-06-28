@@ -11,6 +11,7 @@
   import SlideOver from '$lib/components/SlideOver.svelte';
   import AnalysisJobDetail from '$lib/components/AnalysisJobDetail.svelte';
   import Button from '$lib/components/Button.svelte'; // For Dev Toggles
+  import GlobalLoadingIndicator from '$lib/components/GlobalLoadingIndicator.svelte';
 
   // Type Imports or Definitions
   export interface NavItem {
@@ -156,12 +157,7 @@
 
 </script>
 
-{#if globalLoading}
-  <!-- TODO: Create and import GlobalLoadingIndicator component -->
-  <div class="fixed top-0 left-0 right-0 h-1 z-[200]">
-    <div class="h-full bg-accent animate-pulse rounded-r-full" style="width: 75%;"></div>
-  </div>
-{/if}
+<GlobalLoadingIndicator loading={globalLoading} />
 
 <main class="min-h-screen flex bg-base text-gray-900 dark:bg-neutral-900 dark:text-gray-100">
   {#if loggedIn && org}
