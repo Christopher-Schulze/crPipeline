@@ -4,13 +4,15 @@ use std::env;
 use backend::models::{NewUser, User, Organization, NewOrganization, OrgSettings};
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
+use tracing::{info, error};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    tracing_subscriber::fmt::init();
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 3 {
-        eprintln!("Usage: create_admin <email> <password>");
+        error!("Usage: create_admin <email> <password>");
         return Ok(());
     }
     let database_url = env::var("DATABASE_URL")?;
@@ -30,6 +32,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let user = NewUser { org_id, email: args[1].clone(), password_hash, role: "admin".into() };
     User::create(&pool, user).await?;
-    println!("Admin user created");
+    info!("Admin user created");
     Ok(())
 }
