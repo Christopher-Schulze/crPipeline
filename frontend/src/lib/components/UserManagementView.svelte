@@ -1,28 +1,27 @@
 <!-- frontend/src/lib/components/UserManagementView.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  // import { page } from '$app/stores'; // Not used directly here, orgId/Name are props
   import DataTable, { type TableHeader } from '$lib/components/DataTable.svelte';
   import Button from '$lib/components/Button.svelte';
   import InviteUserModal from '$lib/components/InviteUserModal.svelte';
+  import ConfirmationModal from '$lib/components/ConfirmationModal.svelte'; // Import ConfirmationModal
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { page } from '$app/stores'; // To get current user ID for self-action prevention
 
-  // Define Organization type, similar to OrgAdmin or a future shared types file
-  // For InviteUserModal, it primarily needs 'id' and 'name'.
   export interface Organization {
     id: string;
     name: string;
-    api_key?: string; // Optional as not always needed by InviteUserModal if just for display
+    api_key?: string;
   }
 
   interface OrgUserView {
     id: string;
     email: string;
-    role: string; // Should be 'user' for those managed by an OrgAdmin
+    role: string;
     confirmed: boolean;
     is_active: boolean;
     created_at: string;
-    deactivated_at?: string | null; // Included for completeness, though not displayed in a column
+    deactivated_at?: string | null;
   }
 
   export let orgId: string;
@@ -31,11 +30,26 @@
   let usersInOrg: OrgUserView[] = [];
   let isLoadingUsers: boolean = false;
   let errorLoadingUsers: string | null = null;
+  let generalError: string | null = null; // For general action errors
+  let generalSuccess: string | null = null; // For general action success messages
+
 
   let showInviteUserModal = false;
+  let currentOrgForInvite: Organization;
+  $: currentOrgForInvite = { id: orgId, name: orgName, api_key: '' };
 
-  let currentOrgForInvite: Organization; // For InviteUserModal, needs to match its expected type
-  $: currentOrgForInvite = { id: orgId, name: orgName, api_key: '' }; // api_key can be dummy
+  // Confirmation Modal State
+  let showConfirmationModal = false;
+  let confirmationTitle = '';
+  let confirmationMessage = '';
+  let confirmActionCallback: (() => Promise<void>) | null = null;
+  let confirmButtonText = 'Confirm';
+  type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
+  let confirmButtonVariant: ButtonVariant = 'primary';
+  let selectedUserForAction: OrgUserView | null = null;
+
+  const currentUserId = $page.data.session?.userId;
+
 
   async function loadUsersInOrg() {
     if (!orgId) {
@@ -44,13 +58,13 @@
     }
     isLoadingUsers = true;
     errorLoadingUsers = null;
+    generalError = null; // Clear general errors on reload
+    generalSuccess = null; // Clear success messages
     try {
-      // This endpoint fetches users for the currently authenticated user's organization
-      // Ensure the backend correctly identifies the org admin and their org.
       const response = await apiFetch(`/api/organizations/me/users`);
       if (!response.ok) {
         const errText = await response.text();
-        const errData = JSON.parse(errText || "{}"); // Try to parse error
+        const errData = JSON.parse(errText || "{}");
         throw new Error(errData.error || `Failed to fetch users: ${response.statusText} - ${errText}`);
       }
       usersInOrg = await response.json();
@@ -73,6 +87,7 @@
     { key: 'status', label: 'Account Status', sortable: true },
     { key: 'confirmed', label: 'Email Confirmed', sortable: true },
     { key: 'created_at', label: 'Joined On', sortable: true, cellClass: '!text-gray-300' },
+    { key: 'actions', label: 'Actions', sortable: false, headerClass: 'text-right', cellClass: 'text-right !whitespace-nowrap' },
   ];
 
   function getAccountStatusClass(isActive: boolean): string {
@@ -80,6 +95,74 @@
   }
   function getConfirmationStatusClass(isConfirmed: boolean): string {
     return isConfirmed ? 'bg-success/20 text-success' : 'bg-error/20 text-error';
+  }
+
+  async function performUserAction(actionPath: string, successMessage: string, httpMethod: 'POST' | 'DELETE' = 'POST') {
+    generalError = null;
+    generalSuccess = null;
+    if (!selectedUserForAction) return;
+    try {
+      const response = await apiFetch(`/api/organizations/me/users/${selectedUserForAction.id}/${actionPath}`, { method: httpMethod });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Failed to ${actionPath} user.`);
+      generalSuccess = data.message || successMessage;
+      await loadUsersInOrg(); // Refresh list
+    } catch (e: any) {
+      generalError = e.message;
+      console.error(`Error during ${actionPath}:`, e);
+    } finally {
+      showConfirmationModal = false;
+      selectedUserForAction = null;
+    }
+  }
+
+  function requestRemoveUser(user: OrgUserView) {
+    selectedUserForAction = user;
+    confirmationTitle = 'Remove User from Organization';
+    confirmationMessage = `Are you sure you want to remove (deactivate) ${user.email} from ${orgName}? They will no longer be able to access this organization's resources.`;
+    confirmButtonText = 'Remove User';
+    confirmButtonVariant = 'danger';
+    confirmActionCallback = () => performUserAction('remove', 'User removed successfully.');
+    showConfirmationModal = true;
+  }
+
+  function requestDeactivateUser(user: OrgUserView) {
+    selectedUserForAction = user;
+    confirmationTitle = 'Deactivate User Account';
+    confirmationMessage = `Are you sure you want to deactivate ${user.email}? They will lose access until reactivated.`;
+    confirmButtonText = 'Deactivate';
+    confirmButtonVariant = 'danger';
+    confirmActionCallback = () => performUserAction('deactivate', 'User deactivated successfully.');
+    showConfirmationModal = true;
+  }
+
+  function requestReactivateUser(user: OrgUserView) {
+    selectedUserForAction = user;
+    confirmationTitle = 'Reactivate User Account';
+    confirmationMessage = `Are you sure you want to reactivate ${user.email}? They will regain access.`;
+    confirmButtonText = 'Reactivate';
+    confirmButtonVariant = 'primary';
+    confirmActionCallback = () => performUserAction('reactivate', 'User reactivated successfully.');
+    showConfirmationModal = true;
+  }
+
+  async function handleResendConfirmation(user: OrgUserView) {
+    generalError = null;
+    generalSuccess = null;
+    if (user.confirmed) {
+      generalError = "User's email is already confirmed.";
+      return;
+    }
+    try {
+      const response = await apiFetch(`/api/organizations/me/users/${user.id}/resend_confirmation`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to resend confirmation email.');
+      generalSuccess = data.message || 'Confirmation email resent successfully.';
+      // No need to reload users list as their status doesn't change immediately
+    } catch (e: any) {
+      generalError = e.message;
+      console.error("Error resending confirmation:", e);
+    }
   }
 
 </script>
@@ -95,6 +178,19 @@
     </Button>
   </div>
 
+  {#if generalError}
+    <div class="bg-error/20 border border-error/40 text-error px-4 py-3 rounded-lg my-4" role="alert">
+      <strong class="font-bold">Error:</strong>
+      <span class="block sm:inline ml-1">{generalError}</span>
+    </div>
+  {/if}
+  {#if generalSuccess}
+    <div class="bg-success/20 border border-success/40 text-success px-4 py-3 rounded-lg my-4" role="alert">
+      <strong class="font-bold">Success:</strong>
+      <span class="block sm:inline ml-1">{generalSuccess}</span>
+    </div>
+  {/if}
+
   {#if isLoadingUsers}
     <div class="flex justify-center items-center py-10">
       <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
@@ -102,7 +198,7 @@
     </div>
   {:else if errorLoadingUsers}
     <div class="bg-error/10 border border-error/30 text-error px-4 py-3 rounded-lg" role="alert">
-      <strong class="font-bold">Error:</strong>
+      <strong class="font-bold">Error loading users:</strong>
       <span class="block sm:inline ml-1">{errorLoadingUsers}</span>
     </div>
   {:else}
@@ -139,6 +235,23 @@
          </span>
       </span>
       <span slot="cell-email" let:item title={item.email} class="block max-w-xs group-hover:text-accent-lighter transition-colors truncate">{item.email}</span>
+      <div slot="cell-actions" let:item class="flex justify-end items-center space-x-1">
+        {#if item.id === currentUserId}
+          <span class="text-xs text-gray-500 italic px-2 py-1">(Your Account)</span>
+        {:else if item.role === 'admin' || item.role === 'org_admin'}
+          <span class="text-xs text-gray-500 italic px-2 py-1">(Admin Role)</span>
+        {:else}
+          {#if item.is_active}
+            <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-orange-400 hover:!text-orange-300" on:click={() => requestDeactivateUser(item)} title="Deactivate User">Deactivate</Button>
+          {:else}
+            <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-green-400 hover:!text-green-300" on:click={() => requestReactivateUser(item)} title="Reactivate User">Reactivate</Button>,
+          {/if}
+          {#if !item.confirmed && item.is_active}
+            <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-sky-400 hover:!text-sky-300" on:click={() => handleResendConfirmation(item)} title="Resend Confirmation Email">Resend Email</Button>
+          {/if}
+          <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-red-500 hover:!text-red-400" on:click={() => requestRemoveUser(item)} title="Remove User from Organization">Remove</Button>
+        {/if}
+      </div>
     </DataTable>
   {/if}
 </div>
@@ -148,12 +261,26 @@
     isOpen={showInviteUserModal}
     organizations={[currentOrgForInvite]}
     isOrgAdminInvite={true}
-    defaultOrgId={orgId} {# Pass defaultOrgId explicitly #}
+    defaultOrgId={orgId}
     on:close={() => showInviteUserModal = false}
     on:user_invited={() => {
       showInviteUserModal = false;
       loadUsersInOrg();
+      generalSuccess = 'User invited successfully! They need to confirm their email.'; // Show success message
     }}
+  />
+{/if}
+
+{#if showConfirmationModal && confirmActionCallback}
+  <ConfirmationModal
+    isOpen={showConfirmationModal}
+    title={confirmationTitle}
+    message={confirmationMessage}
+    confirmText={confirmButtonText}
+    confirmButtonVariant={confirmButtonVariant}
+    on:confirm={() => { if (confirmActionCallback) confirmActionCallback(); }}
+    on:cancel={() => { showConfirmationModal = false; selectedUserForAction = null; }}
+    on:close={() => { showConfirmationModal = false; selectedUserForAction = null; }}
   />
 {/if}
 </html>
