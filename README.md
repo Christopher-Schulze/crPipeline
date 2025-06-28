@@ -413,3 +413,5 @@ As of this commit the repository contains:
     - Backend: 1498 lines
     - Frontend: 523 lines
     - **Total: 2021 lines**
+
+See [PLAN.md](PLAN.md) for the development roadmap and outstanding tasks.
