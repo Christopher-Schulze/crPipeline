@@ -2,6 +2,9 @@
 
 Multi-tenant document analysis platform built with Rust and Svelte.
 
+All Svelte source files now live in `frontend/src`. An older top-level `src/`
+folder containing experimental routes was removed.
+
 ## Requirements
 - Rust toolchain
 - Node.js (npm)
