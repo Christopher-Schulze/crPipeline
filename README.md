@@ -87,12 +87,14 @@ SMTP_FROM=noreply@example.com
 BASE_URL=http://localhost:8080
 OCR_API_ENDPOINT=
 OCR_API_KEY=
+CSRF_SECRET_KEY_B64=
 ```
 
 `BASE_URL` is used when generating confirmation and reset links.
 `AWS_ENDPOINT` should be set to your MinIO or AWS S3 endpoint for development. In production, this variable can be removed to use AWS defaults if IAM roles are configured.
 `AI_API_URL` and `AI_API_KEY` serve as global defaults for the AI service if not overridden by more specific Organization Settings.
 `OCR_API_ENDPOINT` and `OCR_API_KEY` act as global defaults for an external OCR service. If these are not set, and no organization or stage-specific OCR settings are provided, the system falls back to local Tesseract OCR for "ocr" stages not using a custom command.
+`CSRF_SECRET_KEY_B64` holds a base64-encoded 32-byte key used by the CSRF middleware. Generate it with `scripts/generate_secrets.sh`.
 
 Organization-specific settings for AI (including custom headers) and OCR can override these global defaults. Pipeline stage definitions can further override OCR settings for specific "ocr" stages. See 'Settings' and 'Pipelines' sections for more details.
 
