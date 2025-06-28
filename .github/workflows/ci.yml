@@ -27,3 +27,5 @@ jobs:
         run: npm run build --prefix frontend # This can also serve as a test that the build passes
       - name: Check backend (Clippy) # Modified Step
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
+      - name: Run backend tests
+        run: cargo test --manifest-path backend/Cargo.toml --all-targets
