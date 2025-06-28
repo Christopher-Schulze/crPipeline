@@ -4,10 +4,12 @@ use std::env;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
 use backend::models::Document;
+use tracing::{info, error};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
+    tracing_subscriber::fmt::init();
     let database_url = env::var("DATABASE_URL")?;
     let pool = PgPoolOptions::new().max_connections(5).connect(&database_url).await?;
 
@@ -24,14 +26,14 @@ async fn main() -> anyhow::Result<()> {
 
     for doc in expired {
         if let Err(e) = s3.delete_object().bucket(&bucket).key(&doc.filename).send().await {
-            eprintln!("failed to delete {}: {:?}", doc.filename, e);
+            error!("failed to delete {}: {:?}", doc.filename, e);
             continue;
         }
         sqlx::query("DELETE FROM documents WHERE id=$1")
             .bind(doc.id)
             .execute(&pool)
             .await?;
-        println!("Deleted expired document {}", doc.filename);
+        info!("Deleted expired document {}", doc.filename);
     }
 
     Ok(())
