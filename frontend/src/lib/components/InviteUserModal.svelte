@@ -70,17 +70,25 @@
         return;
     }
 
-    const payload = {
-      email,
-      role: selectedRole,
-      org_id: selectedOrgId,
-    };
+    let apiPath: string;
+    let apiPayload: any;
+
+    if (isOrgAdminInvite) {
+      apiPath = `/api/organizations/me/invite`;
+      apiPayload = { email }; // Org admin invites implicitly set role='user' and use their own org_id
+    } else {
+      apiPath = `/api/admin/invite_user`;
+      apiPayload = {
+        email,
+        role: selectedRole,
+        org_id: selectedOrgId,
+      };
+    }
 
     try {
-      const response = await apiFetch(`/api/admin/invite_user`, { // Use apiFetch
+      const response = await apiFetch(apiPath, {
         method: 'POST',
-        // headers: { 'Content-Type': 'application/json' }, // apiFetch handles this
-        body: JSON.stringify(payload),
+        body: JSON.stringify(apiPayload),
       });
       const data = await response.json();
       if (!response.ok) {
