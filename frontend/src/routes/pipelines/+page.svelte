@@ -196,9 +196,8 @@
             <span slot="cell-name" let:item title={item.name} class="block truncate max-w-md group-hover:text-accent-lighter transition-colors">
                 {item.name}
             </span>
-            <!-- @ts-ignore -->
-            <span slot="cell-created_at" let:item:Pipeline class="text-xs text-gray-400">{item.created_at}</span>
-            <span slot="cell-updated_at" let:item:Pipeline class="text-xs text-gray-400">{item.updated_at}</span>
+            <span slot="cell-created_at" let:item class="text-xs text-gray-400">{item.created_at}</span>
+            <span slot="cell-updated_at" let:item class="text-xs text-gray-400">{item.updated_at}</span>
         </DataTable>
     {/if}
 </div>

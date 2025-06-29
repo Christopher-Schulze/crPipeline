@@ -222,7 +222,7 @@
       <!-- Containers for components that are not main views but can be shown/hidden globally -->
       {#if showAdmin && org && role === 'admin'}
          <GlassCard title="Admin Panel" customClass="mt-6 text-left space-y-4" padding="p-4 md:p-6">
-            <OrgAdmin /> {/* Assuming OrgAdmin doesn't need role/orgId if App already gates it */}
+            <OrgAdmin />
          </GlassCard>
       {/if}
 
@@ -287,10 +287,10 @@
         <SettingsForm
           orgId={org}
           on:saved={(e) => {
-            settingsSaved(e); // Existing handler also closes panel
+            settingsSaved(e);
           }}
-          // No explicit on:cancel needed if SettingsForm doesn't have a dedicated cancel button
         />
+        <!-- No explicit on:cancel needed if SettingsForm doesn't have a dedicated cancel button -->
       {:else if showSettingsPanel && !org}
         <p class="text-red-500 p-4">Organization ID is not available. Cannot load settings.</p>
       {/if}

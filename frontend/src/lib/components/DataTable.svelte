@@ -1,20 +1,44 @@
-<script lang="ts">
-  // No $$props import needed for $$slots
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { writable } from 'svelte/store';
-  // import type { ComponentProps } from 'svelte'; // For $$props if used for attributes
-  // import GlassCard from './GlassCard.svelte'; // Not used directly per row, container classes handle it
-
+<script context="module" lang="ts">
+  /** Table header definition exported for external consumption */
   export interface TableHeader {
     key: string;
     label: string;
     sortable?: boolean;
-    resizable?: boolean; // New: Default true, allow disabling resize per column
-    width?: number;      // New: Initial width in pixels (will be reactive)
-    minWidth?: number;   // New: Minimum width in pixels (e.g., 50)
+    resizable?: boolean; // allow disabling resize per column
+    width?: number;      // initial width in pixels
+    minWidth?: number;   // minimum width in pixels
     customClass?: string;
     headerClass?: string;
     cellClass?: string | ((value: any, item: any, rowIndex: number) => string);
+  }
+</script>
+
+<script lang="ts">
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { writable } from 'svelte/store';
+
+  /** Slot typings for DataTable */
+  export interface $$Slots {
+    default: {};
+    ['cell-id']: { item: any; value: any; rowIndex: number };
+    ['cell-document_name']: { item: any; value: any; rowIndex: number };
+    ['cell-pipeline_name']: { item: any; value: any; rowIndex: number };
+    ['cell-status']: { item: any; value: any; rowIndex: number };
+    ['cell-created_at_formatted']: { item: any; value: any; rowIndex: number };
+    ['cell-actions']: { item: any; value: any; rowIndex: number };
+    ['cell-display_name']: { item: any; value: any; rowIndex: number };
+    ['cell-type']: { item: any; value: any; rowIndex: number };
+    ['cell-upload_date_formatted']: { item: any; value: any; rowIndex: number };
+    ['cell-name']: { item: any; value: any; rowIndex: number };
+    ['cell-stage_count']: { item: any; value: any; rowIndex: number };
+    ['cell-created_at']: { item: any; value: any; rowIndex: number };
+    ['cell-updated_at']: { item: any; value: any; rowIndex: number };
+    paginationControls?: {
+      currentPage: number;
+      totalPages: number;
+      itemsPerPage: number | null;
+      totalItems: number | null;
+    };
   }
 
   export let headers: TableHeader[] = [];
@@ -33,7 +57,6 @@
   // export let noDataMessage: string = "No data available."; // Removed old prop
   export let emptyStateMessage: string = "No data available.";
   export let emptyStateIconPath: string | null = null; // SVG path data
-  export let emptyStateSlotName: string = "emptyState"; // Slot name
 
   // Key function for #each block on items for Svelte reactivity
   export let keyField: string | null = 'id';
@@ -246,8 +269,8 @@
       {#if sortedItems.length === 0}
         <tr>
           <td colspan={headers.length} class="px-6 py-12 text-center">
-            {#if $$slots[emptyStateSlotName]}
-              <slot name={emptyStateSlotName}></slot>
+            {#if $$slots.emptyState}
+              <slot name="emptyState"></slot>
             {:else}
               <div class="flex flex-col items-center justify-center space-y-3 text-gray-400">
                 {#if emptyStateIconPath}
@@ -265,8 +288,32 @@
           <tr class="{trClass}">
             {#each headers as header (header.key)}
               <td class="{tdClass} {resolveCellClass(header, item, item[header.key], rowIndex)}" style={getColumnStyle(header.key)}>
-                {#if $$slots[`cell-${header.key}`]}
-                  <slot name={`cell-${header.key}`} {item} value={item[header.key]} {rowIndex}></slot>
+                {#if header.key === 'id' && $$slots['cell-id']}
+                  <slot name="cell-id" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'document_name' && $$slots['cell-document_name']}
+                  <slot name="cell-document_name" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'pipeline_name' && $$slots['cell-pipeline_name']}
+                  <slot name="cell-pipeline_name" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'status' && $$slots['cell-status']}
+                  <slot name="cell-status" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'created_at_formatted' && $$slots['cell-created_at_formatted']}
+                  <slot name="cell-created_at_formatted" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'actions' && $$slots['cell-actions']}
+                  <slot name="cell-actions" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'display_name' && $$slots['cell-display_name']}
+                  <slot name="cell-display_name" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'type' && $$slots['cell-type']}
+                  <slot name="cell-type" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'upload_date_formatted' && $$slots['cell-upload_date_formatted']}
+                  <slot name="cell-upload_date_formatted" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'name' && $$slots['cell-name']}
+                  <slot name="cell-name" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'stage_count' && $$slots['cell-stage_count']}
+                  <slot name="cell-stage_count" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'created_at' && $$slots['cell-created_at']}
+                  <slot name="cell-created_at" {item} value={item[header.key]} {rowIndex}></slot>
+                {:else if header.key === 'updated_at' && $$slots['cell-updated_at']}
+                  <slot name="cell-updated_at" {item} value={item[header.key]} {rowIndex}></slot>
                 {:else}
                   {item[header.key] === null || item[header.key] === undefined ? '' : item[header.key]}
                 {/if}

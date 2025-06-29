@@ -480,9 +480,13 @@
   <div class="space-y-3">
     {#each pipeline.stages as stage, i (stage.id)}
       <div
-        class="stage-item p-4 rounded-lg cursor-grab border-2"
-               {draggingVisualIndex === i ? 'dragging !border-accent' : 'border-neutral-700/70'}
-               {draggedOverIndex === i && draggedItemId !== stage.id ? 'drag-over-highlight !border-accent' : 'hover:border-neutral-600'}"
+        class={`stage-item p-4 rounded-lg cursor-grab border-2 ${
+          draggingVisualIndex === i ? 'dragging !border-accent' : 'border-neutral-700/70'
+        } ${
+          draggedOverIndex === i && draggedItemId !== stage.id
+            ? 'drag-over-highlight !border-accent'
+            : 'hover:border-neutral-600'
+        }`}
         draggable="true"
         on:dragstart={(event) => handleDragStart(event, stage.id, i)}
         on:dragover={(event) => handleDragOver(event, i)}
