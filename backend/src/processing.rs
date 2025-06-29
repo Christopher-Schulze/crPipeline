@@ -3,8 +3,7 @@ use std::fs::{File};
 use std::io::BufWriter;
 use aws_sdk_s3::Client as S3Client;
 use anyhow::{Result, anyhow, Context};
-use reqwest::Client;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde_json::Value as JsonValue; // For new parse stage
 use std::collections::HashMap; // For new parse stage
 use regex::Regex; // For new parse stage
@@ -13,8 +12,6 @@ use printpdf::*;
 use tokio::process::Command;
 use serde::Deserialize; // For CustomHeader
 use serde_json::Value; // For Value type hint
-use log; // For logging
-use uuid::Uuid;
 
 // For new report generation
 use pulldown_cmark::{Parser, Event, Tag, Options as MarkdownOptions, HeadingLevel};
