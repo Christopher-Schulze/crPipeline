@@ -23,7 +23,7 @@ async fn worker_processes_job() {
         .connect("postgres://postgres@localhost/testdb")
         .await
         .unwrap();
-    sqlx::migrate!("../migrations").run(&pool).await.unwrap();
+    sqlx::migrate!("migrations").run(&pool).await.unwrap();
 
     // insert org, settings, user
     let org_id = Uuid::new_v4();
