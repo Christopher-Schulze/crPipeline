@@ -5,10 +5,11 @@ use backend::models::{NewUser, User, Organization, NewOrganization, OrgSettings}
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
 use tracing::{info, error};
+use anyhow::Result;
 
 /// Convenience utility to create an initial admin user.
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     dotenv().ok();
     tracing_subscriber::fmt::init();
     let args: Vec<String> = std::env::args().collect();
@@ -21,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = Argon2::default()
         .hash_password(args[2].as_bytes(), &salt)
-        .unwrap()
+        .map_err(|e| anyhow::anyhow!("failed to hash password: {e}"))?
         .to_string();
     let org = sqlx::query_as::<_, Organization>("SELECT id, name, api_key FROM organizations LIMIT 1")
         .fetch_optional(&pool)
