@@ -271,11 +271,11 @@ async fn main() -> anyhow::Result<()> {
 
                     // 4. Global Environment Variable External OCR
                     if !ocr_method_determined_and_executed && !critical_ocr_failure {
-                        if let Ok(endpoint) = env::var("DEFAULT_EXTERNAL_OCR_ENDPOINT").filter(|s| !s.trim().is_empty()) {
+                        if let Ok(endpoint) = env::var("OCR_API_ENDPOINT").filter(|s| !s.trim().is_empty()) {
                             if stage.ocr_engine.as_deref() != Some("default") {
                                 tracing::debug!(job_id=%job.id, "OCR stage: Attempting GLOBAL ENV external OCR. Endpoint: {}", endpoint);
                                 ocr_method_determined_and_executed = true;
-                                let env_ocr_key = env::var("DEFAULT_EXTERNAL_OCR_API_KEY").ok();
+                                let env_ocr_key = env::var("OCR_API_KEY").ok();
                                 if let Err(_e) = execute_external_ocr(&endpoint, env_ocr_key.as_ref(), "Global Env").await {
                                     AnalysisJob::update_status(&pool, job.id, "failed").await?;
                                     if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
