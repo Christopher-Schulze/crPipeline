@@ -208,7 +208,7 @@ pub async fn upload(
         Ok(d) => d,
         Err(e) => {
             log::error!("Failed to create document record for S3 key {}: {:?}", s3_key_name, e);
-            cleanup_s3_object(&*s3, &bucket, &s3_key_name).await;
+            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
             return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to save document information."}));
         }
     };
@@ -221,7 +221,7 @@ pub async fn upload(
                 let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM analysis_jobs WHERE org_id=$1 AND created_at >= date_trunc('month', NOW())")
                     .bind(params.org_id).fetch_one(pool.as_ref()).await.unwrap_or((0,));
                 if count >= settings.monthly_analysis_quota as i64 {
-                    cleanup_s3_object(&*s3, &bucket, &s3_key_name).await;
+                    cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
                     return HttpResponse::TooManyRequests().json(serde_json::json!({"error": "Monthly analysis quota exceeded. Document uploaded but not queued for analysis."}));
                 }
             }
@@ -249,10 +249,9 @@ pub async fn upload(
                 } else { log::warn!("REDIS_URL not set, job {} not queued via Redis.", j.id); }
             }
             Err(e) => {
-                 log::error!("Failed to create analysis job for document {}: {:?}", created_document.id, e);
-                // Document is uploaded, but job creation failed.
-                // This state should be handled, possibly by informing the user more directly.
-                // For now, the created_document is returned, but no job is queued.
+                log::error!("Failed to create analysis job for document {}: {:?}", created_document.id, e);
+                cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+                return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to queue analysis job."}));
             }
         }
     }
