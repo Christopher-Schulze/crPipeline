@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from './Button.svelte';
   import { onMount, createEventDispatcher } from 'svelte'; // Import onMount and createEventDispatcher
+  import { apiFetch } from '$lib/utils/apiUtils';
 
   // Define Stage interface for clarity and new fields
   export interface Stage { // Exporting if it's useful for other components, otherwise keep local
@@ -71,7 +72,7 @@
     isLoadingOrgSettings = true;
     promptTemplatesError = null;
     try {
-      const response = await fetch(`/api/settings/${orgId}`);
+      const response = await apiFetch(`/api/settings/${orgId}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch organization settings: ${response.statusText}`);
       }
@@ -284,12 +285,8 @@
     const method = isEdit ? 'PUT' : 'POST';
 
     try {
-      // Assuming apiFetch is available globally or imported
-      // For now, using standard fetch. If CSRF needed, replace with apiFetch
-      // import { apiFetch } from '$lib/utils/apiUtils'; // Needs to be at the top if used
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json' }, // apiFetch would handle this
         body: JSON.stringify(finalPipelineData),
       });
 
