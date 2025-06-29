@@ -24,7 +24,7 @@ async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, 
         .await
         .expect("Failed to connect to test database");
 
-    sqlx::migrate!("../migrations")
+    sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations on test DB");
