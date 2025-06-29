@@ -98,4 +98,11 @@ describe('Button.svelte', () => {
     expect(button.classList.contains('my-custom-class')).toBe(true);
     expect(button.classList.contains('another-class')).toBe(true);
   });
+
+  it('renders an anchor when href is provided', () => {
+    render(Button, { props: { href: '/test', slot: 'Link Button' } });
+    const link = screen.getByRole('link');
+    expect(link).toHaveAttribute('href', '/test');
+    expect(link).toHaveTextContent('Link Button');
+  });
 });
