@@ -34,3 +34,19 @@ async fn cleanup_logs_error() {
     cleanup_s3_object(&mock, "b", "k").await;
     assert_eq!(mock.calls.load(Ordering::SeqCst), 1);
 }
+
+#[actix_rt::test]
+async fn cleanup_on_document_create_failure() {
+    let mock = MockS3::default();
+    // simulate handler cleanup after document DB insert failure
+    cleanup_s3_object(&mock, "bucket", "key").await;
+    assert_eq!(mock.calls.load(Ordering::SeqCst), 1);
+}
+
+#[actix_rt::test]
+async fn cleanup_on_analysis_job_failure() {
+    let mock = MockS3::default();
+    // simulate handler cleanup after analysis job DB insert failure
+    cleanup_s3_object(&mock, "bucket", "key").await;
+    assert_eq!(mock.calls.load(Ordering::SeqCst), 1);
+}

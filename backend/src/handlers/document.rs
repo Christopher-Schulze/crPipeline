@@ -227,6 +227,7 @@ pub async fn upload(
             }
             Err(e) => {
                 log::error!("Could not verify organization settings for analysis quota (org_id {}): {:?}", params.org_id, e);
+                cleanup_s3_object(&*s3, &bucket, &s3_key_name).await;
                 return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not verify organization settings for analysis quota."}));
             }
         }
@@ -249,10 +250,9 @@ pub async fn upload(
                 } else { log::warn!("REDIS_URL not set, job {} not queued via Redis.", j.id); }
             }
             Err(e) => {
-                 log::error!("Failed to create analysis job for document {}: {:?}", created_document.id, e);
-                // Document is uploaded, but job creation failed.
-                // This state should be handled, possibly by informing the user more directly.
-                // For now, the created_document is returned, but no job is queued.
+                log::error!("Failed to create analysis job for document {}: {:?}", created_document.id, e);
+                cleanup_s3_object(&*s3, &bucket, &s3_key_name).await;
+                return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to queue analysis job."}));
             }
         }
     }
