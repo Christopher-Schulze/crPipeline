@@ -294,6 +294,8 @@
       if (response.ok) {
         alert('Pipeline saved successfully!');
         dispatch('saved'); // Notify parent to close the editor
+        // Emit global event so other pages can refresh pipeline lists
+        document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error during save." }));
         console.error('Failed to save pipeline:', errorData);
