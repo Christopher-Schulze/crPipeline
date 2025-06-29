@@ -1,7 +1,7 @@
 <script lang="ts">
   import Button from './Button.svelte';
   import { onMount, createEventDispatcher } from 'svelte'; // Import onMount and createEventDispatcher
-  import { apiFetch } from '$lib/utils/apiUtils';
+  import { apiFetch } from '../utils/apiUtils';
 
   // Define Stage interface for clarity and new fields
   export interface Stage { // Exporting if it's useful for other components, otherwise keep local
@@ -43,7 +43,7 @@
   export let initialPipeline: Pipeline | null = null;
 
   // Internal reactive state for the pipeline being edited
-  let pipeline: Pipeline;
+  let pipeline: Pipeline = { id: undefined, org_id: '', name: '', stages: [] };
 
   function resetPipeline() {
     pipeline = {
@@ -480,9 +480,7 @@
   <div class="space-y-3">
     {#each pipeline.stages as stage, i (stage.id)}
       <div
-        class="stage-item p-4 rounded-lg cursor-grab border-2"
-               {draggingVisualIndex === i ? 'dragging !border-accent' : 'border-neutral-700/70'}
-               {draggedOverIndex === i && draggedItemId !== stage.id ? 'drag-over-highlight !border-accent' : 'hover:border-neutral-600'}"
+        class="stage-item p-4 rounded-lg cursor-grab border-2 {draggingVisualIndex === i ? 'dragging !border-accent' : 'border-neutral-700/70'} {draggedOverIndex === i && draggedItemId !== stage.id ? 'drag-over-highlight !border-accent' : 'hover:border-neutral-600'}"
         draggable="true"
         on:dragstart={(event) => handleDragStart(event, stage.id, i)}
         on:dragover={(event) => handleDragOver(event, i)}
@@ -598,7 +596,7 @@
                 {#each stage.config.parameters.keywords as keyword, k (k)}
                   <div class="flex items-center space-x-2">
                     <input type="text" bind:value={stage.config.parameters.keywords[k]} class="glass-input flex-grow !text-xs !bg-neutral-500/40" placeholder="Enter keyword"/>
-                    <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.keywords = stage.config.parameters.keywords.filter((_: any, idx: number) => idx !== k)}>X</Button>
+                    <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.keywords = stage.config.parameters.keywords.filter((_, idx) => idx !== k)}>X</Button>
                   </div>
                 {/each}
                 <Button variant="secondary" customClass="!text-xs !py-1" on:click={() => stage.config.parameters.keywords = [...stage.config.parameters.keywords, '']}>Add Keyword</Button>
@@ -617,7 +615,7 @@
                   <div class="p-2 bg-black/20 rounded space-y-1.5 mb-1.5">
                       <div class="flex items-center space-x-2">
                           <input type="text" bind:value={pattern.name} class="glass-input flex-grow !text-xs !bg-neutral-500/40" placeholder="Field Name (e.g., InvoiceID)"/>
-                          <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.patterns = stage.config.parameters.patterns.filter((p: RegexPatternConfig) => p.id !== pattern.id)}>X</Button>
+                          <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.patterns = stage.config.parameters.patterns.filter((p) => p.id !== pattern.id)}>X</Button>
                       </div>
                       <input type="text" bind:value={pattern.regex} class="glass-input w-full !text-xs !bg-neutral-500/40" placeholder="Regex Pattern (e.g., INV-\d+)"/>
                       <!-- New Input for Capture Group Index -->
@@ -647,11 +645,11 @@
               <div class="pl-3 border-l-2 border-neutral-700 space-y-2 py-2 text-xs">
                   <label class="block font-medium text-gray-300 mb-0.5">Header Keywords (comma-separated):</label>
                   <input type="text" bind:value={stage.config.parameters._headerKeywordsString}
-                         on:input={() => stage.config.parameters.headerKeywords = (stage.config.parameters._headerKeywordsString || '').split(',').map((s:string)=>s.trim()).filter((s:string)=>s)}
+                         on:input={() => stage.config.parameters.headerKeywords = (stage.config.parameters._headerKeywordsString || '').split(',').map((s) => s.trim()).filter((s) => s)}
                          class="glass-input w-full !text-xs !bg-neutral-500/40" placeholder="e.g., Item, Qty, Price"/>
                   <label class="block font-medium text-gray-300 mt-1 mb-0.5">Stop Keywords (optional, comma-separated):</label>
                   <input type="text" bind:value={stage.config.parameters._stopKeywordsString}
-                         on:input={() => stage.config.parameters.stopKeywords = (stage.config.parameters._stopKeywordsString || '').split(',').map((s:string)=>s.trim()).filter((s:string)=>s)}
+                         on:input={() => stage.config.parameters.stopKeywords = (stage.config.parameters._stopKeywordsString || '').split(',').map((s) => s.trim()).filter((s) => s)}
                          class="glass-input w-full !text-xs !bg-neutral-500/40" placeholder="e.g., Total, Subtotal"/>
               </div>
             {/if}
@@ -670,7 +668,7 @@
                 bind:value={stage.config.template}
                 rows={8}
                 class="glass-input w-full !text-sm custom-scrollbar !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
-                placeholder="Enter Markdown template. Use {{placeholder.path}} for data. e.g., {{document_name}}, {{ai_result.summary}}"
+                placeholder="Enter Markdown template. Use \u007B\u007Bplaceholder.path\u007D\u007D for data. e.g., \u007B\u007Bdocument_name\u007D\u007D, \u007B\u007Bai_result.summary\u007D\u007D"
               ></textarea>
               <p class="text-sm font-light text-gray-400 dark:text-gray-500 mt-1">
                 Available placeholders depend on data from previous stages (e.g., `ai_result`, `parse_result`) and job metadata (`document_name`, `job_id`).

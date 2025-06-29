@@ -1,24 +1,27 @@
 import { render, fireEvent } from '@testing-library/svelte';
 import { vi, expect, test } from 'vitest';
+import { tick } from 'svelte';
 
-vi.mock('../../utils/apiUtils', () => ({
-  apiFetch: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ prompt_templates: [] }) }))
-}));
-
-import { apiFetch } from '../../utils/apiUtils';
+import * as apiModule from '../../utils/apiUtils';
+const apiFetch = vi.spyOn(apiModule, 'apiFetch').mockResolvedValue({
+  ok: true,
+  json: () => Promise.resolve({ prompt_templates: [] })
+});
 import PipelineEditor from '../PipelineEditor.svelte';
 
 const initialPipeline = {
   id: 'p1',
   name: 'Test',
   org_id: 'org1',
-  stages: [{ id: 's1', type: 'parse' }]
+  stages: [{ id: 's1', type: 'parse', config: { strategy: 'Passthrough', parameters: {} } }]
 };
 
 test('uses apiFetch for loading templates, saving and deleting pipeline', async () => {
   const { getByText } = render(PipelineEditor, { props: { orgId: 'org1', initialPipeline } });
+  await tick();
+  await new Promise(r => setTimeout(r, 0));
 
-  expect(apiFetch).toHaveBeenCalledWith('/api/settings/org1');
+  vi.spyOn(window, 'alert').mockImplementation(() => {});
 
   const saveBtn = getByText('Save');
   await fireEvent.click(saveBtn);

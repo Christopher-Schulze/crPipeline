@@ -1,16 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, it, expect, vi } from 'vitest';
 import Button from './Button.svelte';
+import Wrapper from './__tests__/ButtonWrapper.svelte';
 
 describe('Button.svelte', () => {
   it('renders with default props and slot content', () => {
     // @ts-ignore
-    const { component } = render(Button, {
-      props: {
-        customClass: 'extra-class',
-        slot: 'Default Button' // Test with actual slot content
-      }
-    });
+    const { component } = render(Wrapper, { props: { props: { customClass: 'extra-class' } } });
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
     expect(button).toHaveTextContent('Default Button');
@@ -61,8 +57,7 @@ describe('Button.svelte', () => {
 
   it('emits a click event when clicked', async () => {
     const handleClick = vi.fn();
-    // Pass slot content for the component to be interactive in some testing setups
-    const { component } = render(Button, { props: { slot: 'Clickable' } });
+    const { component } = render(Button, {});
     component.$on('click', handleClick);
 
     const button = screen.getByRole('button');
@@ -73,15 +68,10 @@ describe('Button.svelte', () => {
 
   it('does not emit a click event when disabled and clicked', async () => {
     const handleClick = vi.fn();
-    const { component } = render(Button, {
-        props: {
-            disabled: true,
-            slot: 'Disabled Button'
-        }
-    });
+    const { component } = render(Button, { props: { disabled: true } });
     component.$on('click', handleClick);
     const button = screen.getByRole('button');
-    await fireEvent.click(button).catch(() => {}); // Click might be prevented, catch if it errors
+    button.click();
 
     expect(handleClick).not.toHaveBeenCalled();
   });
