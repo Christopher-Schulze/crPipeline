@@ -1,3 +1,5 @@
+#![cfg(feature = "integration-tests")]
+
 use actix_web::{test, web, App, http::header};
 use backend::handlers;
 use backend::middleware::jwt::create_jwt;
@@ -7,7 +9,9 @@ use argon2::password_hash::SaltString;
 use uuid::Uuid;
 use serde_json::json;
 
-async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, Response = actix_web::dev::ServiceResponse, Error = actix_web::Error>, PgPool) {
+use actix_web::dev::{ServiceRequest, ServiceResponse, Service};
+
+async fn setup_test_app() -> (impl Service<ServiceRequest, Response = ServiceResponse, Error = actix_web::Error>, PgPool) {
     dotenvy::dotenv().ok();
     let database_url = std::env::var("DATABASE_URL_TEST")
         .unwrap_or_else(|_| std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
@@ -16,7 +20,7 @@ async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, 
         .connect(&database_url)
         .await
         .expect("Failed to connect to test database");
-    sqlx::migrate!("migrations")
+    sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations on test DB");

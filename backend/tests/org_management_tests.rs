@@ -1,3 +1,4 @@
+#![cfg(feature = "integration-tests")]
 // backend/tests/org_management_tests.rs
 
 use actix_web::{test, web, App, http::header};
@@ -12,7 +13,9 @@ use serde_json::json;
 // Placeholder for a function that would set up the application with a test DB pool
 // and other necessary services, similar to main.rs.
 // This would ideally also handle migrations.
-async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, Response = actix_web::dev::ServiceResponse, Error = actix_web::Error>, PgPool) {
+use actix_web::dev::{ServiceRequest, ServiceResponse, Service};
+
+async fn setup_test_app() -> (impl Service<ServiceRequest, Response = ServiceResponse, Error = actix_web::Error>, PgPool) {
     dotenvy::dotenv().ok();
 
     let database_url = std::env::var("DATABASE_URL_TEST")
@@ -24,7 +27,7 @@ async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, 
         .await
         .expect("Failed to connect to test database");
 
-    sqlx::migrate!("migrations")
+    sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations on test DB");

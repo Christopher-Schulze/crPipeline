@@ -1,16 +1,17 @@
-use std::{time::{Duration, SystemTime, UNIX_EPOCH}, env, path::PathBuf};
-use sqlx::{postgres::PgPoolOptions, PgPool}; // Added PgPool for helper fn type
-use backend::models::{AnalysisJob, Pipeline, Document, OrgSettings, NewJobStageOutput, JobStageOutput}; // Added JobStageOutput models
+use std::{time::Duration, env};
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use backend::models::{AnalysisJob, Pipeline, Document, OrgSettings, NewJobStageOutput, JobStageOutput};
 use backend::processing;
 use tokio::time::sleep;
-use aws_sdk_s3::primitives::ByteStream; // For uploading from bytes
-use uuid::Uuid; // For helper fn type
+use uuid::Uuid;
 use tokio::process::Command;
 use tracing::{info, error};
 use serde_json::{self, Value}; // Ensure Value is imported
 use serde::Deserialize;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
+use backend::worker::stage::Stage;
+use backend::worker::storage;
 
 // Struct for deserializing prompt templates from OrgSettings
 #[derive(Deserialize, Debug, Clone)]
@@ -19,79 +20,7 @@ struct PromptTemplate {
     text: String,
 }
 
-/// A single pipeline step loaded from the database.
-///
-/// Stages can define custom commands or OCR parameters used during
-/// processing.
-#[derive(Deserialize, Debug, Clone)] // Added Clone here
-struct Stage {
-    #[serde(rename = "type")]
-    stage_type: String,
-    command: Option<String>,
-    prompt_name: Option<String>,
 
-    // New fields for OCR stage specific configuration
-    ocr_engine: Option<String>, // e.g., "default", "external"
-    ocr_stage_endpoint: Option<String>,
-    ocr_stage_key: Option<String>,
-
-    // New generic config field for structured configurations
-    config: Option<Value>,
-}
-
-/// Upload a blob to S3 or write to `LOCAL_S3_DIR` when set.
-async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u8>) -> Result<(), anyhow::Error> {
-    if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
-        let mut path = PathBuf::from(local_dir);
-        path.push(key);
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-        tokio::fs::write(path, data).await?;
-        Ok(())
-    } else {
-        s3_client
-            .put_object()
-            .bucket(bucket)
-            .key(key)
-            .body(ByteStream::from(data))
-            .send()
-            .await?;
-        Ok(())
-    }
-}
-
-/// Upload stage output and record it in the database.
-///
-/// Uses `upload_bytes`, which honors `LOCAL_S3_DIR` when present.
-async fn save_stage_output(
-    pool: &PgPool,
-    s3_client: &S3Client,
-    job_id: Uuid,
-    stage_name: &str,
-    output_type: &str, // "json", "pdf", "txt"
-    s3_bucket_name: &str,
-    content: Vec<u8>,
-    file_extension: &str, // "json", "pdf", "txt"
-) -> Result<(), anyhow::Error> {
-    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-    let s3_key = format!("jobs/{}/outputs/{}_{}.{}", job_id, stage_name, timestamp, file_extension);
-
-    info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Uploading stage output to storage.");
-    upload_bytes(s3_client, s3_bucket_name, &s3_key, content).await?;
-    info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Successfully uploaded stage output.");
-
-    let new_output_db_record = NewJobStageOutput {
-        job_id,
-        stage_name: stage_name.to_string(),
-        output_type: output_type.to_string(),
-        s3_bucket: s3_bucket_name.to_string(),
-        s3_key,
-    };
-    JobStageOutput::create(pool, new_output_db_record).await?;
-    info!(job_id=%job_id, stage=%stage_name, "Successfully saved stage output metadata to DB.");
-    Ok(())
-}
 
 
 /// Worker entry point processing queued jobs.
@@ -321,7 +250,7 @@ async fn main() -> anyhow::Result<()> {
                     if txt_path.exists() {
                         match tokio::fs::read_to_string(&txt_path).await {
                             Ok(ocr_content_string) => {
-                                if let Err(e) = save_stage_output(
+                                if let Err(e) = storage::save_stage_output(
                                     &pool, &s3_client, job.id, &stage.stage_type, "txt", &bucket, ocr_content_string.into_bytes(), "txt"
                                 ).await {
                                     tracing::warn!(job_id=%job.id, stage=%stage.stage_type, "Failed to save OCR stage output (from txt_path): {:?}", e);
@@ -382,7 +311,7 @@ async fn main() -> anyhow::Result<()> {
                     // Save the output of the parse stage (json_result)
                     match serde_json::to_vec_pretty(&json_result) {
                         Ok(output_bytes) => {
-                            if let Err(e) = save_stage_output(
+                            if let Err(e) = storage::save_stage_output(
                                 &pool, &s3_client, job.id, &stage.stage_type, "json", &bucket, output_bytes, "json"
                             ).await {
                                 tracing::warn!(job_id=%job.id, stage=%stage.stage_type, "Failed to save Parse stage output: {:?}", e);
@@ -494,7 +423,7 @@ async fn main() -> anyhow::Result<()> {
                     match serde_json::to_vec_pretty(&final_ai_input) {
                         Ok(input_bytes) => {
                             let ai_input_stage_name = format!("{}_input", stage.stage_type);
-                            if let Err(e) = save_stage_output(
+                            if let Err(e) = storage::save_stage_output(
                                 &pool,
                                 &s3_client,
                                 job.id,
@@ -547,7 +476,7 @@ async fn main() -> anyhow::Result<()> {
                     // 3. Save the output of the AI stage (json_result)
                     match serde_json::to_vec_pretty(&json_result) { // Use to_vec_pretty here
                         Ok(output_bytes) => {
-                            if let Err(e) = save_stage_output(
+                            if let Err(e) = storage::save_stage_output(
                                 &pool, &s3_client, job.id, &stage.stage_type, "json", &bucket, output_bytes, "json"
                             ).await {
                                 error!(job_id=%job.id, stage=%stage.stage_type, "Failed to save AI output: {:?}", e);
@@ -629,7 +558,7 @@ async fn main() -> anyhow::Result<()> {
                             let summary_json_value = Value::Object(summary_map);
                             match serde_json::to_vec_pretty(&summary_json_value) {
                                 Ok(summary_bytes) => {
-                                    if let Err(e) = save_stage_output(&pool, &s3_client, job.id, "report_summary", "json", &bucket, summary_bytes, "json").await {
+                                    if let Err(e) = storage::save_stage_output(&pool, &s3_client, job.id, "report_summary", "json", &bucket, summary_bytes, "json").await {
                                         tracing::warn!(job_id=%job.id, "Failed to save report summary JSON: {:?}", e);
                                     } else {
                                         info!(job_id=%job.id, "Report summary JSON saved.");
@@ -653,7 +582,7 @@ async fn main() -> anyhow::Result<()> {
                         let report_s3_key = format!("jobs/{}/outputs/{}-report.pdf", job.id, job.id);
                         match tokio::fs::read(&pdf_out_path).await {
                             Ok(pdf_bytes) => {
-                                if let Err(e) = upload_bytes(&s3_client, &bucket, &report_s3_key, pdf_bytes).await {
+                                if let Err(e) = storage::upload_bytes(&s3_client, &bucket, &report_s3_key, pdf_bytes).await {
                                     tracing::error!(job_id=%job.id, "Failed to upload final report PDF: {:?}", e);
                                 } else {
                                     info!(job_id=%job.id, "Final report PDF uploaded: {}", report_s3_key);
