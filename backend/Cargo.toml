@@ -36,7 +36,7 @@ printpdf = "0.5"
 lettre = { version = "0.11", features = ["tokio1", "smtp-transport", "builder", "tokio1-native-tls"] }
 regex = "1" # Added for parse stage processing
 pulldown-cmark = "0.9" # For Markdown to PDF report generation
-jsonpath-rust = "1"  # For extracting summary fields in report stage
+jsonpath-rust = "1.0.2"  # For extracting summary fields in report stage
 sanitize-filename = "0.1" # For sanitizing original filenames for S3 keys
 actix-csrf = "0.6.0"      # For CSRF protection
 base64 = "0.21.0"         # For decoding CSRF secret key from .env
