@@ -17,6 +17,8 @@ jobs:
         uses: actions/setup-rust@v1
         with:
           rust-version: stable
+      - name: Rustfmt
+        run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
       - name: Install frontend deps
         run: npm install --prefix frontend
       - name: Svelte Check

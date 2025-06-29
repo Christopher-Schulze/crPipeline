@@ -3,6 +3,7 @@ A GitHub Actions workflow is provided at `.github/workflows/ci.yml`. On every pu
 
 - **Backend (Rust):**
   - `cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings`: Runs Clippy for thorough static analysis and treats all warnings as errors.
+  - `cargo fmt --manifest-path backend/Cargo.toml --all -- --check`: Ensures code is formatted according to `rustfmt` and fails the build on mismatches.
   - (Implicitly, `cargo test` would also be part of a full CI suite, though not explicitly listed as modified here).
 - **Frontend (Svelte/TypeScript):**
   - `npm install --prefix frontend`: Installs frontend dependencies.
