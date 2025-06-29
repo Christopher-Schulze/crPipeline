@@ -356,6 +356,21 @@ This returns a JSON object `{"url": "pre-signed-s3-url"}`. The URL is typically 
     }
     ```
   - Only "user" or "org_admin" can be assigned via this endpoint. Global admins cannot change their own role or demote the last global admin.
+- **`POST /api/admin/invite`**: Creates a new user and emails them an invitation link. Only global admins may call this.
+  - **JSON Payload:**
+    ```json
+    {
+      "email": "user@example.com",
+      "org_id": "organization_uuid",
+      "role": "user" | "org_admin" // Optional, defaults to "user"
+    }
+    ```
+- **`POST /api/admin/users/{id}/resend_confirmation`**: Sends another confirmation email to an unconfirmed user.
+  - **Path Parameter:** `id` – UUID of the user. No JSON body.
+- **`POST /api/admin/users/{id}/deactivate`**: Marks the user as inactive.
+  - **Path Parameter:** `id` – UUID of the user. No JSON body.
+- **`POST /api/admin/users/{id}/reactivate`**: Re-enables a previously deactivated user.
+  - **Path Parameter:** `id` – UUID of the user. No JSON body.
 
 ### Frontend UI Highlights
 
