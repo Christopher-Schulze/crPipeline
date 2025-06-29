@@ -1,4 +1,4 @@
-use std::{time::{Duration, SystemTime, UNIX_EPOCH}, env, path::PathBuf}; // Added SystemTime, UNIX_EPOCH
+use std::{time::{Duration, SystemTime, UNIX_EPOCH}, env, path::PathBuf};
 use sqlx::{postgres::PgPoolOptions, PgPool}; // Added PgPool for helper fn type
 use backend::models::{AnalysisJob, Pipeline, Document, OrgSettings, NewJobStageOutput, JobStageOutput}; // Added JobStageOutput models
 use backend::processing;
@@ -35,6 +35,27 @@ struct Stage {
     config: Option<Value>,
 }
 
+async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u8>) -> Result<(), anyhow::Error> {
+    if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
+        let mut path = PathBuf::from(local_dir);
+        path.push(key);
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        tokio::fs::write(path, data).await?;
+        Ok(())
+    } else {
+        s3_client
+            .put_object()
+            .bucket(bucket)
+            .key(key)
+            .body(ByteStream::from(data))
+            .send()
+            .await?;
+        Ok(())
+    }
+}
+
 // Helper function to save stage output
 async fn save_stage_output(
     pool: &PgPool,
@@ -49,14 +70,9 @@ async fn save_stage_output(
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
     let s3_key = format!("jobs/{}/outputs/{}_{}.{}", job_id, stage_name, timestamp, file_extension);
 
-    info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Uploading stage output to S3.");
-    s3_client.put_object()
-        .bucket(s3_bucket_name)
-        .key(&s3_key)
-        .body(ByteStream::from(content))
-        .send()
-        .await?;
-    info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Successfully uploaded stage output to S3.");
+    info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Uploading stage output to storage.");
+    upload_bytes(s3_client, s3_bucket_name, &s3_key, content).await?;
+    info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Successfully uploaded stage output.");
 
     let new_output_db_record = NewJobStageOutput {
         job_id,
@@ -75,6 +91,7 @@ async fn save_stage_output(
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
+    let process_once = std::env::var("PROCESS_ONE_JOB").is_ok();
     let database_url = env::var("DATABASE_URL")?;
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -626,10 +643,10 @@ async fn main() -> anyhow::Result<()> {
                         let report_s3_key = format!("jobs/{}/outputs/{}-report.pdf", job.id, job.id);
                         match tokio::fs::read(&pdf_out_path).await {
                             Ok(pdf_bytes) => {
-                                if let Err(e) = s3_client.put_object().bucket(&bucket).key(&report_s3_key).body(pdf_bytes.into()).send().await {
-                                    tracing::error!(job_id=%job.id, "Failed to upload final report PDF to S3: {:?}", e);
+                                if let Err(e) = upload_bytes(&s3_client, &bucket, &report_s3_key, pdf_bytes).await {
+                                    tracing::error!(job_id=%job.id, "Failed to upload final report PDF: {:?}", e);
                                 } else {
-                                    info!(job_id=%job.id, "Final report PDF uploaded to S3 key: {}", report_s3_key);
+                                    info!(job_id=%job.id, "Final report PDF uploaded: {}", report_s3_key);
                                     let report_output_record = NewJobStageOutput {
                                         job_id: job.id,
                                         stage_name: stage.stage_type.clone(),
@@ -694,5 +711,8 @@ async fn main() -> anyhow::Result<()> {
         // Any other job-level temp files would be cleaned here.
 
         info!(job_id=%job.id, "Finished processing job lifecycle.");
+        if process_once {
+            break;
+        }
     } // End of main loop
 }

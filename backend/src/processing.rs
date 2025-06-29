@@ -22,6 +22,12 @@ use jsonpath_rust::JsonPath;
 // printpdf types are already imported via printpdf::*
 
 pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -> Result<()> {
+    if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
+        let local_path = Path::new(&local_dir).join(key);
+        tokio::fs::copy(&local_path, path).await?;
+        return Ok(());
+    }
+
     let obj = s3.get_object().bucket(bucket).key(key).send().await?;
     let bytes = obj.body.collect().await?.into_bytes();
     tokio::fs::write(path, bytes).await?;
