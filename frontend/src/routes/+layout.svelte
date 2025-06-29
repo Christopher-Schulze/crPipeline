@@ -203,10 +203,7 @@
             initialPipeline={pipelineToEdit}
             on:saved={() => {
               closePipelineEditor();
-              // TODO: Consider dispatching global 'pipelinesUpdated' event for other pages to react
-              // For example, using a custom event on `document.body` or a Svelte store.
-              // This would allow a pipeline list page to refresh automatically.
-              // For now, manual refresh or re-navigation will show changes.
+              document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
             }}
             on:cancel={closePipelineEditor}
           />
