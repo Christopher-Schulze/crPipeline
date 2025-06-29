@@ -21,6 +21,14 @@ use pulldown_cmark::{Parser, Event, Tag, Options as MarkdownOptions, HeadingLeve
 use jsonpath_rust::JsonPath;
 // printpdf types are already imported via printpdf::*
 
+/// Download a PDF from S3 (or from `LOCAL_S3_DIR` when set) and write it to `path`.
+///
+/// * `s3` - AWS S3 client for fetching the object.
+/// * `bucket` - Source bucket name.
+/// * `key` - Key of the object to download.
+/// * `path` - Local destination for the file.
+///
+/// An error is returned if the object cannot be retrieved or written.
 pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -> Result<()> {
     if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
         let local_path = Path::new(&local_dir).join(key);
@@ -34,6 +42,14 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
     Ok(())
 }
 
+/// Send a PDF to an external OCR service and return the resulting text.
+///
+/// * `api_endpoint` - URL of the OCR service.
+/// * `api_key` - Optional API key or bearer token for authentication.
+/// * `file_bytes` - Contents of the PDF to OCR.
+/// * `original_filename` - File name sent to the service.
+///
+/// Errors are propagated for HTTP failures or non-successful status codes.
 pub async fn run_external_ocr(
     api_endpoint: &str,
     api_key: Option<&str>,
@@ -94,6 +110,12 @@ pub async fn run_external_ocr(
     }
 }
 
+/// Run the Tesseract OCR command locally.
+///
+/// * `input` - Path to the PDF file to process.
+/// * `output` - Path (without extension) where Tesseract writes the text.
+///
+/// Errors if the `tesseract` command fails to run or returns a non-zero status.
 pub async fn run_ocr(input: &Path, output: &Path) -> Result<()> {
     let status = Command::new("tesseract")
         .arg(input)
@@ -141,6 +163,14 @@ struct RegexPattern {
     capture_group_index: usize,
 }
 
+/// Parse OCR text according to the optional configuration and return structured
+/// JSON.
+///
+/// * `text_content` - The plain text produced by OCR.
+/// * `config_json` - Optional configuration describing the parse strategy.
+///
+/// Errors if regex patterns fail to compile or if serialization of the result
+/// fails.
 pub async fn run_parse_stage(
     text_content: &str,
     config_json: Option<&JsonValue>,
@@ -264,6 +294,13 @@ fn replace_placeholders(template: &str, data: &JsonValue) -> String {
     result
 }
 
+/// Generate a PDF report using a markdown template and provided data.
+///
+/// * `template_markdown` - Markdown with `{{placeholder}}` syntax.
+/// * `data_for_templating` - JSON used to replace placeholders.
+/// * `output_pdf_path` - Where the PDF will be written.
+///
+/// Fails if the template cannot be rendered or the PDF cannot be written.
 pub async fn generate_report_from_template(
     template_markdown: &str,
     data_for_templating: &JsonValue,
@@ -425,6 +462,17 @@ struct CustomHeader {
     value: String,
 }
 
+/// Call an external AI API with the given JSON payload and return the parsed
+/// response body.
+///
+/// * `input` - JSON payload sent in the request body.
+/// * `api_endpoint` - Endpoint URL to post to.
+/// * `api_key` - Bearer token used for authorization.
+/// * `custom_headers_json` - Optional array of `{name, value}` pairs to include
+///   as additional headers.
+///
+/// Returns an error if the request fails or if a non-successful status code is
+/// returned.
 pub async fn run_ai(
     input: &serde_json::Value,
     api_endpoint: &str, // Renamed from 'endpoint'
@@ -491,6 +539,12 @@ pub async fn run_ai(
     }
 }
 
+/// Write a very basic PDF report containing the JSON representation of `json`.
+///
+/// * `json` - Data to render as text in the PDF.
+/// * `path` - Destination path for the generated PDF.
+///
+/// Fails if the PDF cannot be written to disk.
 pub fn generate_report(json: &serde_json::Value, path: &Path) -> Result<()> {
     let (mut doc, page1, layer1) = PdfDocument::new("Report", Mm(210.0), Mm(297.0), "Layer1");
     let current_layer = doc.get_page(page1).get_layer(layer1);
