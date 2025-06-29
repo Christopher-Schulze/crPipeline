@@ -2,6 +2,7 @@
 use actix_web::{test, web, App, http::header};
 use backend::handlers;
 use backend::middleware::jwt::create_jwt;
+use backend::models::{Pipeline, NewPipeline};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
@@ -17,7 +18,7 @@ async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, 
         .connect(&database_url)
         .await
         .expect("Failed to connect to test database");
-    sqlx::migrate!("../migrations")
+    sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations on test DB");
@@ -129,4 +130,111 @@ async fn test_reject_empty_pipeline_name() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+}
+
+#[actix_rt::test]
+async fn test_update_pipeline_success() {
+    let (app, pool) = setup_test_app().await;
+    let org_id = create_org(&pool, "Update Org").await;
+    let user_id = create_user(&pool, org_id, "admin4@example.com", "org_admin").await;
+
+    let pipeline = Pipeline::create(&pool, NewPipeline {
+        org_id,
+        name: "Old".into(),
+        stages: json!([{"type": "ocr"}]),
+    }).await.unwrap();
+
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let payload = json!({
+        "org_id": org_id,
+        "name": "New Name",
+        "stages": [{"type": "ocr", "command": "echo hi"}]
+    });
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/pipelines/{}", pipeline.id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let updated: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(updated["name"], "New Name");
+}
+
+#[actix_rt::test]
+async fn test_update_pipeline_unauthorized() {
+    let (app, pool) = setup_test_app().await;
+    let org_a = create_org(&pool, "OrgA").await;
+    let org_b = create_org(&pool, "OrgB").await;
+    let user_a = create_user(&pool, org_a, "usera@example.com", "org_admin").await;
+
+    let pipeline = Pipeline::create(&pool, NewPipeline {
+        org_id: org_b,
+        name: "Other".into(),
+        stages: json!([{"type": "ocr"}])
+    }).await.unwrap();
+
+    let token = generate_jwt_token(user_a, org_a, "org_admin");
+    let payload = json!({
+        "org_id": org_b,
+        "name": "Change", 
+        "stages": [{"type": "ocr"}]
+    });
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/pipelines/{}", pipeline.id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
+}
+
+#[actix_rt::test]
+async fn test_delete_pipeline_success() {
+    let (app, pool) = setup_test_app().await;
+    let org_id = create_org(&pool, "Delete Org").await;
+    let user_id = create_user(&pool, org_id, "admin5@example.com", "org_admin").await;
+
+    let pipeline = Pipeline::create(&pool, NewPipeline {
+        org_id,
+        name: "To Delete".into(),
+        stages: json!([{"type": "ocr"}]),
+    }).await.unwrap();
+
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/pipelines/{}", pipeline.id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM pipelines WHERE id = $1")
+        .bind(pipeline.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 0);
+}
+
+#[actix_rt::test]
+async fn test_delete_pipeline_unauthorized() {
+    let (app, pool) = setup_test_app().await;
+    let org_a = create_org(&pool, "DeleteOrgA").await;
+    let org_b = create_org(&pool, "DeleteOrgB").await;
+    let user_a = create_user(&pool, org_a, "userdel@example.com", "org_admin").await;
+
+    let pipeline = Pipeline::create(&pool, NewPipeline {
+        org_id: org_b,
+        name: "Other".into(),
+        stages: json!([{"type": "ocr"}])
+    }).await.unwrap();
+
+    let token = generate_jwt_token(user_a, org_a, "org_admin");
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/pipelines/{}", pipeline.id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
 }
