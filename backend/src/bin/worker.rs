@@ -19,6 +19,10 @@ struct PromptTemplate {
     text: String,
 }
 
+/// A single pipeline step loaded from the database.
+///
+/// Stages can define custom commands or OCR parameters used during
+/// processing.
 #[derive(Deserialize, Debug, Clone)] // Added Clone here
 struct Stage {
     #[serde(rename = "type")]
@@ -35,6 +39,7 @@ struct Stage {
     config: Option<Value>,
 }
 
+/// Upload a blob to S3 or write to `LOCAL_S3_DIR` when set.
 async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u8>) -> Result<(), anyhow::Error> {
     if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
         let mut path = PathBuf::from(local_dir);
@@ -56,7 +61,9 @@ async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u
     }
 }
 
-// Helper function to save stage output
+/// Upload stage output and record it in the database.
+///
+/// Uses `upload_bytes`, which honors `LOCAL_S3_DIR` when present.
 async fn save_stage_output(
     pool: &PgPool,
     s3_client: &S3Client,
@@ -87,6 +94,9 @@ async fn save_stage_output(
 }
 
 
+/// Worker entry point processing queued jobs.
+///
+/// When `PROCESS_ONE_JOB` is set the loop exits after a single job.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
