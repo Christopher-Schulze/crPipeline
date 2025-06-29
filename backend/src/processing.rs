@@ -17,8 +17,8 @@ use log; // For logging
 use uuid::Uuid;
 
 // For new report generation
-use pulldown_cmark::{Parser, Event, Tag, Options as MarkdownOptions};
-use jsonpath_rust::JsonPathQuery;
+use pulldown_cmark::{Parser, Event, Tag, Options as MarkdownOptions, HeadingLevel};
+use jsonpath_rust::JsonPath;
 // printpdf types are already imported via printpdf::*
 
 pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -> Result<()> {
@@ -247,9 +247,9 @@ fn replace_placeholders(template: &str, data: &JsonValue) -> String {
                 // Note: jsonpath_rust::JsonPath::query returns a Vec<&JsonValue>
                 // For simplicity, we'll try to get the first element and convert to string.
                 // A more robust solution would handle arrays/objects returned by path differently.
-                match data.path(&format!("$.{}", key_path)) {
+                match data.query(&format!("$.{}", key_path)) {
                     Ok(nodes) => nodes.first().and_then(|v_ref| v_ref.as_str()).unwrap_or("").to_string(),
-                    Err(_) => format!("{{{{UNRESOLVED: {}}}}}", key_path), // Path error
+                    Err(_) => format!("{{{{UNRESOLVED: {}}}}}", key_path),
                 }
             }
         };
@@ -269,7 +269,7 @@ pub async fn generate_report_from_template(
         data_for_templating.get("document_name").and_then(|v|v.as_str()).unwrap_or("Report"),
         Mm(210.0), Mm(297.0), "Layer1"
     );
-    doc.set_conformance(PdfConformance::X3_2002_PDF_1_3); // Example conformance
+    doc = doc.with_conformance(PdfConformance::X3_2002_PDF_1_3); // Example conformance
 
     let font = doc.add_builtin_font(BuiltinFont::Helvetica)
         .map_err(|e| anyhow!("Failed to add font: {}", e.to_string()))?;
@@ -295,18 +295,18 @@ pub async fn generate_report_from_template(
             break;
         }
         match event {
-            Event::Start(Tag::Heading(level_u32, _, _)) => {
+            Event::Start(Tag::Heading(level, _, _)) => {
                 current_layer.begin_text_section();
-                 let font_size = match level_u32 {
-                    1 => 18.0,
-                    2 => 15.0,
-                    3 => 13.0,
-                    _ => 11.0, // Default for H4+
+                let font_size = match level {
+                    HeadingLevel::H1 => 18.0,
+                    HeadingLevel::H2 => 15.0,
+                    HeadingLevel::H3 => 13.0,
+                    _ => 11.0,
                 };
-                let line_height = match level_u32 {
-                    1 => line_height_heading1,
-                    2 => line_height_heading2,
-                    3 => line_height_heading3,
+                let line_height = match level {
+                    HeadingLevel::H1 => line_height_heading1,
+                    HeadingLevel::H2 => line_height_heading2,
+                    HeadingLevel::H3 => line_height_heading3,
                     _ => line_height_normal,
                 };
                 current_layer.set_font(&font, font_size);
@@ -326,11 +326,10 @@ pub async fn generate_report_from_template(
                 y_cursor -= line_height_normal;
             }
             Event::Text(text) => {
-                for (i, line_str) in text.split('
-').enumerate() {
+                for (i, line_str) in text.split("\n").enumerate() {
                     if i > 0 {
                         y_cursor -= line_height_normal;
-                        if y_cursor < Mm(20.0) { break; } // Check page break mid-text block
+                        if y_cursor < Mm(20.0) { break; }
                         current_layer.set_text_cursor(left_margin, y_cursor);
                     }
                     current_layer.write_text(line_str.to_string(), &font);
@@ -349,7 +348,60 @@ pub async fn generate_report_from_template(
                 y_cursor -= line_height_normal;
                 current_layer.set_text_cursor(left_margin, y_cursor);
             }
-             // TODO: Implement other Markdown elements (Lists, Tables, Blockquotes, Rules etc.)
+            Event::Start(Tag::List(_)) => {
+                current_layer.begin_text_section();
+                current_layer.set_font(&font, 11.0);
+                current_layer.set_text_cursor(left_margin, y_cursor);
+            }
+            Event::End(Tag::List(_)) => {
+                current_layer.end_text_section();
+                y_cursor -= line_height_normal;
+            }
+            Event::Start(Tag::Item) => {
+                current_layer.write_text("\u{2022} ", &font);
+            }
+            Event::End(Tag::Item) => {
+                y_cursor -= line_height_normal;
+                current_layer.set_text_cursor(left_margin, y_cursor);
+            }
+            Event::Start(Tag::Table(_)) => {
+                current_layer.begin_text_section();
+                current_layer.set_font(&font, 11.0);
+                current_layer.set_text_cursor(left_margin, y_cursor);
+            }
+            Event::End(Tag::Table(_)) => {
+                current_layer.end_text_section();
+                y_cursor -= line_height_normal;
+            }
+            Event::Start(Tag::TableRow) => {
+                current_layer.write_text("| ", &font);
+            }
+            Event::End(Tag::TableRow) => {
+                current_layer.write_text("|", &font);
+                y_cursor -= line_height_normal;
+                current_layer.set_text_cursor(left_margin, y_cursor);
+            }
+            Event::Start(Tag::TableCell) => {}
+            Event::End(Tag::TableCell) => {
+                current_layer.write_text(" | ", &font);
+            }
+            Event::Start(Tag::BlockQuote) => {
+                current_layer.begin_text_section();
+                current_layer.set_font(&font, 11.0);
+                current_layer.set_text_cursor(left_margin + Mm(5.0), y_cursor);
+                current_layer.write_text("> ", &font);
+            }
+            Event::End(Tag::BlockQuote) => {
+                current_layer.end_text_section();
+                y_cursor -= line_height_normal;
+            }
+            Event::Rule => {
+                current_layer.begin_text_section();
+                current_layer.set_text_cursor(left_margin, y_cursor);
+                current_layer.write_text("-----", &font);
+                current_layer.end_text_section();
+                y_cursor -= line_height_normal;
+            }
             _ => { /* log::debug!("Unhandled Markdown Event: {:?}", event); */ }
         }
     }

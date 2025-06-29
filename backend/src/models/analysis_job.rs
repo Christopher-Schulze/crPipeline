@@ -9,6 +9,7 @@ pub struct AnalysisJob {
     pub document_id: Uuid,
     pub pipeline_id: Uuid,
     pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 pub struct NewAnalysisJob {
