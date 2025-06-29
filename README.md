@@ -156,7 +156,10 @@ Pipelines define the stages executed when a target document is uploaded. Use the
 ```
 POST /api/pipelines
 GET  /api/pipelines/{org_id}
+PUT    /api/pipelines/{id}
+DELETE /api/pipelines/{id}
 ```
+`PUT` and `DELETE` require an organization administrator (for their org) or a global admin.
 
 Uploading with `pipeline_id` will automatically create an `AnalysisJob` record.
 Only PDF files up to 200 MB are accepted. The server counts pages using a PDF parser before storing the file.

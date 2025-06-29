@@ -1,4 +1,4 @@
-use actix_web::{web, get, post, HttpResponse};
+use actix_web::{web, get, post, put, delete, HttpResponse};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -209,7 +209,75 @@ async fn list_pipelines(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<P
     }
 }
 
+#[put("/pipelines/{id}")]
+async fn update_pipeline(
+    path: web::Path<Uuid>,
+    data: web::Json<PipelineInput>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    let pipeline_id = path.into_inner();
+
+    let existing = match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE id=$1")
+        .bind(pipeline_id)
+        .fetch_one(pool.as_ref())
+        .await
+    {
+        Ok(p) => p,
+        Err(sqlx::Error::RowNotFound) => return HttpResponse::NotFound().finish(),
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    };
+
+    if user.role != "admin" && existing.org_id != user.org_id {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    if data.org_id != existing.org_id {
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Organization ID cannot be changed"}));
+    }
+
+    if data.name.trim().is_empty() {
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
+    }
+    if !data.stages.is_array() {
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "'stages' must be an array."}));
+    }
+
+    match Pipeline::update(&pool, pipeline_id, &data.name, data.stages.clone()).await {
+        Ok(p) => HttpResponse::Ok().json(p),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+#[delete("/pipelines/{id}")]
+async fn delete_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+    let pipeline_id = path.into_inner();
+
+    let existing = match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE id=$1")
+        .bind(pipeline_id)
+        .fetch_one(pool.as_ref())
+        .await
+    {
+        Ok(p) => p,
+        Err(sqlx::Error::RowNotFound) => return HttpResponse::NotFound().finish(),
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    };
+
+    if user.role != "admin" && existing.org_id != user.org_id {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    match Pipeline::delete(&pool, pipeline_id).await {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(create_pipeline).service(list_pipelines);
+    cfg
+        .service(create_pipeline)
+        .service(list_pipelines)
+        .service(update_pipeline)
+        .service(delete_pipeline);
 }
 
