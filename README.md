@@ -425,7 +425,7 @@ accent color defined in each organization's settings is applied to interactive
 elements.
 
 ## Security
-All endpoints enforce JWT authentication and CORS restrictions via the `FRONTEND_ORIGIN` environment variable. A simple in-memory rate limiter restricts each IP to 100 requests per minute. Audit logs capture user actions such as login, uploads and downloads.
+All endpoints enforce JWT authentication and CORS restrictions via the `FRONTEND_ORIGIN` environment variable. The rate limiter normally stores counters in Redis. If Redis is unavailable, the behavior is controlled by `REDIS_RATE_LIMIT_FALLBACK` which defaults to an in-memory limit of 100 requests per minute. Setting this variable to `deny` will reject requests outright on Redis failures. Audit logs capture user actions such as login, uploads and downloads.
 
 ## Secret Management
 Use `scripts/generate_secrets.sh` to create a `backend/.env.prod` file with random credentials:

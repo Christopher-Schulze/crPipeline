@@ -1,7 +1,7 @@
 use actix_service::{Service, Transform, forward_ready};
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
-    Error, HttpResponse
+    Error
 };
 use futures_util::future::{LocalBoxFuture, ready, Ready};
 use std::rc::Rc;
@@ -11,11 +11,32 @@ use crate::middleware::jwt::{verify_jwt, Claims}; // Assuming Claims is pub
 use redis::{AsyncCommands, Client as RedisClient};
 use actix_web::http::header::{AUTHORIZATION, COOKIE, HeaderName, HeaderValue};
 use log::{error, warn}; // For logging
+use dashmap::DashMap;
+use once_cell::sync::Lazy;
+use std::time::{Duration, Instant};
 
 // Define constants for rate limiting
 const WINDOW_SECONDS: u64 = 60; // 1 minute window
 const MAX_REQUESTS: u32 = 100; // Max requests per window
 const X_API_KEY_HEADER: HeaderName = HeaderName::from_static("x-api-key");
+
+static MEMORY_LIMITS: Lazy<DashMap<String, (u32, Instant)>> = Lazy::new(DashMap::new);
+
+fn check_memory_limit(key: &str) -> bool {
+    let now = Instant::now();
+    let mut entry = MEMORY_LIMITS.entry(key.to_string()).or_insert((0, now));
+    if now.duration_since(entry.1) > Duration::from_secs(WINDOW_SECONDS) {
+        *entry = (1, now);
+        true
+    } else {
+        entry.0 += 1;
+        entry.0 <= MAX_REQUESTS
+    }
+}
+
+fn fallback_mode() -> String {
+    env::var("REDIS_RATE_LIMIT_FALLBACK").unwrap_or_else(|_| "memory".into()).to_lowercase()
+}
 
 pub struct RateLimit;
 
@@ -93,42 +114,58 @@ where
             }
 
             if let Some(key) = identifier_key {
-                match env::var("REDIS_URL") {
-                    Ok(redis_url) => {
-                        match RedisClient::open(redis_url) {
-                            Ok(client) => {
-                                match client.get_async_connection().await {
-                                    Ok(mut conn) => {
-                                        let count_res: redis::RedisResult<u32> = conn.incr(&key, 1).await;
-                                        match count_res {
-                                            Ok(count) => {
-                                                if count == 1 {
-                                                    // Set expiry only if it's a new key in this window
-                                                    let _ : redis::RedisResult<()> = conn.expire(&key, WINDOW_SECONDS as i64).await;
-                                                }
-                                                if count > MAX_REQUESTS {
-                                                    error!("Rate limit exceeded for key: {}", key);
-                                                    return Err(actix_web::error::ErrorTooManyRequests("Rate limit exceeded"));
-                                                }
-                                            }
-                                            Err(e) => {
-                                                error!("Redis INCR command failed for key {}: {}. Allowing request (fail-open).", key, e);
-                                            }
+                let mut redis_failure = false;
+                let mut exceeded = false;
+
+                if let Ok(redis_url) = env::var("REDIS_URL") {
+                    if let Ok(client) = RedisClient::open(redis_url) {
+                        match client.get_async_connection().await {
+                            Ok(mut conn) => {
+                                let count_res: redis::RedisResult<u32> = conn.incr(&key, 1i32).await;
+                                match count_res {
+                                    Ok(count) => {
+                                        if count == 1 {
+                                            let _ : redis::RedisResult<()> = conn.expire(&key, WINDOW_SECONDS as i64).await;
+                                        }
+                                        if count > MAX_REQUESTS {
+                                            exceeded = true;
                                         }
                                     }
                                     Err(e) => {
-                                        error!("Failed to get Redis connection: {}. Allowing request (fail-open).", e);
+                                        error!("Redis INCR failed for key {}: {}", key, e);
+                                        redis_failure = true;
                                     }
                                 }
                             }
                             Err(e) => {
-                                error!("Failed to create Redis client: {}. Allowing request (fail-open).", e);
+                                error!("Redis connection error: {}", e);
+                                redis_failure = true;
                             }
                         }
+                    } else {
+                        error!("Failed to create Redis client");
+                        redis_failure = true;
                     }
-                    Err(_) => {
-                        error!("REDIS_URL not set. Rate limiting disabled. Allowing request (fail-open).");
+                } else {
+                    error!("REDIS_URL not set");
+                    redis_failure = true;
+                }
+
+                if redis_failure {
+                    match fallback_mode().as_str() {
+                        "deny" => {
+                            return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
+                        }
+                        "memory" => {
+                            if !check_memory_limit(&key) {
+                                return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
+                            }
+                        }
+                        _ => {}
                     }
+                } else if exceeded {
+                    error!("Rate limit exceeded for key: {}", key);
+                    return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
                 }
             } else {
                 // No identifier found, allow request (or apply global limit if desired later)
