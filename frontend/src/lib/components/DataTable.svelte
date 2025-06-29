@@ -203,10 +203,7 @@
         {#each headers as header (header.key)}
           <th
             scope="col"
-            class="{thClass} {header.headerClass || header.customClass || ''}
-                   {(tableSortable && header.sortable !== false) ? 'cursor-pointer hover:bg-neutral-600/30' : ''}"
-            scope="col"
-            class="{thClass} {header.headerClass || ''} {header.customClass || ''} relative"
+            class="{thClass} {header.headerClass || ''} {header.customClass || ''} relative {(tableSortable && header.sortable !== false) ? 'cursor-pointer hover:bg-neutral-600/30' : ''}"
             style={getColumnStyle(header.key)}
             title={(tableSortable && header.sortable !== false) ? `Sort by ${header.label}` : header.label}
           >

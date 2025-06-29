@@ -4,6 +4,9 @@
     "target": "ES2017",
     "importsNotUsedAsValues": "error",
     "isolatedModules": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "lib": [
@@ -14,7 +17,14 @@
       "svelte",
       "vitest/globals"
     ],
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "$lib": ["src/lib"],
+      "$lib/*": ["src/lib/*"],
+      "$app": [".svelte-kit/types"],
+      "$app/*": [".svelte-kit/types/*"]
+    }
   },
   "include": [
     "src/**/*.ts",

@@ -129,12 +129,12 @@
     <span class="text-4xl font-semibold">{analysisRemaining}</span>
   </GlassCard>
 </div>
-<GlassCard class="mt-8" padding="p-6"> {/* Changed p-4 to p-6 via padding prop */}
+<GlassCard class="mt-8" padding="p-6">
   <canvas bind:this={canvasEl}></canvas>
 </GlassCard>
 
 <!-- Recent Analyses Section -->
-<GlassCard title="Recent Analyses" customClass="mt-6" padding="p-6"> {/* Changed padding prop from p-4 to p-6 */}
+<GlassCard title="Recent Analyses" customClass="mt-6" padding="p-6">
   {#if recentAnalyses.length === 0}
     <p class="text-center text-gray-500 py-4">No recent analyses found.</p>
   {:else}

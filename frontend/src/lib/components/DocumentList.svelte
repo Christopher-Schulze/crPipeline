@@ -65,16 +65,6 @@ async function loadDocuments(pageToLoad = 1, newSortBy?: string | null, newSortO
     currentPage = 1;
     return;
   }
-async function loadDocuments(pageToLoad = 1, newSortBy?: string | null, newSortOrder?: 'asc' | 'desc' | null) {
-  if (!orgId) {
-    isLoadingDocs = false;
-    docsError = "Organization ID is not set. Cannot load documents.";
-    internalDocs = [];
-    totalDocs = 0;
-    totalDocPages = 0;
-    currentPage = 1;
-    return;
-  }
   isLoadingDocs = true;
   docsError = null;
   currentPage = pageToLoad; // Optimistically set current page
