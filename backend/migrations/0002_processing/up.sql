@@ -24,3 +24,7 @@ CREATE TABLE analysis_jobs (
   status TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Indexes to speed up common lookups
+CREATE INDEX idx_documents_org_id ON documents(org_id);
+CREATE INDEX idx_analysis_jobs_status ON analysis_jobs(status);
