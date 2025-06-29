@@ -104,7 +104,7 @@ where
                                             Ok(count) => {
                                                 if count == 1 {
                                                     // Set expiry only if it's a new key in this window
-                                                    let _ : redis::RedisResult<()> = conn.expire(&key, WINDOW_SECONDS).await;
+                                                    let _ : redis::RedisResult<()> = conn.expire(&key, WINDOW_SECONDS as i64).await;
                                                 }
                                                 if count > MAX_REQUESTS {
                                                     error!("Rate limit exceeded for key: {}", key);

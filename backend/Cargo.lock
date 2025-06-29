@@ -36,12 +36,12 @@ dependencies = [
 
 [[package]]
 name = "actix-csrf"
-version = "0.6.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a090daa2a8b7aaaaf585f6a0dd0fbee92ea81728c01cc45ae7643d13e51dd4f"
+checksum = "1d6604913d54205a3a5c0e43869a8e7501a2af7d7913b6653fd73f04ba292111"
 dependencies = [
  "actix-web",
- "base64 0.13.1",
+ "base64 0.21.7",
  "cookie",
  "rand 0.8.5",
  "serde",
@@ -967,6 +967,7 @@ dependencies = [
  "jsonpath-rust",
  "jsonwebtoken",
  "lettre",
+ "log",
  "lopdf 0.32.0",
  "once_cell",
  "printpdf",
@@ -979,6 +980,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1005,12 +1007,6 @@ name = "base-x"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cbbc9d0964165b47557570cce6c952866c2678457aca742aafc9fb771d30270"
-
-[[package]]
-name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
@@ -2485,6 +2481,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
+name = "mime_guess"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
+dependencies = [
+ "mime",
+ "unicase",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3159,6 +3165,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
