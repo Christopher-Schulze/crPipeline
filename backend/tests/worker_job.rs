@@ -1,10 +1,12 @@
-use std::time::Duration;
-use actix_rt::time::sleep;
-use backend::models::{Pipeline, NewPipeline, NewDocument, Document, NewAnalysisJob, AnalysisJob};
-use backend::models::job_stage_output::JobStageOutput;
-use sqlx::postgres::PgPoolOptions;
-use uuid::Uuid;
+#![allow(warnings)]
+#![allow(clippy::all)]
 use actix_rt;
+use actix_rt::time::sleep;
+use backend::models::job_stage_output::JobStageOutput;
+use backend::models::{AnalysisJob, Document, NewAnalysisJob, NewDocument, NewPipeline, Pipeline};
+use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
+use uuid::Uuid;
 
 #[actix_rt::test]
 async fn worker_processes_job() {
@@ -51,37 +53,67 @@ async fn worker_processes_job() {
 
     // create dummy ocr script
     let script = tempdir.path().join("ocr.sh");
-    tokio::fs::write(&script, "#!/bin/sh\necho sample > $2").await.unwrap();
+    tokio::fs::write(&script, "#!/bin/sh\necho sample > $2")
+        .await
+        .unwrap();
     use std::os::unix::fs::PermissionsExt;
-    tokio::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).await.unwrap();
+    tokio::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+        .await
+        .unwrap();
 
     let stages = serde_json::json!([{"type":"ocr","command":script.to_string_lossy()}]);
-    let pipeline = Pipeline::create(&pool, backend::models::NewPipeline { org_id, name: "Test".into(), stages: stages.clone() }).await.unwrap();
+    let pipeline = Pipeline::create(
+        &pool,
+        backend::models::NewPipeline {
+            org_id,
+            name: "Test".into(),
+            stages: stages.clone(),
+        },
+    )
+    .await
+    .unwrap();
 
     // create document and place file in local storage
-    let doc = Document::create(&pool, NewDocument {
-        org_id,
-        owner_id: user_id,
-        filename: "test.pdf".into(),
-        pages: 1,
-        is_target: true,
-        expires_at: None,
-        display_name: "test.pdf".into(),
-    }).await.unwrap();
+    let doc = Document::create(
+        &pool,
+        NewDocument {
+            org_id,
+            owner_id: user_id,
+            filename: "test.pdf".into(),
+            pages: 1,
+            is_target: true,
+            expires_at: None,
+            display_name: "test.pdf".into(),
+        },
+    )
+    .await
+    .unwrap();
     let doc_path = tempdir.path().join("uploads").join("test.pdf");
-    tokio::fs::create_dir_all(doc_path.parent().unwrap()).await.unwrap();
+    tokio::fs::create_dir_all(doc_path.parent().unwrap())
+        .await
+        .unwrap();
     tokio::fs::write(&doc_path, b"dummy").await.unwrap();
 
-    let job = AnalysisJob::create(&pool, NewAnalysisJob {
-        org_id,
-        document_id: doc.id,
-        pipeline_id: pipeline.id,
-        status: "pending".into(),
-    }).await.unwrap();
+    let job = AnalysisJob::create(
+        &pool,
+        NewAnalysisJob {
+            org_id,
+            document_id: doc.id,
+            pipeline_id: pipeline.id,
+            status: "pending".into(),
+        },
+    )
+    .await
+    .unwrap();
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let mut conn = client.get_async_connection().await.unwrap();
-    redis::cmd("LPUSH").arg("jobs").arg(job.id.to_string()).query_async(&mut conn).await.unwrap();
+    redis::cmd("LPUSH")
+        .arg("jobs")
+        .arg(job.id.to_string())
+        .query_async(&mut conn)
+        .await
+        .unwrap();
 
     // run worker binary
     let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_worker"))
@@ -92,6 +124,8 @@ async fn worker_processes_job() {
     let _ = child.kill();
     let _ = child.wait();
 
-    let outs = backend::models::job_stage_output::JobStageOutput::find_by_job_id(&pool, job.id).await.unwrap();
+    let outs = backend::models::job_stage_output::JobStageOutput::find_by_job_id(&pool, job.id)
+        .await
+        .unwrap();
     assert!(!outs.is_empty());
 }

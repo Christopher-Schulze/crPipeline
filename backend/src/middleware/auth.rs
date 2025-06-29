@@ -1,4 +1,4 @@
-use actix_web::{FromRequest, HttpRequest, dev::Payload, error::ErrorUnauthorized};
+use actix_web::{dev::Payload, error::ErrorUnauthorized, FromRequest, HttpRequest};
 use futures_util::future::{ready, Ready};
 use uuid::Uuid;
 
@@ -19,7 +19,11 @@ impl FromRequest for AuthUser {
             if let Ok(auth_str) = auth.to_str() {
                 if let Some(token) = auth_str.strip_prefix("Bearer ") {
                     if let Some(claims) = verify_jwt(token) {
-                        return ready(Ok(AuthUser { user_id: claims.sub, org_id: claims.org, role: claims.role }));
+                        return ready(Ok(AuthUser {
+                            user_id: claims.sub,
+                            org_id: claims.org,
+                            role: claims.role,
+                        }));
                     }
                 }
             }
@@ -28,7 +32,11 @@ impl FromRequest for AuthUser {
         // Fallback to cookie based authentication
         if let Some(cookie) = req.cookie("token") {
             if let Some(claims) = verify_jwt(cookie.value()) {
-                return ready(Ok(AuthUser { user_id: claims.sub, org_id: claims.org, role: claims.role }));
+                return ready(Ok(AuthUser {
+                    user_id: claims.sub,
+                    org_id: claims.org,
+                    role: claims.role,
+                }));
             }
         }
 

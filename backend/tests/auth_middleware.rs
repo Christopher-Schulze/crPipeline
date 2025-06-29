@@ -12,7 +12,9 @@ async fn extractor_from_header() {
     let req = test::TestRequest::default()
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_http_request();
-    let auth = AuthUser::from_request(&req, &mut actix_web::dev::Payload::None).await.unwrap();
+    let auth = AuthUser::from_request(&req, &mut actix_web::dev::Payload::None)
+        .await
+        .unwrap();
     assert_eq!(auth.user_id, user_id);
     assert_eq!(auth.org_id, org_id);
 }
@@ -26,7 +28,9 @@ async fn extractor_from_cookie() {
     let req = test::TestRequest::default()
         .cookie(actix_web::cookie::Cookie::new("token", token))
         .to_http_request();
-    let auth = AuthUser::from_request(&req, &mut actix_web::dev::Payload::None).await.unwrap();
+    let auth = AuthUser::from_request(&req, &mut actix_web::dev::Payload::None)
+        .await
+        .unwrap();
     assert_eq!(auth.user_id, user_id);
     assert_eq!(auth.org_id, org_id);
 }

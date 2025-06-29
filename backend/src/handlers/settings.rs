@@ -1,13 +1,17 @@
-use actix_web::{get, post, web, HttpResponse};
-use uuid::Uuid;
 use crate::middleware::auth::AuthUser;
 use crate::models::OrgSettings;
-use sqlx::PgPool;
+use actix_web::{get, post, web, HttpResponse};
 use log; // Added for logging
-use serde_json; // Added for json error response
+use serde_json;
+use sqlx::PgPool;
+use uuid::Uuid; // Added for json error response
 
 #[get("/settings/{org_id}")]
-async fn get_settings(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+async fn get_settings(
+    path: web::Path<Uuid>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
     let org_id_from_path = *path;
 
     // Authorization: Global admin can view any org's settings.
@@ -17,32 +21,48 @@ async fn get_settings(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgP
             "Unauthorized attempt to access settings for org {} by user {} (role: {}, user_org: {})",
             org_id_from_path, user.user_id, user.role, user.org_id
         );
-        return HttpResponse::Unauthorized().json(serde_json::json!({"error": "You are not authorized to view these settings."}));
+        return HttpResponse::Unauthorized()
+            .json(serde_json::json!({"error": "You are not authorized to view these settings."}));
     }
 
     match OrgSettings::find(&pool, org_id_from_path).await {
-        Ok(mut settings) => { // Make settings mutable for masking
+        Ok(mut settings) => {
+            // Make settings mutable for masking
             // Mask sensitive API keys before sending to frontend
-            if settings.ai_api_key.as_ref().map_or(false, |k| !k.is_empty()) {
+            if settings
+                .ai_api_key
+                .as_ref()
+                .map_or(false, |k| !k.is_empty())
+            {
                 settings.ai_api_key = Some("********".to_string());
             }
-            if settings.ocr_api_key.as_ref().map_or(false, |k| !k.is_empty()) {
+            if settings
+                .ocr_api_key
+                .as_ref()
+                .map_or(false, |k| !k.is_empty())
+            {
                 settings.ocr_api_key = Some("********".to_string());
             }
             // Other sensitive fields could be masked here in the future
 
             HttpResponse::Ok().json(settings)
-        },
+        }
         Err(sqlx::Error::RowNotFound) => {
             log::info!("Settings not found for org {}. A new default might be created on next update or implicitly.", org_id_from_path);
             // Depending on product requirements, this could return default settings instead of 404.
             // For now, if no settings row exists, it's treated as "not found".
             // Org creation should ideally create default settings record.
-            HttpResponse::NotFound().json(serde_json::json!({"error": "Settings not found for this organization."}))
+            HttpResponse::NotFound()
+                .json(serde_json::json!({"error": "Settings not found for this organization."}))
         }
         Err(e) => {
-            log::error!("Failed to retrieve settings for org {}: {:?}", org_id_from_path, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to retrieve settings."}))
+            log::error!(
+                "Failed to retrieve settings for org {}: {:?}",
+                org_id_from_path,
+                e
+            );
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to retrieve settings."}))
         }
     }
 }
@@ -62,15 +82,17 @@ async fn update_settings(
             "Unauthorized attempt to update settings for org {} by user {} (role: {}, user_org: {})",
             incoming_settings.org_id, user.user_id, user.role, user.org_id
         );
-        return HttpResponse::Unauthorized().json(serde_json::json!({"error": "You are not authorized to update these settings."}));
+        return HttpResponse::Unauthorized().json(
+            serde_json::json!({"error": "You are not authorized to update these settings."}),
+        );
     }
     // Also, a non-admin user should not be able to change their org_id via the payload to something else.
     // The incoming_settings.org_id must match user.org_id if not admin.
     if user.role != "admin" && incoming_settings.org_id != user.org_id {
-         // This check is somewhat redundant due to the one above, but emphasizes that org_id in payload must be theirs.
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid organization ID in request."}));
+        // This check is somewhat redundant due to the one above, but emphasizes that org_id in payload must be theirs.
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "Invalid organization ID in request."}));
     }
-
 
     // Fetch current settings from DB to preserve keys if "********" is sent
     let current_settings = match OrgSettings::find(&pool, incoming_settings.org_id).await {
@@ -84,7 +106,11 @@ async fn update_settings(
             return HttpResponse::NotFound().json(serde_json::json!({"error": "Settings for the specified organization not found. Cannot update."}));
         }
         Err(e) => {
-            log::error!("Failed to fetch current settings for org {}: {:?}", incoming_settings.org_id, e);
+            log::error!(
+                "Failed to fetch current settings for org {}: {:?}",
+                incoming_settings.org_id,
+                e
+            );
             return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not retrieve current settings to safely update API keys."}));
         }
     };
@@ -107,10 +133,18 @@ async fn update_settings(
         Ok(updated_settings_from_db) => {
             // Mask API keys again before sending back the updated settings in the response
             let mut response_settings = updated_settings_from_db;
-            if response_settings.ai_api_key.as_ref().map_or(false, |k| !k.is_empty()) {
+            if response_settings
+                .ai_api_key
+                .as_ref()
+                .map_or(false, |k| !k.is_empty())
+            {
                 response_settings.ai_api_key = Some("********".to_string());
             }
-            if response_settings.ocr_api_key.as_ref().map_or(false, |k| !k.is_empty()) {
+            if response_settings
+                .ocr_api_key
+                .as_ref()
+                .map_or(false, |k| !k.is_empty())
+            {
                 response_settings.ocr_api_key = Some("********".to_string());
             }
             HttpResponse::Ok().json(response_settings)
@@ -122,8 +156,13 @@ async fn update_settings(
             // Since `incoming_settings` is moved, we should ideally log `current_settings.org_id`
             // or ensure `incoming_settings.org_id` is cloned before move for logging.
             // For now, let's use `current_settings.org_id` for this log message.
-            log::error!("Failed to update settings for org {}: {:?}", current_settings.org_id, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to update settings."}))
+            log::error!(
+                "Failed to update settings for org {}: {:?}",
+                current_settings.org_id,
+                e
+            );
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to update settings."}))
         }
     }
 }

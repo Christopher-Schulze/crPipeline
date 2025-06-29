@@ -1,8 +1,8 @@
-use jsonwebtoken::{encode, Header, EncodingKey, decode, Validation, DecodingKey};
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
-use std::{env, process};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use std::{env, process};
+use uuid::Uuid;
 
 static JWT_SECRET: Lazy<String> = Lazy::new(|| {
     env::var("JWT_SECRET").unwrap_or_else(|_| {
@@ -32,11 +32,20 @@ pub fn create_jwt(user_id: Uuid, org_id: Uuid, role: &str) -> String {
         role: role.to_string(),
         exp: exp.timestamp() as usize,
     };
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET.as_bytes())).unwrap()
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
 }
 
 pub fn verify_jwt(token: &str) -> Option<Claims> {
-    decode::<Claims>(token, &DecodingKey::from_secret(JWT_SECRET.as_bytes()), &Validation::default())
-        .map(|d| d.claims)
-        .ok()
+    decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(JWT_SECRET.as_bytes()),
+        &Validation::default(),
+    )
+    .map(|d| d.claims)
+    .ok()
 }

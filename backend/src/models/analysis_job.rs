@@ -50,10 +50,12 @@ impl AnalysisJob {
     }
 
     pub async fn find_by_org(pool: &PgPool, org: Uuid) -> sqlx::Result<Vec<AnalysisJob>> {
-        sqlx::query_as::<_, AnalysisJob>("SELECT * FROM analysis_jobs WHERE org_id=$1 ORDER BY created_at DESC")
-            .bind(org)
-            .fetch_all(pool)
-            .await
+        sqlx::query_as::<_, AnalysisJob>(
+            "SELECT * FROM analysis_jobs WHERE org_id=$1 ORDER BY created_at DESC",
+        )
+        .bind(org)
+        .fetch_all(pool)
+        .await
     }
 
     pub async fn find(pool: &PgPool, id: Uuid) -> sqlx::Result<AnalysisJob> {

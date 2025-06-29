@@ -10,6 +10,9 @@ if ! command -v cargo >/dev/null; then
   exit 1
 fi
 
+# Ensure required Rust components are installed
+rustup component add rustfmt clippy >/dev/null
+
 if ! command -v npm >/dev/null; then
   echo "npm not found" >&2
   exit 1

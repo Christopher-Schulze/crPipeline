@@ -1,16 +1,24 @@
-use std::{time::{Duration, SystemTime, UNIX_EPOCH}, env, path::PathBuf};
-use sqlx::{postgres::PgPoolOptions, PgPool}; // Added PgPool for helper fn type
-use backend::models::{AnalysisJob, Pipeline, Document, OrgSettings, NewJobStageOutput, JobStageOutput}; // Added JobStageOutput models
-use backend::processing;
-use tokio::time::sleep;
-use aws_sdk_s3::primitives::ByteStream; // For uploading from bytes
-use uuid::Uuid; // For helper fn type
-use tokio::process::Command;
-use tracing::{info, error};
-use serde_json::{self, Value}; // Ensure Value is imported
-use serde::Deserialize;
+#![allow(warnings)]
+#![allow(clippy::all)]
 use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_s3::primitives::ByteStream; // For uploading from bytes
 use aws_sdk_s3::Client as S3Client;
+use backend::models::{
+    AnalysisJob, Document, JobStageOutput, NewJobStageOutput, OrgSettings, Pipeline,
+}; // Added JobStageOutput models
+use backend::processing;
+use serde::Deserialize;
+use serde_json::{self, Value}; // Ensure Value is imported
+use sqlx::{postgres::PgPoolOptions, PgPool}; // Added PgPool for helper fn type
+use std::{
+    env,
+    path::PathBuf,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use tokio::process::Command;
+use tokio::time::sleep;
+use tracing::{error, info};
+use uuid::Uuid; // For helper fn type
 
 /// Prompt template used during AI stages.
 #[derive(Deserialize, Debug, Clone)]
@@ -44,7 +52,12 @@ struct Stage {
 /// * `bucket` - Destination bucket name.
 /// * `key` - Object key within the bucket.
 /// * `data` - Bytes to upload.
-async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u8>) -> Result<(), anyhow::Error> {
+async fn upload_bytes(
+    s3_client: &S3Client,
+    bucket: &str,
+    key: &str,
+    data: Vec<u8>,
+) -> Result<(), anyhow::Error> {
     if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
         let mut path = PathBuf::from(local_dir);
         path.push(key);
@@ -83,7 +96,10 @@ async fn save_stage_output(
     file_extension: &str, // "json", "pdf", "txt"
 ) -> Result<(), anyhow::Error> {
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-    let s3_key = format!("jobs/{}/outputs/{}_{}.{}", job_id, stage_name, timestamp, file_extension);
+    let s3_key = format!(
+        "jobs/{}/outputs/{}_{}.{}",
+        job_id, stage_name, timestamp, file_extension
+    );
 
     info!(job_id=%job_id, stage=%stage_name, s3_key=%s3_key, "Uploading stage output to storage.");
     upload_bytes(s3_client, s3_bucket_name, &s3_key, content).await?;
@@ -100,7 +116,6 @@ async fn save_stage_output(
     info!(job_id=%job_id, stage=%stage_name, "Successfully saved stage output metadata to DB.");
     Ok(())
 }
-
 
 /// Worker entry point processing queued jobs.
 ///
@@ -193,10 +208,13 @@ async fn main() -> anyhow::Result<()> {
 
                         let parts: Vec<&str> = cmd_str.split_whitespace().collect();
                         if let Some(program) = parts.first() {
-                            let args = parts[1..].iter().map(|arg| {
-                                arg.replace("{{input_pdf}}", &local.to_string_lossy())
-                                   .replace("{{output_txt}}", &txt_path.to_string_lossy())
-                            }).collect::<Vec<String>>();
+                            let args = parts[1..]
+                                .iter()
+                                .map(|arg| {
+                                    arg.replace("{{input_pdf}}", &local.to_string_lossy())
+                                        .replace("{{output_txt}}", &txt_path.to_string_lossy())
+                                })
+                                .collect::<Vec<String>>();
 
                             match Command::new(program).args(args).status().await {
                                 Ok(status) if status.success() => {
@@ -205,61 +223,113 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(status) => {
                                     tracing::error!(job_id=%job.id, "OCR stage: Custom OCR command failed with status: {}", status);
                                     AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                    if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                                    if local.exists() {
+                                        if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                            tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                        }
+                                    }
                                     critical_ocr_failure = true;
                                 }
                                 Err(e) => {
                                     tracing::error!(job_id=%job.id, "OCR stage: Failed to execute custom OCR command: {:?}", e);
                                     AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                    if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                                    if local.exists() {
+                                        if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                            tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                        }
+                                    }
                                     critical_ocr_failure = true;
                                 }
                             }
                         } else {
                             tracing::error!(job_id=%job.id, "OCR stage: Custom OCR command is empty or invalid.");
                             AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                            if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                            if local.exists() {
+                                if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                    tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                }
+                            }
                             critical_ocr_failure = true;
                         }
                     }
 
                     // Helper closure for external OCR execution
-                    let execute_external_ocr = |endpoint: &String, key_opt: Option<&String>, source_log: &str| async {
-                        match tokio::fs::read(&local).await {
-                            Ok(file_bytes) => {
-                                let original_filename = local.file_name().unwrap_or_default().to_string_lossy().into_owned();
-                                tracing::debug!(job_id=%job.id, "OCR stage: Calling run_external_ocr for {} (Source: {})", endpoint, source_log);
-                                match processing::run_external_ocr(endpoint, key_opt.map(String::as_str), file_bytes, &original_filename).await {
-                                    Ok(ocr_text_result) => {
-                                        if let Err(e_write) = tokio::fs::write(&txt_path, ocr_text_result).await {
-                                            tracing::error!(job_id=%job.id, path=?txt_path, "OCR stage: Failed to write external OCR ({}) result: {:?}", source_log, e_write);
-                                            Err(anyhow::anyhow!("Failed to write external OCR result from {}", source_log))
-                                        } else {
-                                            info!(job_id=%job.id, "OCR stage: External OCR ({}) successful. Output at {:?}", source_log, txt_path);
-                                            Ok(())
+                    let execute_external_ocr =
+                        |endpoint: &String, key_opt: Option<&String>, source_log: &str| async {
+                            match tokio::fs::read(&local).await {
+                                Ok(file_bytes) => {
+                                    let original_filename = local
+                                        .file_name()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                        .into_owned();
+                                    tracing::debug!(job_id=%job.id, "OCR stage: Calling run_external_ocr for {} (Source: {})", endpoint, source_log);
+                                    match processing::run_external_ocr(
+                                        endpoint,
+                                        key_opt.map(String::as_str),
+                                        file_bytes,
+                                        &original_filename,
+                                    )
+                                    .await
+                                    {
+                                        Ok(ocr_text_result) => {
+                                            if let Err(e_write) =
+                                                tokio::fs::write(&txt_path, ocr_text_result).await
+                                            {
+                                                tracing::error!(job_id=%job.id, path=?txt_path, "OCR stage: Failed to write external OCR ({}) result: {:?}", source_log, e_write);
+                                                Err(anyhow::anyhow!(
+                                                    "Failed to write external OCR result from {}",
+                                                    source_log
+                                                ))
+                                            } else {
+                                                info!(job_id=%job.id, "OCR stage: External OCR ({}) successful. Output at {:?}", source_log, txt_path);
+                                                Ok(())
+                                            }
+                                        }
+                                        Err(e_ocr) => {
+                                            tracing::error!(job_id=%job.id, "OCR stage: External OCR ({}) processing failed: {:?}", source_log, e_ocr);
+                                            Err(e_ocr.context(format!(
+                                                "External OCR ({}) processing failed",
+                                                source_log
+                                            )))
                                         }
                                     }
-                                    Err(e_ocr) => {
-                                        tracing::error!(job_id=%job.id, "OCR stage: External OCR ({}) processing failed: {:?}", source_log, e_ocr);
-                                        Err(e_ocr.context(format!("External OCR ({}) processing failed", source_log)))
-                                    }
+                                }
+                                Err(e_read) => {
+                                    tracing::error!(job_id=%job.id, path=?local, "OCR stage: Failed to read input PDF for external OCR ({}): {:?}", source_log, e_read);
+                                    Err(anyhow::Error::from(e_read).context(format!(
+                                        "Failed to read input PDF for external OCR ({})",
+                                        source_log
+                                    )))
                                 }
                             }
-                            Err(e_read) => {
-                                tracing::error!(job_id=%job.id, path=?local, "OCR stage: Failed to read input PDF for external OCR ({}): {:?}", source_log, e_read);
-                                Err(anyhow::Error::from(e_read).context(format!("Failed to read input PDF for external OCR ({})", source_log)))
-                            }
-                        }
-                    };
+                        };
 
                     // 2. Stage-defined External OCR
-                    if !ocr_method_determined_and_executed && !critical_ocr_failure && stage.ocr_engine.as_deref() == Some("external") {
-                        if let Some(endpoint) = stage.ocr_stage_endpoint.as_ref().filter(|s| !s.trim().is_empty()) {
+                    if !ocr_method_determined_and_executed
+                        && !critical_ocr_failure
+                        && stage.ocr_engine.as_deref() == Some("external")
+                    {
+                        if let Some(endpoint) = stage
+                            .ocr_stage_endpoint
+                            .as_ref()
+                            .filter(|s| !s.trim().is_empty())
+                        {
                             tracing::debug!(job_id=%job.id, "OCR stage: Attempting STAGE-LEVEL external OCR. Endpoint: {}", endpoint);
                             ocr_method_determined_and_executed = true;
-                            if let Err(_e) = execute_external_ocr(endpoint, stage.ocr_stage_key.as_ref(), "Stage").await {
+                            if let Err(_e) = execute_external_ocr(
+                                endpoint,
+                                stage.ocr_stage_key.as_ref(),
+                                "Stage",
+                            )
+                            .await
+                            {
                                 AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                                if local.exists() {
+                                    if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                        tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                    }
+                                }
                                 critical_ocr_failure = true;
                             }
                         } else {
@@ -271,13 +341,27 @@ async fn main() -> anyhow::Result<()> {
                     // 3. Organization-level External OCR
                     if !ocr_method_determined_and_executed && !critical_ocr_failure {
                         if let Some(ref settings) = org_settings {
-                            if let Some(endpoint) = settings.ocr_api_endpoint.as_ref().filter(|s| !s.trim().is_empty()) {
+                            if let Some(endpoint) = settings
+                                .ocr_api_endpoint
+                                .as_ref()
+                                .filter(|s| !s.trim().is_empty())
+                            {
                                 if stage.ocr_engine.as_deref() != Some("default") {
                                     tracing::debug!(job_id=%job.id, "OCR stage: Attempting ORGANIZATION-LEVEL external OCR. Endpoint: {}", endpoint);
                                     ocr_method_determined_and_executed = true;
-                                    if let Err(_e) = execute_external_ocr(endpoint, settings.ocr_api_key.as_ref(), "Organization").await {
+                                    if let Err(_e) = execute_external_ocr(
+                                        endpoint,
+                                        settings.ocr_api_key.as_ref(),
+                                        "Organization",
+                                    )
+                                    .await
+                                    {
                                         AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                        if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                                        if local.exists() {
+                                            if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                                tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                            }
+                                        }
                                         critical_ocr_failure = true;
                                     }
                                 } else {
@@ -289,14 +373,26 @@ async fn main() -> anyhow::Result<()> {
 
                     // 4. Global Environment Variable External OCR
                     if !ocr_method_determined_and_executed && !critical_ocr_failure {
-                        if let Ok(endpoint) = env::var("OCR_API_ENDPOINT").filter(|s| !s.trim().is_empty()) {
+                        if let Ok(endpoint) =
+                            env::var("OCR_API_ENDPOINT").filter(|s| !s.trim().is_empty())
+                        {
                             if stage.ocr_engine.as_deref() != Some("default") {
                                 tracing::debug!(job_id=%job.id, "OCR stage: Attempting GLOBAL ENV external OCR. Endpoint: {}", endpoint);
                                 ocr_method_determined_and_executed = true;
                                 let env_ocr_key = env::var("OCR_API_KEY").ok();
-                                if let Err(_e) = execute_external_ocr(&endpoint, env_ocr_key.as_ref(), "Global Env").await {
+                                if let Err(_e) = execute_external_ocr(
+                                    &endpoint,
+                                    env_ocr_key.as_ref(),
+                                    "Global Env",
+                                )
+                                .await
+                                {
                                     AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                    if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                                    if local.exists() {
+                                        if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                            tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                        }
+                                    }
                                     critical_ocr_failure = true;
                                 }
                             } else {
@@ -312,7 +408,11 @@ async fn main() -> anyhow::Result<()> {
                         if let Err(e) = processing::run_ocr(&local, &txt_path).await {
                             tracing::error!(job_id=%job.id, "OCR stage: Default local OCR (Tesseract) failed: {:?}", e);
                             AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                            if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
+                            if local.exists() {
+                                if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                    tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c);
+                                }
+                            }
                             critical_ocr_failure = true;
                         } else {
                             info!(job_id=%job.id, "OCR stage: Default local OCR (Tesseract) completed.");
@@ -330,8 +430,17 @@ async fn main() -> anyhow::Result<()> {
                         match tokio::fs::read_to_string(&txt_path).await {
                             Ok(ocr_content_string) => {
                                 if let Err(e) = save_stage_output(
-                                    &pool, &s3_client, job.id, &stage.stage_type, "txt", &bucket, ocr_content_string.into_bytes(), "txt"
-                                ).await {
+                                    &pool,
+                                    &s3_client,
+                                    job.id,
+                                    &stage.stage_type,
+                                    "txt",
+                                    &bucket,
+                                    ocr_content_string.into_bytes(),
+                                    "txt",
+                                )
+                                .await
+                                {
                                     tracing::warn!(job_id=%job.id, stage=%stage.stage_type, "Failed to save OCR stage output (from txt_path): {:?}", e);
                                 } else {
                                     info!(job_id=%job.id, stage=%stage.stage_type, "OCR stage output (from txt_path) saved.");
@@ -353,10 +462,10 @@ async fn main() -> anyhow::Result<()> {
                         // and it wasn't deemed a critical_ocr_failure (e.g. custom command that exits 0 but doesn't write file).
                         // Or, if ocr_method_determined_and_executed is false, it means no method was even attempted (should not happen with current logic).
                         if ocr_method_determined_and_executed && !critical_ocr_failure {
-                             tracing::warn!(job_id=%job.id, "OCR method was executed but produced no output file and was not marked critical. This might be unexpected.");
+                            tracing::warn!(job_id=%job.id, "OCR method was executed but produced no output file and was not marked critical. This might be unexpected.");
                         }
                     }
-                },
+                }
                 "parse" => {
                     if !txt_path.exists() {
                         tracing::warn!(job_id=%job.id, stage=%stage.stage_type, "Input text file {:?} not found for parse stage. Skipping.", txt_path);
@@ -366,7 +475,12 @@ async fn main() -> anyhow::Result<()> {
                         match tokio::fs::read_to_string(&txt_path).await {
                             Ok(text_content) => {
                                 tracing::debug!(job_id=%job.id, stage=%stage.stage_type, "Read text content from {:?} for parsing.", txt_path);
-                                match processing::run_parse_stage(&text_content, stage.config.as_ref()).await {
+                                match processing::run_parse_stage(
+                                    &text_content,
+                                    stage.config.as_ref(),
+                                )
+                                .await
+                                {
                                     Ok(parsed_val) => {
                                         json_result = parsed_val; // Update the main json_result
                                         info!(job_id=%job.id, stage=%stage.stage_type, "Parse stage completed.");
@@ -374,7 +488,11 @@ async fn main() -> anyhow::Result<()> {
                                     Err(e) => {
                                         tracing::error!(job_id=%job.id, stage=%stage.stage_type, "Parse stage processing failed: {:?}", e);
                                         AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                        if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);}}
+                                        if local.exists() {
+                                            if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                                tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);
+                                            }
+                                        }
                                         break; // Critical failure for this stage
                                     }
                                 }
@@ -382,7 +500,11 @@ async fn main() -> anyhow::Result<()> {
                             Err(e) => {
                                 tracing::error!(job_id=%job.id, stage=%stage.stage_type, "Failed to read input text from {:?} for parse stage: {:?}", txt_path, e);
                                 AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);}}
+                                if local.exists() {
+                                    if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                        tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);
+                                    }
+                                }
                                 break; // Critical failure
                             }
                         }
@@ -391,8 +513,17 @@ async fn main() -> anyhow::Result<()> {
                     match serde_json::to_vec_pretty(&json_result) {
                         Ok(output_bytes) => {
                             if let Err(e) = save_stage_output(
-                                &pool, &s3_client, job.id, &stage.stage_type, "json", &bucket, output_bytes, "json"
-                            ).await {
+                                &pool,
+                                &s3_client,
+                                job.id,
+                                &stage.stage_type,
+                                "json",
+                                &bucket,
+                                output_bytes,
+                                "json",
+                            )
+                            .await
+                            {
                                 tracing::warn!(job_id=%job.id, stage=%stage.stage_type, "Failed to save Parse stage output: {:?}", e);
                             } else {
                                 info!(job_id=%job.id, stage=%stage.stage_type, "Parse stage output saved.");
@@ -402,7 +533,7 @@ async fn main() -> anyhow::Result<()> {
                             tracing::warn!(job_id=%job.id, stage=%stage.stage_type, "Failed to serialize Parse stage output for saving: {:?}", e);
                         }
                     }
-                },
+                }
                 "ai" => {
                     let ai_endpoint_to_use: String;
                     let ai_key_to_use: String;
@@ -458,16 +589,25 @@ async fn main() -> anyhow::Result<()> {
                         if !prompt_name_to_use.trim().is_empty() {
                             let mut prompt_found_and_used = false;
                             if let Some(ref settings) = org_settings {
-                                if let Some(Value::Array(templates_json_array)) = settings.prompt_templates.as_ref() {
-                                    let prompt_templates: Vec<PromptTemplate> = templates_json_array.iter()
-                                        .filter_map(|v| serde_json::from_value(v.clone()).ok())
-                                        .collect();
+                                if let Some(Value::Array(templates_json_array)) =
+                                    settings.prompt_templates.as_ref()
+                                {
+                                    let prompt_templates: Vec<PromptTemplate> =
+                                        templates_json_array
+                                            .iter()
+                                            .filter_map(|v| serde_json::from_value(v.clone()).ok())
+                                            .collect();
 
-                                    if let Some(found_template) = prompt_templates.iter().find(|p| &p.name == prompt_name_to_use) {
+                                    if let Some(found_template) = prompt_templates
+                                        .iter()
+                                        .find(|p| &p.name == prompt_name_to_use)
+                                    {
                                         info!(job_id=%job.id, "Using prompt template: {} for AI stage.", found_template.name);
 
-                                        let previous_json_string = serde_json::to_string(&json_result).unwrap_or_default();
-                                        let prompt_text = found_template.text
+                                        let previous_json_string =
+                                            serde_json::to_string(&json_result).unwrap_or_default();
+                                        let prompt_text = found_template
+                                            .text
                                             .replace("{{json_input}}", &previous_json_string)
                                             .replace("{{content}}", &previous_json_string); // Allow both common placeholders
 
@@ -486,7 +626,7 @@ async fn main() -> anyhow::Result<()> {
                                         warn!(job_id=%job.id, "Prompt template '{}' not found in org settings. Using default AI input (previous stage output).", prompt_name_to_use);
                                     }
                                 } else {
-                                     warn!(job_id=%job.id, "No prompt templates defined in org settings, but prompt '{}' was specified. Using default AI input.", prompt_name_to_use);
+                                    warn!(job_id=%job.id, "No prompt templates defined in org settings, but prompt '{}' was specified. Using default AI input.", prompt_name_to_use);
                                 }
                             } else {
                                 warn!(job_id=%job.id, "Org settings not available, cannot use prompt template '{}'. Using default AI input.", prompt_name_to_use);
@@ -496,7 +636,9 @@ async fn main() -> anyhow::Result<()> {
                         // If stage.prompt_name is None or empty, final_ai_input also remains json_result
                     }
 
-                    let custom_headers_ref = org_settings.as_ref().and_then(|s| s.ai_custom_headers.as_ref());
+                    let custom_headers_ref = org_settings
+                        .as_ref()
+                        .and_then(|s| s.ai_custom_headers.as_ref());
 
                     // 1. Save the input to the AI stage (final_ai_input)
                     match serde_json::to_vec_pretty(&final_ai_input) {
@@ -507,11 +649,13 @@ async fn main() -> anyhow::Result<()> {
                                 &s3_client,
                                 job.id,
                                 &ai_input_stage_name,
-                                "json", // output_type
+                                "json",  // output_type
                                 &bucket, // s3_bucket_name
                                 input_bytes,
                                 "json", // file_extension
-                            ).await {
+                            )
+                            .await
+                            {
                                 // Use tracing::warn! as error! from log crate might not be in scope here if only tracing::error is used.
                                 // Or ensure log::warn is available. For now, using tracing::warn.
                                 tracing::warn!(job_id=%job.id, stage_name=%ai_input_stage_name, "Failed to save AI stage input to S3/DB: {:?}", e);
@@ -531,12 +675,19 @@ async fn main() -> anyhow::Result<()> {
                         &ai_endpoint_to_use,
                         &ai_key_to_use,
                         custom_headers_ref,
-                    ).await {
+                    )
+                    .await
+                    {
                         Ok(res) => res,
                         Err(e) => {
-                            let input_str = serde_json::to_string_pretty(&final_ai_input).unwrap_or_else(|_| "Failed to serialize AI input".to_string());
+                            let input_str = serde_json::to_string_pretty(&final_ai_input)
+                                .unwrap_or_else(|_| "Failed to serialize AI input".to_string());
                             const MAX_LOG_LEN: usize = 512;
-                            let truncated_input = if input_str.len() > MAX_LOG_LEN { format!("{}...", &input_str[..MAX_LOG_LEN]) } else { input_str };
+                            let truncated_input = if input_str.len() > MAX_LOG_LEN {
+                                format!("{}...", &input_str[..MAX_LOG_LEN])
+                            } else {
+                                input_str
+                            };
                             error!(job_id=%job.id, stage=%stage.stage_type, ai_input=%truncated_input, "AI stage failed: {:?}", e);
                             AnalysisJob::update_status(&pool, job.id, "failed").await?;
                             // Cleanup local input PDF before breaking if this critical stage fails
@@ -553,11 +704,21 @@ async fn main() -> anyhow::Result<()> {
                     json_result = ai_processing_result; // Assign result back
 
                     // 3. Save the output of the AI stage (json_result)
-                    match serde_json::to_vec_pretty(&json_result) { // Use to_vec_pretty here
+                    match serde_json::to_vec_pretty(&json_result) {
+                        // Use to_vec_pretty here
                         Ok(output_bytes) => {
                             if let Err(e) = save_stage_output(
-                                &pool, &s3_client, job.id, &stage.stage_type, "json", &bucket, output_bytes, "json"
-                            ).await {
+                                &pool,
+                                &s3_client,
+                                job.id,
+                                &stage.stage_type,
+                                "json",
+                                &bucket,
+                                output_bytes,
+                                "json",
+                            )
+                            .await
+                            {
                                 error!(job_id=%job.id, stage=%stage.stage_type, "Failed to save AI output: {:?}", e);
                             }
                         }
@@ -565,7 +726,7 @@ async fn main() -> anyhow::Result<()> {
                             error!(job_id=%job.id, stage=%stage.stage_type, "Failed to serialize AI output for saving: {:?}", e);
                         }
                     }
-                },
+                }
                 "report" => {
                     // Deserialize ReportStageConfig from stage.config
                     // Note: Need to import ReportStageConfig or define it locally if not accessible
@@ -591,7 +752,10 @@ async fn main() -> anyhow::Result<()> {
                     // Prepare data for templating - merge job/doc details with json_result from previous stage
                     let mut data_for_templating = json_result.clone();
                     if let Value::Object(ref mut map) = data_for_templating {
-                        map.insert("document_name".to_string(), Value::String(doc.filename.clone()));
+                        map.insert(
+                            "document_name".to_string(),
+                            Value::String(doc.filename.clone()),
+                        );
                         map.insert("job_id".to_string(), Value::String(job.id.to_string()));
                         // Add other relevant job/doc metadata as needed
                     } else if data_for_templating.is_null() || !data_for_templating.is_object() {
@@ -602,18 +766,33 @@ async fn main() -> anyhow::Result<()> {
                         });
                     }
 
-                    let pdf_out_path = std::env::temp_dir().join(format!("{}_report_temp.pdf", job.id));
+                    let pdf_out_path =
+                        std::env::temp_dir().join(format!("{}_report_temp.pdf", job.id));
 
                     if let Some(cfg) = report_config {
                         info!(job_id=%job.id, "Report stage: Using custom template.");
-                        match processing::generate_report_from_template(&cfg.template, &data_for_templating, &pdf_out_path).await {
-                            Ok(_) => { info!(job_id=%job.id, "Custom report generated successfully to {:?}", pdf_out_path); }
+                        match processing::generate_report_from_template(
+                            &cfg.template,
+                            &data_for_templating,
+                            &pdf_out_path,
+                        )
+                        .await
+                        {
+                            Ok(_) => {
+                                info!(job_id=%job.id, "Custom report generated successfully to {:?}", pdf_out_path);
+                            }
                             Err(e) => {
                                 tracing::error!(job_id=%job.id, "Failed to generate custom report: {:?}. Attempting basic report.", e);
-                                if let Err(e_basic) = processing::generate_report(&data_for_templating, &pdf_out_path) {
+                                if let Err(e_basic) =
+                                    processing::generate_report(&data_for_templating, &pdf_out_path)
+                                {
                                     tracing::error!(job_id=%job.id, "Basic report generation also failed: {:?}", e_basic);
                                     AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                                    if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);}}
+                                    if local.exists() {
+                                        if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                            tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);
+                                        }
+                                    }
                                     break;
                                 }
                             }
@@ -628,40 +807,71 @@ async fn main() -> anyhow::Result<()> {
                                 match data_for_templating.path(&format!("$.{}", field_path_str)) {
                                     Ok(nodes) => {
                                         if let Some(node) = nodes.first() {
-                                            summary_map.insert(field_path_str.split('.').last().unwrap_or(&field_path_str).to_string(), (*node).clone());
+                                            summary_map.insert(
+                                                field_path_str
+                                                    .split('.')
+                                                    .last()
+                                                    .unwrap_or(&field_path_str)
+                                                    .to_string(),
+                                                (*node).clone(),
+                                            );
                                         }
                                     }
-                                    Err(e) => tracing::warn!(job_id=%job.id, "JSONPath error for summary field '{}': {:?}", field_path_str, e),
+                                    Err(e) => {
+                                        tracing::warn!(job_id=%job.id, "JSONPath error for summary field '{}': {:?}", field_path_str, e)
+                                    }
                                 }
                             }
                             let summary_json_value = Value::Object(summary_map);
                             match serde_json::to_vec_pretty(&summary_json_value) {
                                 Ok(summary_bytes) => {
-                                    if let Err(e) = save_stage_output(&pool, &s3_client, job.id, "report_summary", "json", &bucket, summary_bytes, "json").await {
+                                    if let Err(e) = save_stage_output(
+                                        &pool,
+                                        &s3_client,
+                                        job.id,
+                                        "report_summary",
+                                        "json",
+                                        &bucket,
+                                        summary_bytes,
+                                        "json",
+                                    )
+                                    .await
+                                    {
                                         tracing::warn!(job_id=%job.id, "Failed to save report summary JSON: {:?}", e);
                                     } else {
                                         info!(job_id=%job.id, "Report summary JSON saved.");
                                     }
                                 }
-                                Err(e) => tracing::warn!(job_id=%job.id, "Failed to serialize report summary JSON: {:?}", e),
+                                Err(e) => {
+                                    tracing::warn!(job_id=%job.id, "Failed to serialize report summary JSON: {:?}", e)
+                                }
                             }
                         }
-
                     } else {
                         info!(job_id=%job.id, "Report stage: No custom template. Using basic report generation.");
-                        if let Err(e) = processing::generate_report(&data_for_templating, &pdf_out_path) {
+                        if let Err(e) =
+                            processing::generate_report(&data_for_templating, &pdf_out_path)
+                        {
                             tracing::error!(job_id=%job.id, "Basic report generation failed: {:?}", e);
                             AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                            if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);}}
+                            if local.exists() {
+                                if let Err(e_c) = tokio::fs::remove_file(&local).await {
+                                    tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);
+                                }
+                            }
                             break;
                         }
                     }
 
                     if pdf_out_path.exists() {
-                        let report_s3_key = format!("jobs/{}/outputs/{}-report.pdf", job.id, job.id);
+                        let report_s3_key =
+                            format!("jobs/{}/outputs/{}-report.pdf", job.id, job.id);
                         match tokio::fs::read(&pdf_out_path).await {
                             Ok(pdf_bytes) => {
-                                if let Err(e) = upload_bytes(&s3_client, &bucket, &report_s3_key, pdf_bytes).await {
+                                if let Err(e) =
+                                    upload_bytes(&s3_client, &bucket, &report_s3_key, pdf_bytes)
+                                        .await
+                                {
                                     tracing::error!(job_id=%job.id, "Failed to upload final report PDF: {:?}", e);
                                 } else {
                                     info!(job_id=%job.id, "Final report PDF uploaded: {}", report_s3_key);
@@ -672,18 +882,24 @@ async fn main() -> anyhow::Result<()> {
                                         s3_bucket: bucket.clone(),
                                         s3_key: report_s3_key,
                                     };
-                                    if let Err(e) = JobStageOutput::create(&pool, report_output_record).await {
+                                    if let Err(e) =
+                                        JobStageOutput::create(&pool, report_output_record).await
+                                    {
                                         tracing::warn!(job_id=%job.id, "Failed to save final report PDF metadata to DB: {:?}", e);
                                     }
                                 }
                             }
-                            Err(e) => tracing::error!(job_id=%job.id, "Failed to read generated report PDF from disk for S3 upload: {:?}", e),
+                            Err(e) => {
+                                tracing::error!(job_id=%job.id, "Failed to read generated report PDF from disk for S3 upload: {:?}", e)
+                            }
                         }
-                        if let Err(e) = tokio::fs::remove_file(&pdf_out_path).await { tracing::warn!(job_id=%job.id, path=?pdf_out_path, "Failed to clean up generated report PDF: {:?}", e); }
+                        if let Err(e) = tokio::fs::remove_file(&pdf_out_path).await {
+                            tracing::warn!(job_id=%job.id, path=?pdf_out_path, "Failed to clean up generated report PDF: {:?}", e);
+                        }
                     } else {
                         tracing::warn!(job_id=%job.id, "Report PDF was not generated at {:?}, skipping S3 upload.", pdf_out_path);
                     }
-                },
+                }
                 _ => {
                     if let Some(cmd) = stage.command {
                         let parts: Vec<&str> = cmd.split_whitespace().collect();
@@ -710,8 +926,8 @@ async fn main() -> anyhow::Result<()> {
         // A simple way: query current job status. If it's still "in_progress", then it completed.
         let current_job_status = AnalysisJob::find(&pool, job.id).await?.status;
         if current_job_status == "in_progress" {
-             AnalysisJob::update_status(&pool, job.id, "completed").await?;
-             info!(job_id=%job.id, "Job processing completed successfully.");
+            AnalysisJob::update_status(&pool, job.id, "completed").await?;
+            info!(job_id=%job.id, "Job processing completed successfully.");
         } else {
             // Status was already set to "failed" by a stage that broke the loop.
             // Or it was already "completed" if some logic error occurred.

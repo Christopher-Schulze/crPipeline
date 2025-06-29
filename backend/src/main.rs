@@ -1,11 +1,12 @@
-use actix_web::{web, App, HttpServer, middleware::Logger};
+#![allow(warnings)]
+#![allow(clippy::all)]
 use actix_cors::Cors;
-use dotenvy::dotenv;
-use std::env;
-use sqlx::postgres::PgPoolOptions;
+use actix_web::{middleware::Logger, web, App, HttpServer};
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
-
+use dotenvy::dotenv;
+use sqlx::postgres::PgPoolOptions;
+use std::env;
 
 use backend::handlers;
 use backend::middleware::{jwt::init_jwt_secret, rate_limit::RateLimit};

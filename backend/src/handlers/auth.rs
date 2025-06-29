@@ -1,19 +1,19 @@
-use actix_web::{post, get, web, HttpResponse};
+use crate::email::send_email;
+use crate::middleware::auth::AuthUser; // Keep for 'me' handler
+use crate::middleware::jwt::create_jwt; // Keep for login, not for register response
+use crate::models::{NewUser, User};
+use actix_web::{get, post, web, HttpResponse};
+use argon2::{Argon2, PasswordHasher};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use crate::models::{User, NewUser};
-use crate::middleware::jwt::create_jwt; // Keep for login, not for register response
-use crate::middleware::auth::AuthUser; // Keep for 'me' handler
-use crate::email::send_email;
-use argon2::{Argon2, PasswordHasher};
 // log_action removed from here, as it's not suitable for public registration without an actor AuthUser
 // For admin actions, log_action would be used in those specific admin handlers.
+use actix_web::cookie::time::Duration as ActixDuration; // For cookie Max-Age
+use actix_web::cookie::SameSite; // For cookie SameSite attribute
+use argon2::password_hash::SaltString;
+use chrono::Utc;
 use log;
 use serde_json;
-use argon2::password_hash::SaltString;
-use actix_web::cookie::SameSite; // For cookie SameSite attribute
-use actix_web::cookie::time::Duration as ActixDuration; // For cookie Max-Age
-use chrono::Utc;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -30,10 +30,15 @@ pub struct AuthResponse {
 }
 
 #[derive(Deserialize)]
-pub struct ResetRequest { pub email: String }
+pub struct ResetRequest {
+    pub email: String,
+}
 
 #[derive(Deserialize)]
-pub struct ResetInput { pub token: Uuid, pub password: String }
+pub struct ResetInput {
+    pub token: Uuid,
+    pub password: String,
+}
 
 #[post("/register")]
 pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -> HttpResponse {
@@ -59,7 +64,11 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
             // log_action removed for public registration endpoint
             let base = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
             // u.confirmation_token should always be Some due to User::create logic
-            let link = format!("{}/api/confirm/{}", base, u.confirmation_token.unwrap_or_else(Uuid::new_v4));
+            let link = format!(
+                "{}/api/confirm/{}",
+                base,
+                u.confirmation_token.unwrap_or_else(Uuid::new_v4)
+            );
 
             if let Err(e) = send_email(&u.email, "Confirm your account", &link).await {
                 log::warn!("Failed to send confirmation email to {}: {:?}", u.email, e);
@@ -73,16 +82,21 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
             log::error!("Failed to create user {}: {:?}", data.email, e);
             if let Some(db_err) = e.as_database_error() {
                 if db_err.is_unique_violation() {
-                    return HttpResponse::Conflict().json(serde_json::json!({"error": "Email address already in use."}));
+                    return HttpResponse::Conflict()
+                        .json(serde_json::json!({"error": "Email address already in use."}));
                 }
             }
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to register user."}))
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to register user."}))
         }
     }
 }
 
 #[derive(Deserialize)]
-pub struct LoginInput { pub email: String, pub password: String }
+pub struct LoginInput {
+    pub email: String,
+    pub password: String,
+}
 
 #[post("/login")]
 pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> HttpResponse {
@@ -94,19 +108,20 @@ pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> Http
             }
             if user.verify_password(&data.password) {
                 if !user.confirmed {
-                     log::warn!("Login attempt for unconfirmed user: {}", data.email);
-                     return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Account not confirmed. Please check your email or contact an administrator to resend confirmation."}));
+                    log::warn!("Login attempt for unconfirmed user: {}", data.email);
+                    return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Account not confirmed. Please check your email or contact an administrator to resend confirmation."}));
                 }
 
                 let token = create_jwt(user.id, user.org_id, &user.role); // JWT has 24h expiry
 
                 // Determine if 'Secure' flag should be set based on BASE_URL
-                let base_url_str = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
+                let base_url_str =
+                    std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
                 let secure_cookie = base_url_str.starts_with("https://");
 
                 let mut cookie_builder = actix_web::cookie::Cookie::build("token", token)
                     .path("/")
-                    .http_only(true)      // Already set, good
+                    .http_only(true) // Already set, good
                     .same_site(SameSite::Lax) // Add SameSite=Lax
                     .max_age(ActixDuration::hours(24)); // Align with JWT expiry
 
@@ -116,20 +131,36 @@ pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> Http
 
                 let cookie = cookie_builder.finish();
 
-                log::info!("User {} logged in successfully. Secure cookie: {}", user.email, secure_cookie);
-                HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true })
+                log::info!(
+                    "User {} logged in successfully. Secure cookie: {}",
+                    user.email,
+                    secure_cookie
+                );
+                HttpResponse::Ok()
+                    .cookie(cookie)
+                    .json(AuthResponse { success: true })
             } else {
-                log::warn!("Failed login attempt for user: {} (invalid password)", data.email);
-                HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid email or password."}))
+                log::warn!(
+                    "Failed login attempt for user: {} (invalid password)",
+                    data.email
+                );
+                HttpResponse::Unauthorized()
+                    .json(serde_json::json!({"error": "Invalid email or password."}))
             }
         }
         Err(sqlx::Error::RowNotFound) => {
             log::warn!("Failed login attempt: User {} not found.", data.email);
-            HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid email or password."}))
+            HttpResponse::Unauthorized()
+                .json(serde_json::json!({"error": "Invalid email or password."}))
         }
         Err(e) => {
-            log::error!("Database error during login for user {}: {:?}", data.email, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Login failed due to a server error."}))
+            log::error!(
+                "Database error during login for user {}: {:?}",
+                data.email,
+                e
+            );
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Login failed due to a server error."}))
         }
     }
 }
@@ -148,7 +179,10 @@ async fn request_reset(data: web::Json<ResetRequest>, pool: web::Data<PgPool>) -
     if let Ok(user) = User::find_by_email(&pool, &data.email).await {
         let token = Uuid::new_v4();
         let expires = Utc::now() + chrono::Duration::hours(24);
-        if User::set_reset_token(&pool, user.id, token, expires).await.is_ok() {
+        if User::set_reset_token(&pool, user.id, token, expires)
+            .await
+            .is_ok()
+        {
             let base = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
             let link = format!("{}/reset?token={}", base, token);
             let _ = send_email(&user.email, "Password reset", &link).await;
@@ -173,8 +207,7 @@ async fn reset_password(data: web::Json<ResetInput>, pool: web::Data<PgPool>) ->
 }
 
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg
-        .service(register)
+    cfg.service(register)
         .service(login)
         .service(me)
         .service(confirm)
@@ -184,5 +217,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
 #[get("/me")]
 async fn me(user: AuthUser) -> HttpResponse {
-    HttpResponse::Ok().json(serde_json::json!({"user_id": user.user_id, "org_id": user.org_id, "role": user.role}))
+    HttpResponse::Ok().json(
+        serde_json::json!({"user_id": user.user_id, "org_id": user.org_id, "role": user.role}),
+    )
 }

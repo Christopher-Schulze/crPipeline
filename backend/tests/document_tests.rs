@@ -1,19 +1,28 @@
-use actix_web::{test, web, App, http::header};
+use actix_web::{http::header, test, web, App};
+use argon2::password_hash::SaltString;
+use argon2::{Argon2, PasswordHasher};
+use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_s3::Client as S3Client;
+use aws_smithy_http::endpoint::Endpoint;
 use backend::handlers;
 use backend::middleware::jwt::create_jwt;
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use argon2::{Argon2, PasswordHasher};
-use argon2::password_hash::SaltString;
-use uuid::Uuid;
-use serde_json::json;
-use wiremock::{MockServer, Mock, ResponseTemplate};
-use wiremock::matchers::method;
-use aws_config::meta::region::RegionProviderChain;
-use aws_smithy_http::endpoint::Endpoint;
-use aws_sdk_s3::Client as S3Client;
 use http::Uri;
+use serde_json::json;
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use uuid::Uuid;
+use wiremock::matchers::method;
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
-async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service<actix_http::Request, Response=actix_web::dev::ServiceResponse, Error=actix_web::Error>, PgPool) {
+async fn setup_test_app(
+    s3_server: &MockServer,
+) -> (
+    impl actix_web::dev::Service<
+        actix_http::Request,
+        Response = actix_web::dev::ServiceResponse,
+        Error = actix_web::Error,
+    >,
+    PgPool,
+) {
     dotenvy::dotenv().ok();
     let database_url = std::env::var("DATABASE_URL_TEST")
         .unwrap_or_else(|_| std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
@@ -42,8 +51,9 @@ async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(s3_client.clone()))
-            .configure(handlers::init)
-    ).await;
+            .configure(handlers::init),
+    )
+    .await;
     (app, pool)
 }
 
@@ -54,12 +64,14 @@ fn generate_jwt_token(user_id: Uuid, org_id: Uuid, role: &str) -> String {
 
 async fn create_org(pool: &PgPool, name: &str) -> Uuid {
     let org_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO organizations (id, name, api_key) VALUES ($1, $2, uuid_generate_v4())")
-        .bind(org_id)
-        .bind(name)
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO organizations (id, name, api_key) VALUES ($1, $2, uuid_generate_v4())",
+    )
+    .bind(org_id)
+    .bind(name)
+    .execute(pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO org_settings (org_id) VALUES ($1)")
         .bind(org_id)
         .execute(pool)
@@ -116,7 +128,10 @@ async fn test_pdf_upload_success() {
     let req = test::TestRequest::post()
         .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
         .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
-        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .insert_header((
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
         .set_payload(body)
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -149,7 +164,10 @@ async fn test_pdf_upload_bad_content_type() {
     let req = test::TestRequest::post()
         .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
         .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
-        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .insert_header((
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
         .set_payload(body)
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -193,11 +211,17 @@ async fn test_cleanup_on_failed_upload() {
     let req = test::TestRequest::post()
         .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
         .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
-        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .insert_header((
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
         .set_payload(body)
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), actix_web::http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        resp.status(),
+        actix_web::http::StatusCode::INTERNAL_SERVER_ERROR
+    );
     assert_eq!(put_mock.hits(), 1);
     assert_eq!(delete_mock.hits(), 1);
 }

@@ -1,7 +1,10 @@
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
-use anyhow::{Error, anyhow};
+use anyhow::{anyhow, Error};
 use async_trait::async_trait;
 use backend::handlers::document::{cleanup_s3_object, S3Deleter};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 #[derive(Clone, Default)]
 struct MockS3 {
@@ -30,7 +33,10 @@ async fn cleanup_invokes_delete() {
 
 #[actix_rt::test]
 async fn cleanup_logs_error() {
-    let mock = MockS3 { fail: true, ..Default::default() };
+    let mock = MockS3 {
+        fail: true,
+        ..Default::default()
+    };
     cleanup_s3_object(&mock, "b", "k").await;
     assert_eq!(mock.calls.load(Ordering::SeqCst), 1);
 }

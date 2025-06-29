@@ -1,18 +1,25 @@
 // backend/tests/org_management_tests.rs
 
-use actix_web::{test, web, App, http::header};
+use actix_web::{http::header, test, web, App};
+use argon2::password_hash::SaltString;
+use argon2::{Argon2, PasswordHasher};
 use backend::handlers;
 use backend::middleware::jwt::create_jwt;
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use argon2::{Argon2, PasswordHasher};
-use argon2::password_hash::SaltString;
-use uuid::Uuid;
 use serde_json::json;
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use uuid::Uuid;
 
 // Placeholder for a function that would set up the application with a test DB pool
 // and other necessary services, similar to main.rs.
 // This would ideally also handle migrations.
-async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, Response = actix_web::dev::ServiceResponse, Error = actix_web::Error>, PgPool) {
+async fn setup_test_app() -> (
+    impl actix_web::dev::Service<
+        actix_http::Request,
+        Response = actix_web::dev::ServiceResponse,
+        Error = actix_web::Error,
+    >,
+    PgPool,
+) {
     dotenvy::dotenv().ok();
 
     let database_url = std::env::var("DATABASE_URL_TEST")
@@ -33,8 +40,9 @@ async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, 
         App::new()
             .app_data(web::Data::new(pool.clone()))
             // .app_data(web::Data::new(s3_client.clone())) // Add other app_data if needed by these handlers
-            .configure(handlers::init) // This should bring in your org routes
-    ).await;
+            .configure(handlers::init), // This should bring in your org routes
+    )
+    .await;
     (app, pool)
 }
 
@@ -45,12 +53,14 @@ fn generate_jwt_token(user_id: Uuid, org_id: Uuid, role: &str) -> String {
 
 async fn create_org(pool: &PgPool, name: &str) -> Uuid {
     let org_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO organizations (id, name, api_key) VALUES ($1, $2, uuid_generate_v4())")
-        .bind(org_id)
-        .bind(name)
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO organizations (id, name, api_key) VALUES ($1, $2, uuid_generate_v4())",
+    )
+    .bind(org_id)
+    .bind(name)
+    .execute(pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO org_settings (org_id) VALUES ($1)")
         .bind(org_id)
         .execute(pool)
@@ -77,7 +87,6 @@ async fn create_user(pool: &PgPool, org_id: Uuid, email: &str, role: &str) -> Uu
         .unwrap();
     user_id
 }
-
 
 #[actix_rt::test]
 async fn test_get_organization_users_as_org_admin() {
@@ -161,7 +170,10 @@ async fn test_deactivate_and_reactivate_user() {
     let token = generate_jwt_token(admin_id, org_id, "org_admin");
 
     let req = test::TestRequest::post()
-        .uri(&format!("/api/organizations/me/users/{}/deactivate", user_id))
+        .uri(&format!(
+            "/api/organizations/me/users/{}/deactivate",
+            user_id
+        ))
         .insert_header((header::AUTHORIZATION, format!("Bearer {}", token.clone())))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -175,7 +187,10 @@ async fn test_deactivate_and_reactivate_user() {
     assert!(!active);
 
     let req = test::TestRequest::post()
-        .uri(&format!("/api/organizations/me/users/{}/reactivate", user_id))
+        .uri(&format!(
+            "/api/organizations/me/users/{}/reactivate",
+            user_id
+        ))
         .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
         .to_request();
     let resp = test::call_service(&app, req).await;

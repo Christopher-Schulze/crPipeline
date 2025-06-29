@@ -6,7 +6,8 @@
    ```
 2. Ensure PostgreSQL and MinIO are running locally. Update `backend/.env` if your services use custom ports or credentials.
    Alternatively run `docker compose up -d db minio` to start the services via Docker.
-3. Install Rust and Node dependencies (requires network access):
+3. Install Rust and Node dependencies (requires network access). This also adds
+   the `rustfmt` and `clippy` components:
    ```bash
    ./scripts/bootstrap_deps.sh
    ```

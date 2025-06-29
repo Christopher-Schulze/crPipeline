@@ -30,9 +30,11 @@ impl AuditLog {
     }
 
     pub async fn list_by_org(pool: &PgPool, org_id: Uuid) -> sqlx::Result<Vec<AuditLog>> {
-        sqlx::query_as::<_, AuditLog>("SELECT * FROM audit_logs WHERE org_id=$1 ORDER BY created_at DESC")
-            .bind(org_id)
-            .fetch_all(pool)
-            .await
+        sqlx::query_as::<_, AuditLog>(
+            "SELECT * FROM audit_logs WHERE org_id=$1 ORDER BY created_at DESC",
+        )
+        .bind(org_id)
+        .fetch_all(pool)
+        .await
     }
 }

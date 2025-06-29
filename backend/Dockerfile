@@ -1,4 +1,5 @@
 FROM rust:1.76 as build
+RUN rustup component add rustfmt clippy
 WORKDIR /app
 COPY backend ./
 RUN cargo build --release

@@ -1,20 +1,21 @@
-use actix_web::{web, get, post, HttpResponse, Scope};
-use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool};
-use uuid::Uuid;
-use crate::models::{Organization, NewOrganization, OrgSettings, User as UserModel, NewUser};
-use crate::middleware::auth::AuthUser;
 use crate::email::send_email; // For sending invitation emails
-use argon2::{Argon2, PasswordHasher}; // For placeholder password in invite
+use crate::middleware::auth::AuthUser;
+use crate::models::{NewOrganization, NewUser, OrgSettings, Organization, User as UserModel};
+use actix_web::{get, post, web, HttpResponse, Scope};
 use argon2::password_hash::SaltString; // For placeholder password in invite
-use rand::Rng; // For generating random passwords
+use argon2::{Argon2, PasswordHasher}; // For placeholder password in invite
 use chrono::{DateTime, Utc};
 use log;
+use rand::Rng; // For generating random passwords
+use serde::{Deserialize, Serialize};
 use serde_json;
-
+use sqlx::{FromRow, PgPool};
+use uuid::Uuid;
 
 #[derive(Deserialize)]
-pub struct OrgInput { pub name: String }
+pub struct OrgInput {
+    pub name: String,
+}
 
 // Response struct for users within an organization, tailored for org admins
 #[derive(Serialize, FromRow, Debug)]
@@ -35,24 +36,37 @@ pub struct OrgInviteUserPayload {
 }
 
 #[post("/orgs")]
-async fn create_org(data: web::Json<OrgInput>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+async fn create_org(
+    data: web::Json<OrgInput>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
     // Only global admins can create organizations
     if user.role != "admin" {
-        return HttpResponse::Forbidden().json(serde_json::json!({"error": "You do not have permission to create organizations."}));
+        return HttpResponse::Forbidden().json(
+            serde_json::json!({"error": "You do not have permission to create organizations."}),
+        );
     }
 
     let org_name = data.name.trim();
     if org_name.is_empty() {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Organization name cannot be empty."}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "Organization name cannot be empty."}));
     }
 
-    let new_org = NewOrganization { name: org_name.to_string() };
+    let new_org = NewOrganization {
+        name: org_name.to_string(),
+    };
     match Organization::create(&pool, new_org).await {
         Ok(created_org) => {
             match OrgSettings::create_default(&pool, created_org.id).await {
                 Ok(_) => HttpResponse::Ok().json(created_org),
                 Err(e) => {
-                    log::error!("Failed to create default settings for new org {}: {:?}", created_org.id, e);
+                    log::error!(
+                        "Failed to create default settings for new org {}: {:?}",
+                        created_org.id,
+                        e
+                    );
                     // Organization was created, but settings failed. This is a partial success.
                     // Depending on requirements, might want to roll back org creation or just log and return org.
                     // For now, returning the org but logging the error.
@@ -62,13 +76,18 @@ async fn create_org(data: web::Json<OrgInput>, user: AuthUser, pool: web::Data<P
                     }))
                 }
             }
-        },
-        Err(sqlx::Error::Database(db_err)) if db_err.constraint() == Some("organizations_name_key") => {
-            HttpResponse::Conflict().json(serde_json::json!({"error": "An organization with this name already exists."}))
+        }
+        Err(sqlx::Error::Database(db_err))
+            if db_err.constraint() == Some("organizations_name_key") =>
+        {
+            HttpResponse::Conflict().json(
+                serde_json::json!({"error": "An organization with this name already exists."}),
+            )
         }
         Err(e) => {
             log::error!("Failed to create organization '{}': {:?}", org_name, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to create organization."}))
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to create organization."}))
         }
     }
 }
@@ -79,28 +98,36 @@ async fn list_orgs(user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
         Organization::all(pool.as_ref()).await
     } else {
         // Non-global admins (e.g., "user", "org_admin") get only their own organization
-        sqlx::query_as::<_, Organization>("SELECT id, name, api_key FROM organizations WHERE id = $1")
-            .bind(user.org_id)
-            .fetch_optional(pool.as_ref())
-            .await
-            .map(|opt_org| opt_org.map_or_else(Vec::new, |org| vec![org]))
-            .map_err(|e| {
-                log::error!("Database error fetching single organization for user {}: {:?}", user.user_id, e);
+        sqlx::query_as::<_, Organization>(
+            "SELECT id, name, api_key FROM organizations WHERE id = $1",
+        )
+        .bind(user.org_id)
+        .fetch_optional(pool.as_ref())
+        .await
+        .map(|opt_org| opt_org.map_or_else(Vec::new, |org| vec![org]))
+        .map_err(|e| {
+            log::error!(
+                "Database error fetching single organization for user {}: {:?}",
+                user.user_id,
                 e
-            })
+            );
+            e
+        })
     };
 
     match result {
         Ok(list) => HttpResponse::Ok().json(list),
         Err(_) => {
             // Specific error already logged
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to retrieve organizations."}))
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to retrieve organizations."}))
         }
     }
 }
 
 async fn get_organization_users(user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
-    if user.role != "org_admin" && user.role != "admin" { // Allow global admin to use this too
+    if user.role != "org_admin" && user.role != "admin" {
+        // Allow global admin to use this too
         return HttpResponse::Forbidden().json(serde_json::json!({"error": "You do not have permission to view users for this organization."}));
     }
 
@@ -108,10 +135,10 @@ async fn get_organization_users(user: AuthUser, pool: web::Data<PgPool>) -> Http
     // This endpoint is /me/users, so it's implicitly the authenticated user's org.
     // If a global admin needs to see users for *any* org, they should use /admin/users or a new specific endpoint.
     // So, we strictly use user.org_id.
-    if user.role == "org_admin" && user.org_id == Uuid::nil() { // Nil UUID check
-         return HttpResponse::BadRequest().json(serde_json::json!({"error": "Organization admin is not associated with an organization."}));
+    if user.role == "org_admin" && user.org_id == Uuid::nil() {
+        // Nil UUID check
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Organization admin is not associated with an organization."}));
     }
-
 
     let query = "
         SELECT id, email, role, confirmed, is_active, created_at, deactivated_at
@@ -127,8 +154,14 @@ async fn get_organization_users(user: AuthUser, pool: web::Data<PgPool>) -> Http
     {
         Ok(users) => HttpResponse::Ok().json(users),
         Err(e) => {
-            log::error!("Failed to fetch users for organization {}: {:?}", user.org_id, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to retrieve users for the organization."}))
+            log::error!(
+                "Failed to fetch users for organization {}: {:?}",
+                user.org_id,
+                e
+            );
+            HttpResponse::InternalServerError().json(
+                serde_json::json!({"error": "Failed to retrieve users for the organization."}),
+            )
         }
     }
 }
@@ -144,7 +177,8 @@ async fn invite_user_to_organization(
 
     let target_email = payload.email.trim().to_lowercase();
     if target_email.is_empty() || !target_email.contains('@') {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid email address provided."}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "Invalid email address provided."}));
     }
 
     // Check if user already exists
@@ -165,8 +199,13 @@ async fn invite_user_to_organization(
             // User does not exist, proceed to create and invite.
         }
         Err(e) => {
-            log::error!("Database error when checking for existing user by email '{}': {:?}", target_email, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Error checking user existence."}));
+            log::error!(
+                "Database error when checking for existing user by email '{}': {:?}",
+                target_email,
+                e
+            );
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Error checking user existence."}));
         }
     }
 
@@ -180,7 +219,9 @@ async fn invite_user_to_organization(
         .collect::<String>();
 
     let salt = SaltString::generate(&mut rand::thread_rng());
-    let password_hash = match Argon2::default().hash_password(placeholder_password.as_bytes(), &salt) {
+    let password_hash = match Argon2::default()
+        .hash_password(placeholder_password.as_bytes(), &salt)
+    {
         Ok(hash) => hash.to_string(),
         Err(e) => {
             log::error!("Failed to hash placeholder password for invite: {:?}", e);
@@ -197,21 +238,29 @@ async fn invite_user_to_organization(
 
     match UserModel::create(&pool, new_user_data).await {
         Ok(created_user) => {
-            let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
-            let confirmation_link = format!("{}/api/confirm/{}", base_url, created_user.confirmation_token.unwrap_or_default());
+            let base_url =
+                std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
+            let confirmation_link = format!(
+                "{}/api/confirm/{}",
+                base_url,
+                created_user.confirmation_token.unwrap_or_default()
+            );
 
             // Fetch organization name for email
-            let org_name = match sqlx::query_scalar::<_, String>("SELECT name FROM organizations WHERE id = $1")
-                .bind(current_org_admin.org_id)
-                .fetch_one(pool.as_ref())
-                .await {
-                    Ok(name) => name,
-                    Err(_) => "Your Organization".to_string(), // Fallback
-                };
+            let org_name = match sqlx::query_scalar::<_, String>(
+                "SELECT name FROM organizations WHERE id = $1",
+            )
+            .bind(current_org_admin.org_id)
+            .fetch_one(pool.as_ref())
+            .await
+            {
+                Ok(name) => name,
+                Err(_) => "Your Organization".to_string(), // Fallback
+            };
 
             let email_subject = format!("You're invited to join {} on crPipeline", org_name);
             let email_body = format!(
-r#"Hello {},
+                r#"Hello {},
 
 You have been invited by an administrator to join the organization '{}' on crPipeline.
 Please confirm your email address and set up your account by clicking the link below:
@@ -236,7 +285,13 @@ The crPipeline Team"#,
                 }));
             }
 
-            log::info!("User {} invited to organization {} by org_admin {}. Email: {}", created_user.id, current_org_admin.org_id, current_org_admin.user_id, target_email);
+            log::info!(
+                "User {} invited to organization {} by org_admin {}. Email: {}",
+                created_user.id,
+                current_org_admin.org_id,
+                current_org_admin.user_id,
+                target_email
+            );
             HttpResponse::Ok().json(serde_json::json!({
                 "success": true,
                 "message": "Invitation sent successfully. The user needs to confirm their email address.",
@@ -246,15 +301,29 @@ The crPipeline Team"#,
         Err(sqlx::Error::Database(db_err)) => {
             // Check for unique constraint violation on email, though find_by_email should catch it.
             // This is a fallback.
-            if db_err.constraint().map_or(false, |name| name.contains("users_email_key")) {
-                 HttpResponse::Conflict().json(serde_json::json!({"error": "This email address is already registered."}))
+            if db_err
+                .constraint()
+                .map_or(false, |name| name.contains("users_email_key"))
+            {
+                HttpResponse::Conflict()
+                    .json(serde_json::json!({"error": "This email address is already registered."}))
             } else {
-                log::error!("Database error creating user for invite by org_admin {}: {:?}", current_org_admin.user_id, db_err);
-                HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to create user account for invitation."}))
+                log::error!(
+                    "Database error creating user for invite by org_admin {}: {:?}",
+                    current_org_admin.user_id,
+                    db_err
+                );
+                HttpResponse::InternalServerError().json(
+                    serde_json::json!({"error": "Failed to create user account for invitation."}),
+                )
             }
         }
         Err(e) => {
-            log::error!("Generic error creating user for invite by org_admin {}: {:?}", current_org_admin.user_id, e);
+            log::error!(
+                "Generic error creating user for invite by org_admin {}: {:?}",
+                current_org_admin.user_id,
+                e
+            );
             HttpResponse::InternalServerError().json(serde_json::json!({"error": "An unexpected error occurred during user invitation."}))
         }
     }
@@ -281,18 +350,28 @@ async fn get_and_authorize_target_user_for_org_action(
     match UserModel::find_by_id_for_admin(pool, target_user_id).await {
         Ok(Some(target_user)) => {
             if target_user.org_id != org_admin_org_id {
-                Err(HttpResponse::Forbidden().json(serde_json::json!({"error": "This user does not belong to your organization."})))
+                Err(HttpResponse::Forbidden().json(
+                    serde_json::json!({"error": "This user does not belong to your organization."}),
+                ))
             } else if target_user.role == "admin" || target_user.role == "org_admin" {
-                 Err(HttpResponse::Forbidden().json(serde_json::json!({"error": "Organization administrators cannot manage other administrators using this function."})))
-            }
-            else {
+                Err(HttpResponse::Forbidden().json(serde_json::json!({"error": "Organization administrators cannot manage other administrators using this function."})))
+            } else {
                 Ok(target_user)
             }
         }
-        Ok(None) => Err(HttpResponse::NotFound().json(serde_json::json!({"error": "Target user not found."}))),
+        Ok(None) => {
+            Err(HttpResponse::NotFound()
+                .json(serde_json::json!({"error": "Target user not found."})))
+        }
         Err(e) => {
-            log::error!("DB error fetching target user {} for org action by org_admin {}: {:?}", target_user_id, org_admin_user_id, e);
-            Err(HttpResponse::InternalServerError().json(serde_json::json!({"error": "Database error fetching user information."})))
+            log::error!(
+                "DB error fetching target user {} for org action by org_admin {}: {:?}",
+                target_user_id,
+                org_admin_user_id,
+                e
+            );
+            Err(HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Database error fetching user information."})))
         }
     }
 }
@@ -307,8 +386,16 @@ async fn remove_user_from_organization(
     }
     let target_user_id = path.user_id;
 
-    match get_and_authorize_target_user_for_org_action(&pool, org_admin.user_id, org_admin.org_id, target_user_id).await {
-        Ok(_target_user) => { // User is authorized and fetched
+    match get_and_authorize_target_user_for_org_action(
+        &pool,
+        org_admin.user_id,
+        org_admin.org_id,
+        target_user_id,
+    )
+    .await
+    {
+        Ok(_target_user) => {
+            // User is authorized and fetched
             // Action: Deactivate the user
             match sqlx::query("UPDATE users SET is_active = false, deactivated_at = NOW() WHERE id = $1 AND org_id = $2")
                 .bind(target_user_id)
@@ -339,14 +426,22 @@ async fn deactivate_user_in_organization(
     path: web::Path<UserIdPath>,
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
-     if org_admin.role != "org_admin" {
+    if org_admin.role != "org_admin" {
         return HttpResponse::Forbidden().json(serde_json::json!({"error": "Only organization administrators can perform this action."}));
     }
     let target_user_id = path.user_id;
-    match get_and_authorize_target_user_for_org_action(&pool, org_admin.user_id, org_admin.org_id, target_user_id).await {
+    match get_and_authorize_target_user_for_org_action(
+        &pool,
+        org_admin.user_id,
+        org_admin.org_id,
+        target_user_id,
+    )
+    .await
+    {
         Ok(target_user) => {
             if !target_user.is_active {
-                return HttpResponse::BadRequest().json(serde_json::json!({"error": "User is already deactivated."}));
+                return HttpResponse::BadRequest()
+                    .json(serde_json::json!({"error": "User is already deactivated."}));
             }
             match sqlx::query("UPDATE users SET is_active = false, deactivated_at = NOW() WHERE id = $1 AND org_id = $2")
                 .bind(target_user_id)
@@ -378,12 +473,20 @@ async fn reactivate_user_in_organization(
         return HttpResponse::Forbidden().json(serde_json::json!({"error": "Only organization administrators can perform this action."}));
     }
     let target_user_id = path.user_id;
-     match get_and_authorize_target_user_for_org_action(&pool, org_admin.user_id, org_admin.org_id, target_user_id).await {
+    match get_and_authorize_target_user_for_org_action(
+        &pool,
+        org_admin.user_id,
+        org_admin.org_id,
+        target_user_id,
+    )
+    .await
+    {
         Ok(target_user) => {
             if target_user.is_active {
-                return HttpResponse::BadRequest().json(serde_json::json!({"error": "User is already active."}));
+                return HttpResponse::BadRequest()
+                    .json(serde_json::json!({"error": "User is already active."}));
             }
-             match sqlx::query("UPDATE users SET is_active = true, deactivated_at = NULL WHERE id = $1 AND org_id = $2")
+            match sqlx::query("UPDATE users SET is_active = true, deactivated_at = NULL WHERE id = $1 AND org_id = $2")
                 .bind(target_user_id)
                 .bind(org_admin.org_id)
                 .execute(pool.as_ref())
@@ -414,10 +517,18 @@ async fn resend_confirmation_email_org_user(
     }
     let target_user_id = path.user_id;
 
-    match get_and_authorize_target_user_for_org_action(&pool, org_admin.user_id, org_admin.org_id, target_user_id).await {
+    match get_and_authorize_target_user_for_org_action(
+        &pool,
+        org_admin.user_id,
+        org_admin.org_id,
+        target_user_id,
+    )
+    .await
+    {
         Ok(target_user) => {
             if target_user.confirmed {
-                return HttpResponse::BadRequest().json(serde_json::json!({"error": "User's email is already confirmed."}));
+                return HttpResponse::BadRequest()
+                    .json(serde_json::json!({"error": "User's email is already confirmed."}));
             }
 
             let new_confirmation_token = Uuid::new_v4();
@@ -477,25 +588,33 @@ The crPipeline Team"#,
     }
 }
 
-
 pub fn org_routes() -> Scope {
-    web::scope("/orgs")
-        .service(create_org)
-        .service(list_orgs)
+    web::scope("/orgs").service(create_org).service(list_orgs)
 }
 
 pub fn org_me_routes() -> Scope {
     web::scope("/organizations/me")
         .route("/users", web::get().to(get_organization_users))
         .route("/invite", web::post().to(invite_user_to_organization))
-        .route("/users/{user_id}/remove", web::post().to(remove_user_from_organization))
-        .route("/users/{user_id}/deactivate", web::post().to(deactivate_user_in_organization))
-        .route("/users/{user_id}/reactivate", web::post().to(reactivate_user_in_organization))
-        .route("/users/{user_id}/resend_confirmation", web::post().to(resend_confirmation_email_org_user))
+        .route(
+            "/users/{user_id}/remove",
+            web::post().to(remove_user_from_organization),
+        )
+        .route(
+            "/users/{user_id}/deactivate",
+            web::post().to(deactivate_user_in_organization),
+        )
+        .route(
+            "/users/{user_id}/reactivate",
+            web::post().to(reactivate_user_in_organization),
+        )
+        .route(
+            "/users/{user_id}/resend_confirmation",
+            web::post().to(resend_confirmation_email_org_user),
+        )
 }
 
 // Main routes function to be called in main.rs or lib.rs
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(org_routes())
-       .service(org_me_routes());
+    cfg.service(org_routes()).service(org_me_routes());
 }

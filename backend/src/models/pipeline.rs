@@ -21,23 +21,32 @@ pub struct NewPipeline {
 impl Pipeline {
     /// Insert a new pipeline and return it.
     pub async fn create(pool: &PgPool, new: NewPipeline) -> sqlx::Result<Pipeline> {
-        sqlx::query_as::<_, Pipeline>("INSERT INTO pipelines (id, org_id, name, stages) VALUES ($1,$2,$3,$4) RETURNING *")
-            .bind(Uuid::new_v4())
-            .bind(new.org_id)
-            .bind(new.name)
-            .bind(new.stages)
-            .fetch_one(pool)
-            .await
+        sqlx::query_as::<_, Pipeline>(
+            "INSERT INTO pipelines (id, org_id, name, stages) VALUES ($1,$2,$3,$4) RETURNING *",
+        )
+        .bind(Uuid::new_v4())
+        .bind(new.org_id)
+        .bind(new.name)
+        .bind(new.stages)
+        .fetch_one(pool)
+        .await
     }
 
     /// Update an existing pipeline's name and stages.
-    pub async fn update(pool: &PgPool, id: Uuid, name: &str, stages: serde_json::Value) -> sqlx::Result<Pipeline> {
-        sqlx::query_as::<_, Pipeline>("UPDATE pipelines SET name=$1, stages=$2 WHERE id=$3 RETURNING *")
-            .bind(name)
-            .bind(stages)
-            .bind(id)
-            .fetch_one(pool)
-            .await
+    pub async fn update(
+        pool: &PgPool,
+        id: Uuid,
+        name: &str,
+        stages: serde_json::Value,
+    ) -> sqlx::Result<Pipeline> {
+        sqlx::query_as::<_, Pipeline>(
+            "UPDATE pipelines SET name=$1, stages=$2 WHERE id=$3 RETURNING *",
+        )
+        .bind(name)
+        .bind(stages)
+        .bind(id)
+        .fetch_one(pool)
+        .await
     }
 
     /// Remove a pipeline by id.

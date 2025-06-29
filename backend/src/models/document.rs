@@ -1,8 +1,8 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
-use chrono::DateTime;
-use chrono::Utc;
 
 /// Stored PDF document belonging to an organization.
 /// `filename` is the sanitized S3 key and `display_name` keeps the original name.

@@ -1,5 +1,8 @@
 use lettre::message::{header, Mailbox, Message};
-use lettre::{AsyncSmtpTransport, Tokio1Executor, transport::smtp::authentication::Credentials, AsyncTransport};
+use lettre::{
+    transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport,
+    Tokio1Executor,
+};
 use once_cell::sync::Lazy;
 use std::env;
 
@@ -9,10 +12,13 @@ static MAILER: Lazy<Option<AsyncSmtpTransport<Tokio1Executor>>> = Lazy::new(|| {
     let user = env::var("SMTP_USERNAME").ok()?;
     let pass = env::var("SMTP_PASSWORD").ok()?;
     let creds = Credentials::new(user, pass);
-    Some(AsyncSmtpTransport::<Tokio1Executor>::relay(&server).ok()?
-        .port(port)
-        .credentials(creds)
-        .build())
+    Some(
+        AsyncSmtpTransport::<Tokio1Executor>::relay(&server)
+            .ok()?
+            .port(port)
+            .credentials(creds)
+            .build(),
+    )
 });
 
 pub async fn send_email(to: &str, subject: &str, body: &str) -> anyhow::Result<()> {

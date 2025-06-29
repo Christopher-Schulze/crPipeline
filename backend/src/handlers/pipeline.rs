@@ -1,11 +1,11 @@
-use actix_web::{web, get, post, put, delete, HttpResponse};
-use serde::Deserialize;
-use sqlx::PgPool;
-use uuid::Uuid;
-use crate::models::{Pipeline, NewPipeline};
 use crate::middleware::auth::AuthUser;
+use crate::models::{NewPipeline, Pipeline};
+use actix_web::{delete, get, post, put, web, HttpResponse};
+use log;
+use serde::Deserialize;
 use serde_json; // For json! macro and potentially Value if not inferred
-use log; // For logging
+use sqlx::PgPool;
+use uuid::Uuid; // For logging
 
 #[derive(Deserialize)]
 pub struct PipelineInput {
@@ -15,7 +15,11 @@ pub struct PipelineInput {
 }
 
 #[post("/pipelines")]
-async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+async fn create_pipeline(
+    data: web::Json<PipelineInput>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
     // Authorization: Global admin can create for any org_id specified in data.
     // Other users can only create for their own org_id, which must match data.org_id.
     if user.role != "admin" {
@@ -27,13 +31,15 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
 
     // Validate pipeline name
     if data.name.trim().is_empty() {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
     }
 
     // Validate stages
     if let Some(stages_array) = data.stages.as_array() {
         if stages_array.is_empty() {
-            return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline must have at least one stage."}));
+            return HttpResponse::BadRequest()
+                .json(serde_json::json!({"error": "Pipeline must have at least one stage."}));
         }
         for (index, stage_val) in stages_array.iter().enumerate() {
             if let Some(stage_obj) = stage_val.as_object() {
@@ -115,14 +121,16 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
                                                             "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' must be a non-empty string when ocr_engine is 'external'.", index)
                                                         }));
                                                     }
-                                                } else { // Not a string
+                                                } else {
+                                                    // Not a string
                                                     return HttpResponse::BadRequest().json(serde_json::json!({
                                                         "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' must be a non-empty string when ocr_engine is 'external'.", index)
                                                     }));
                                                 }
                                             }
-                                            None => { // Not present
-                                                 return HttpResponse::BadRequest().json(serde_json::json!({
+                                            None => {
+                                                // Not present
+                                                return HttpResponse::BadRequest().json(serde_json::json!({
                                                     "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' is required when ocr_engine is 'external'.", index)
                                                 }));
                                             }
@@ -136,7 +144,8 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
                                             }
                                         }
                                     }
-                                } else { // ocr_engine is not a string (and not null)
+                                } else {
+                                    // ocr_engine is not a string (and not null)
                                     return HttpResponse::BadRequest().json(serde_json::json!({
                                         "error": format!("Stage {} (OCR): 'ocr_engine' must be a string or null.", index)
                                     }));
@@ -145,18 +154,27 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
                         }
                         // General check for ocr_stage_key if ocr_engine is not 'external' but key is provided
                         // or if ocr_engine is not provided at all but key is.
-                        if stage_obj.get("ocr_engine").as_ref().map_or(true, |v| v.as_str() != Some("external")) {
-                             if stage_obj.contains_key("ocr_stage_endpoint") || stage_obj.contains_key("ocr_stage_key") {
-                                if stage_obj.get("ocr_engine").is_none() || stage_obj.get("ocr_engine").unwrap().as_str() == Some("default") {
-                                     // Warn or error if endpoint/key are provided with default/missing engine?
-                                     // For now, let's be permissive: if engine isn't 'external', these fields are ignored by worker.
-                                     // However, if they are present and malformed, it's good to catch.
+                        if stage_obj
+                            .get("ocr_engine")
+                            .as_ref()
+                            .map_or(true, |v| v.as_str() != Some("external"))
+                        {
+                            if stage_obj.contains_key("ocr_stage_endpoint")
+                                || stage_obj.contains_key("ocr_stage_key")
+                            {
+                                if stage_obj.get("ocr_engine").is_none()
+                                    || stage_obj.get("ocr_engine").unwrap().as_str()
+                                        == Some("default")
+                                {
+                                    // Warn or error if endpoint/key are provided with default/missing engine?
+                                    // For now, let's be permissive: if engine isn't 'external', these fields are ignored by worker.
+                                    // However, if they are present and malformed, it's good to catch.
                                 }
-                             }
+                            }
                         }
-                         if let Some(key_val) = stage_obj.get("ocr_stage_key") {
+                        if let Some(key_val) = stage_obj.get("ocr_stage_key") {
                             if !key_val.is_string() && !key_val.is_null() {
-                                 return HttpResponse::BadRequest().json(serde_json::json!({
+                                return HttpResponse::BadRequest().json(serde_json::json!({
                                     "error": format!("Stage {} (OCR): 'ocr_stage_key' must be a string or null.", index)
                                 }));
                             }
@@ -175,11 +193,13 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
             }
         }
     } else {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "'stages' must be an array."}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "'stages' must be an array."}));
     }
 
     // If validation passes, proceed to create the pipeline
-    let new_pipeline_data = NewPipeline { // Renamed variable to avoid conflict with 'new' keyword if it were one
+    let new_pipeline_data = NewPipeline {
+        // Renamed variable to avoid conflict with 'new' keyword if it were one
         org_id: data.org_id,
         name: data.name.clone(),
         stages: data.stages.clone(), // Clone the validated Value
@@ -188,14 +208,23 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
     match Pipeline::create(&pool, new_pipeline_data).await {
         Ok(p) => HttpResponse::Ok().json(p),
         Err(e) => {
-            log::error!("Failed to create pipeline for org_id {}: {:?}", data.org_id, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to create pipeline."}))
+            log::error!(
+                "Failed to create pipeline for org_id {}: {:?}",
+                data.org_id,
+                e
+            );
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to create pipeline."}))
         }
     }
 }
 
 #[get("/pipelines/{org_id}")]
-async fn list_pipelines(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+async fn list_pipelines(
+    path: web::Path<Uuid>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
     if *path != user.org_id {
         return HttpResponse::Unauthorized().finish();
     }
@@ -233,14 +262,17 @@ async fn update_pipeline(
     }
 
     if data.org_id != existing.org_id {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Organization ID cannot be changed"}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "Organization ID cannot be changed"}));
     }
 
     if data.name.trim().is_empty() {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
     }
     if !data.stages.is_array() {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "'stages' must be an array."}));
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({"error": "'stages' must be an array."}));
     }
 
     match Pipeline::update(&pool, pipeline_id, &data.name, data.stages.clone()).await {
@@ -250,7 +282,11 @@ async fn update_pipeline(
 }
 
 #[delete("/pipelines/{id}")]
-async fn delete_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+async fn delete_pipeline(
+    path: web::Path<Uuid>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
     let pipeline_id = path.into_inner();
 
     let existing = match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE id=$1")
@@ -274,10 +310,8 @@ async fn delete_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<
 }
 
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg
-        .service(create_pipeline)
+    cfg.service(create_pipeline)
         .service(list_pipelines)
         .service(update_pipeline)
         .service(delete_pipeline);
 }
-

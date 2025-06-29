@@ -1,18 +1,18 @@
-use actix_service::{Service, Transform, forward_ready};
+use actix_service::{forward_ready, Service, Transform};
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
-    Error
+    Error,
 };
-use futures_util::future::{LocalBoxFuture, ready, Ready};
-use std::rc::Rc;
+use futures_util::future::{ready, LocalBoxFuture, Ready};
 use std::env;
+use std::rc::Rc;
 
 use crate::middleware::jwt::verify_jwt; // Assuming Claims is pub
-use redis::{AsyncCommands, Client as RedisClient};
-use actix_web::http::header::{AUTHORIZATION, HeaderName};
-use log::{error, warn}; // For logging
+use actix_web::http::header::{HeaderName, AUTHORIZATION};
 use dashmap::DashMap;
+use log::{error, warn}; // For logging
 use once_cell::sync::Lazy;
+use redis::{AsyncCommands, Client as RedisClient};
 use std::time::{Duration, Instant};
 
 // Define constants for rate limiting
@@ -35,7 +35,9 @@ fn check_memory_limit(key: &str) -> bool {
 }
 
 fn fallback_mode() -> String {
-    env::var("REDIS_RATE_LIMIT_FALLBACK").unwrap_or_else(|_| "memory".into()).to_lowercase()
+    env::var("REDIS_RATE_LIMIT_FALLBACK")
+        .unwrap_or_else(|_| "memory".into())
+        .to_lowercase()
 }
 
 pub struct RateLimit;
@@ -52,7 +54,9 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(RateLimitMiddleware { service: Rc::new(service) }))
+        ready(Ok(RateLimitMiddleware {
+            service: Rc::new(service),
+        }))
     }
 }
 
@@ -91,13 +95,15 @@ where
 
             // If not in Authorization header, try 'token' cookie
             if jwt_token_str.is_none() {
-                if let Some(cookie) = req.request().cookie("token") { // Use req.request().cookie()
+                if let Some(cookie) = req.request().cookie("token") {
+                    // Use req.request().cookie()
                     jwt_token_str = Some(cookie.value().to_string());
                 }
             }
 
             if let Some(token_str) = jwt_token_str {
-                if let Some(claims) = verify_jwt(&token_str) { // verify_jwt uses env var for secret
+                if let Some(claims) = verify_jwt(&token_str) {
+                    // verify_jwt uses env var for secret
                     identifier_key = Some(format!("rate_limit:org_id:{}", claims.org));
                 }
             }
@@ -107,7 +113,7 @@ where
                 if let Some(api_key_value) = req.headers().get(&X_API_KEY_HEADER) {
                     if let Ok(api_key_str) = api_key_value.to_str() {
                         if !api_key_str.is_empty() {
-                             identifier_key = Some(format!("rate_limit:api_key:{}", api_key_str));
+                            identifier_key = Some(format!("rate_limit:api_key:{}", api_key_str));
                         }
                     }
                 }
@@ -121,11 +127,13 @@ where
                     if let Ok(client) = RedisClient::open(redis_url) {
                         match client.get_async_connection().await {
                             Ok(mut conn) => {
-                                let count_res: redis::RedisResult<u32> = conn.incr(&key, 1i32).await;
+                                let count_res: redis::RedisResult<u32> =
+                                    conn.incr(&key, 1i32).await;
                                 match count_res {
                                     Ok(count) => {
                                         if count == 1 {
-                                            let _ : redis::RedisResult<()> = conn.expire(&key, WINDOW_SECONDS as i64).await;
+                                            let _: redis::RedisResult<()> =
+                                                conn.expire(&key, WINDOW_SECONDS as i64).await;
                                         }
                                         if count > MAX_REQUESTS {
                                             exceeded = true;
@@ -154,11 +162,15 @@ where
                 if redis_failure {
                     match fallback_mode().as_str() {
                         "deny" => {
-                            return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
+                            return Err(actix_web::error::ErrorTooManyRequests(
+                                "Too many requests",
+                            ));
                         }
                         "memory" => {
                             if !check_memory_limit(&key) {
-                                return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
+                                return Err(actix_web::error::ErrorTooManyRequests(
+                                    "Too many requests",
+                                ));
                             }
                         }
                         _ => {}

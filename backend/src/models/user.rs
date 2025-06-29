@@ -1,9 +1,9 @@
+use argon2::password_hash::{PasswordHash, PasswordVerifier};
+use argon2::Argon2;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
-use argon2::Argon2;
-use argon2::password_hash::{PasswordHash, PasswordVerifier};
-use chrono::{DateTime, Utc};
 
 /// Application user belonging to an organization.
 /// Contains authentication info and account status flags.
@@ -66,26 +66,35 @@ impl User {
     /// Verify a plaintext password against the stored hash.
     pub fn verify_password(&self, password: &str) -> bool {
         let parsed = PasswordHash::new(&self.password_hash).unwrap();
-        Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+        Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok()
     }
 
     /// Mark the user as confirmed using a confirmation token.
     pub async fn confirm(pool: &PgPool, token: Uuid) -> sqlx::Result<Option<User>> {
-        if let Some(user) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE confirmation_token=$1")
-            .bind(token)
-            .fetch_optional(pool)
-            .await? {
-                sqlx::query("UPDATE users SET confirmed=true, confirmation_token=NULL WHERE id=$1")
-                    .bind(user.id)
-                    .execute(pool)
-                    .await?;
-                return Ok(Some(user));
+        if let Some(user) =
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE confirmation_token=$1")
+                .bind(token)
+                .fetch_optional(pool)
+                .await?
+        {
+            sqlx::query("UPDATE users SET confirmed=true, confirmation_token=NULL WHERE id=$1")
+                .bind(user.id)
+                .execute(pool)
+                .await?;
+            return Ok(Some(user));
         }
         Ok(None)
     }
 
     /// Set a password reset token and expiry for the user.
-    pub async fn set_reset_token(pool: &PgPool, user_id: Uuid, token: Uuid, expires: DateTime<Utc>) -> sqlx::Result<()> {
+    pub async fn set_reset_token(
+        pool: &PgPool,
+        user_id: Uuid,
+        token: Uuid,
+        expires: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
         sqlx::query("UPDATE users SET reset_token=$1, reset_expires_at=$2 WHERE id=$3")
             .bind(token)
             .bind(expires)
@@ -96,13 +105,18 @@ impl User {
     }
 
     /// Update the password using a valid reset token.
-    pub async fn reset_with_token(pool: &PgPool, token: Uuid, new_hash: String) -> sqlx::Result<bool> {
+    pub async fn reset_with_token(
+        pool: &PgPool,
+        token: Uuid,
+        new_hash: String,
+    ) -> sqlx::Result<bool> {
         if let Some(user) = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE reset_token=$1 AND reset_expires_at > NOW()"
+            "SELECT * FROM users WHERE reset_token=$1 AND reset_expires_at > NOW()",
         )
         .bind(token)
         .fetch_optional(pool)
-        .await? {
+        .await?
+        {
             sqlx::query("UPDATE users SET password_hash=$1, reset_token=NULL, reset_expires_at=NULL WHERE id=$2")
                 .bind(new_hash)
                 .bind(user.id)
@@ -114,7 +128,11 @@ impl User {
     }
 
     /// Replace the confirmation token for an unconfirmed user.
-    pub async fn update_confirmation_token(pool: &PgPool, user_id: Uuid, new_token: Uuid) -> sqlx::Result<u64> {
+    pub async fn update_confirmation_token(
+        pool: &PgPool,
+        user_id: Uuid,
+        new_token: Uuid,
+    ) -> sqlx::Result<u64> {
         let result = sqlx::query(
             "UPDATE users SET confirmation_token = $1, confirmed = false WHERE id = $2 AND confirmed = false"
         )
@@ -141,7 +159,7 @@ impl User {
         new_confirmation_token: Uuid,
     ) -> sqlx::Result<u64> {
         let result = sqlx::query(
-            "UPDATE users SET email = $1, confirmed = false, confirmation_token = $2 WHERE id = $3"
+            "UPDATE users SET email = $1, confirmed = false, confirmation_token = $2 WHERE id = $3",
         )
         .bind(new_email)
         .bind(new_confirmation_token)
