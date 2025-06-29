@@ -8,11 +8,12 @@ use aws_sdk_s3::Client as S3Client;
 
 
 use backend::handlers;
-use backend::middleware::rate_limit::RateLimit;
+use backend::middleware::{jwt::init_jwt_secret, rate_limit::RateLimit};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
+    init_jwt_secret();
     tracing_subscriber::fmt::init(); // Or your existing logger
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
