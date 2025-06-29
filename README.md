@@ -5,6 +5,38 @@ Multi-tenant document analysis platform built with Rust and Svelte.
 All Svelte source files now live in `frontend/src`. An older top-level `src/`
 folder containing experimental routes was removed.
 
+## Table of Contents
+- [Requirements](#requirements)
+- [Setup](#setup)
+  - [Docker Compose](#docker-compose)
+- [Migrations](#migrations)
+- [Testing](#testing)
+- [Dev vs Prod](#dev-vs-prod)
+- [Environment Variables](#environment-variables)
+  - [Health check](#health-check)
+- [Authentication](#authentication)
+- [Organizations](#organizations)
+  - [User Roles](#user-roles)
+- [Pipelines](#pipelines)
+  - [Advanced Stage Configuration](#advanced-stage-configuration)
+  - [Documents](#documents)
+  - [Settings](#settings)
+  - [Dashboard](#dashboard)
+  - [Audit Logs](#audit-logs)
+- [Analysis Jobs](#analysis-jobs)
+  - [Admin Endpoints (Require Global Admin Role)](#admin-endpoints-require-global-admin-role)
+  - [Frontend UI Highlights](#frontend-ui-highlights)
+  - [Worker](#worker)
+  - [Cleanup](#cleanup)
+- [VisionOS Glassmorphism UI](#visionos-glassmorphism-ui)
+- [Security](#security)
+- [Secret Management](#secret-management)
+- [Production Build](#production-build)
+- [Development Scripts](#development-scripts)
+- [Continuous Integration](#continuous-integration)
+- [Lines of Code](#lines-of-code)
+- [License](#license)
+
 ## Requirements
 - Rust toolchain
 - Node.js (npm)
