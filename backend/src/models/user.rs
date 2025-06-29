@@ -5,6 +5,8 @@ use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordVerifier};
 use chrono::{DateTime, Utc};
 
+/// Application user belonging to an organization.
+/// Contains authentication info and account status flags.
 #[derive(Serialize, FromRow, Debug, Clone)]
 pub struct User {
     pub id: Uuid,
@@ -25,6 +27,7 @@ pub struct User {
     pub created_at: DateTime<Utc>, // New field
 }
 
+/// Parameters needed to create a new user account.
 #[derive(Debug)]
 pub struct NewUser {
     pub org_id: Uuid,
@@ -34,6 +37,7 @@ pub struct NewUser {
 }
 
 impl User {
+    /// Insert a new user and return the full record.
     pub async fn create(pool: &PgPool, new: NewUser) -> sqlx::Result<User> {
         let confirmation_token = Uuid::new_v4();
         let rec = sqlx::query_as::<_, User>(
@@ -51,6 +55,7 @@ impl User {
         Ok(rec)
     }
 
+    /// Look up a user record by email address.
     pub async fn find_by_email(pool: &PgPool, email: &str) -> sqlx::Result<User> {
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE email=$1")
             .bind(email)
@@ -58,11 +63,13 @@ impl User {
             .await
     }
 
+    /// Verify a plaintext password against the stored hash.
     pub fn verify_password(&self, password: &str) -> bool {
         let parsed = PasswordHash::new(&self.password_hash).unwrap();
         Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
     }
 
+    /// Mark the user as confirmed using a confirmation token.
     pub async fn confirm(pool: &PgPool, token: Uuid) -> sqlx::Result<Option<User>> {
         if let Some(user) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE confirmation_token=$1")
             .bind(token)
@@ -77,6 +84,7 @@ impl User {
         Ok(None)
     }
 
+    /// Set a password reset token and expiry for the user.
     pub async fn set_reset_token(pool: &PgPool, user_id: Uuid, token: Uuid, expires: DateTime<Utc>) -> sqlx::Result<()> {
         sqlx::query("UPDATE users SET reset_token=$1, reset_expires_at=$2 WHERE id=$3")
             .bind(token)
@@ -87,6 +95,7 @@ impl User {
         Ok(())
     }
 
+    /// Update the password using a valid reset token.
     pub async fn reset_with_token(pool: &PgPool, token: Uuid, new_hash: String) -> sqlx::Result<bool> {
         if let Some(user) = sqlx::query_as::<_, User>(
             "SELECT * FROM users WHERE reset_token=$1 AND reset_expires_at > NOW()"
@@ -104,6 +113,7 @@ impl User {
         Ok(false)
     }
 
+    /// Replace the confirmation token for an unconfirmed user.
     pub async fn update_confirmation_token(pool: &PgPool, user_id: Uuid, new_token: Uuid) -> sqlx::Result<u64> {
         let result = sqlx::query(
             "UPDATE users SET confirmation_token = $1, confirmed = false WHERE id = $2 AND confirmed = false"
@@ -115,6 +125,7 @@ impl User {
         Ok(result.rows_affected())
     }
 
+    /// Fetch a user by id without filtering on confirmation.
     pub async fn find_by_id_for_admin(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<User>> {
         sqlx::query_as("SELECT * FROM users WHERE id = $1")
             .bind(user_id)
@@ -122,6 +133,7 @@ impl User {
             .await
     }
 
+    /// Change the user's email and reset confirmation state.
     pub async fn update_email_and_set_unconfirmed(
         pool: &PgPool,
         user_id: Uuid,

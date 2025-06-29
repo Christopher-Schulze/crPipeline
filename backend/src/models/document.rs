@@ -4,30 +4,37 @@ use uuid::Uuid;
 use chrono::DateTime;
 use chrono::Utc;
 
+/// Stored PDF document belonging to an organization.
+/// `filename` is the sanitized S3 key and `display_name` keeps the original name.
 #[derive(Serialize, FromRow, Debug, Clone)]
 pub struct Document {
     pub id: Uuid,
     pub org_id: Uuid,
     pub owner_id: Uuid,
-    pub filename: String, // This is the S3 key (sanitized name)
+    /// Sanitized S3 key for the file
+    pub filename: String,
     pub pages: i32,
     pub is_target: bool,
     pub upload_date: DateTime<Utc>,
     pub expires_at: Option<DateTime<Utc>>,
-    pub display_name: String, // New field
+    /// Original filename provided by the user
+    pub display_name: String,
 }
 
+/// Data required to insert a new document record.
 pub struct NewDocument {
     pub org_id: Uuid,
     pub owner_id: Uuid,
-    pub filename: String, // S3 key
+    /// S3 key for the uploaded file
+    pub filename: String,
     pub pages: i32,
     pub is_target: bool,
     pub expires_at: Option<DateTime<Utc>>,
-    pub display_name: String, // New field
+    pub display_name: String,
 }
 
 impl Document {
+    /// Insert a new document and return the created row.
     pub async fn create(pool: &PgPool, new: NewDocument) -> sqlx::Result<Document> {
         sqlx::query_as::<_, Document>(
             "INSERT INTO documents (id, org_id, owner_id, filename, pages, is_target, expires_at, display_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *"

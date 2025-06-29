@@ -2,6 +2,7 @@ use serde::{Serialize, Deserialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+/// Per-organization configuration and quota limits.
 #[derive(Serialize, Deserialize, FromRow, Debug)]
 pub struct OrgSettings {
     pub org_id: Uuid,
@@ -17,11 +18,13 @@ pub struct OrgSettings {
     pub ai_custom_headers: Option<serde_json::Value>, // New field
 }
 
+/// Wrapper for creating default settings for an organization.
 pub struct NewOrgSettings {
     pub org_id: Uuid,
 }
 
 impl OrgSettings {
+    /// Insert default settings for a new organization.
     pub async fn create_default(pool: &PgPool, org_id: Uuid) -> sqlx::Result<OrgSettings> {
         sqlx::query_as::<_, OrgSettings>(
             "INSERT INTO org_settings (org_id) VALUES ($1) RETURNING *",
@@ -31,6 +34,7 @@ impl OrgSettings {
         .await
     }
 
+    /// Retrieve settings for an organization.
     pub async fn find(pool: &PgPool, org_id: Uuid) -> sqlx::Result<OrgSettings> {
         sqlx::query_as::<_, OrgSettings>("SELECT * FROM org_settings WHERE org_id=$1")
             .bind(org_id)
@@ -38,6 +42,7 @@ impl OrgSettings {
             .await
     }
 
+    /// Persist updated settings and return the saved row.
     pub async fn update(pool: &PgPool, settings: OrgSettings) -> sqlx::Result<OrgSettings> {
         sqlx::query_as::<_, OrgSettings>(
             "UPDATE org_settings SET \
