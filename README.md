@@ -415,3 +415,8 @@ As of this commit the repository contains:
     - **Total: 2021 lines**
 
 See [PLAN.md](PLAN.md) for the development roadmap and outstanding tasks.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
