@@ -60,6 +60,7 @@
   }
   let availablePromptTemplates: EditorPromptTemplate[] = [];
   let isLoadingOrgSettings: boolean = false;
+  let promptTemplatesError: string | null = null;
 
   async function loadPromptTemplates() {
     if (!orgId) {
@@ -68,6 +69,7 @@
       return;
     }
     isLoadingOrgSettings = true;
+    promptTemplatesError = null;
     try {
       const response = await fetch(`/api/settings/${orgId}`);
       if (!response.ok) {
@@ -82,10 +84,11 @@
       } else {
         availablePromptTemplates = [];
       }
+      promptTemplatesError = null;
     } catch (e: any) {
       console.error("Error loading prompt templates:", e);
       availablePromptTemplates = [];
-      // TODO: Optionally show error to user in the UI
+      promptTemplatesError = 'Failed to load prompt templates.';
     } finally {
       isLoadingOrgSettings = false;
     }
@@ -453,6 +456,11 @@
 
 <div class="space-y-4 text-gray-200"> {/* Adjusted base text color for dark panel context */}
   <input class="glass-input w-full !bg-neutral-700/50 !border-neutral-600/80 !text-gray-100" bind:value={pipeline.name} placeholder="Pipeline name" />
+  {#if promptTemplatesError}
+    <div class="bg-error/20 border border-error/40 text-error px-3 py-2 rounded text-sm">
+      {promptTemplatesError}
+    </div>
+  {/if}
   <div class="space-y-3">
     {#each pipeline.stages as stage, i (stage.id)}
       <div
