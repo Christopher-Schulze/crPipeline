@@ -34,19 +34,6 @@ dependencies = [
  "smallvec",
 ]
 
-[[package]]
-name = "actix-csrf"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d6604913d54205a3a5c0e43869a8e7501a2af7d7913b6653fd73f04ba292111"
-dependencies = [
- "actix-web",
- "base64 0.21.7",
- "cookie",
- "rand 0.8.5",
- "serde",
- "tracing",
-]
 
 [[package]]
 name = "actix-http"
@@ -946,7 +933,6 @@ name = "backend"
 version = "0.1.0"
 dependencies = [
  "actix-cors",
- "actix-csrf",
  "actix-http-test",
  "actix-multipart",
  "actix-rt",
@@ -959,7 +945,6 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-s3",
- "base64 0.21.7",
  "chrono",
  "dashmap",
  "dotenvy",
