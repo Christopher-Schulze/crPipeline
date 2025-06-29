@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, getContext } from 'svelte';
+  import { onMount, onDestroy, getContext } from 'svelte';
   import { page } from '$app/stores';
   import DataTable, { type TableHeader } from '$lib/components/DataTable.svelte';
   import Button from '$lib/components/Button.svelte';
@@ -65,6 +65,8 @@
     }
   }
 
+  let pipelinesUpdatedHandler: () => void;
+
   onMount(() => {
     if (orgId) {
         loadPipelines();
@@ -76,11 +78,18 @@
         // Not logged in, message will be handled by the main conditional block in markup
         isLoading = false;
     }
+
+    pipelinesUpdatedHandler = () => {
+        loadPipelines();
+    };
+    document.body.addEventListener('pipelinesUpdated', pipelinesUpdatedHandler);
   });
 
-  // TODO: Implement a mechanism to refresh pipelines list when 'pipelinesUpdated' global event occurs
-  // Example: document.body.addEventListener('pipelinesUpdated', loadPipelines);
-  // Remember to removeEventListener in onDestroy.
+  onDestroy(() => {
+    if (pipelinesUpdatedHandler) {
+        document.body.removeEventListener('pipelinesUpdated', pipelinesUpdatedHandler);
+    }
+  });
 
   const pipelineTableHeaders: TableHeader[] = [
     { key: 'name', label: 'Pipeline Name', sortable: true, cellClass: 'font-medium !text-gray-100 group-hover:!text-accent-lighter' },
