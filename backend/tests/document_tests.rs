@@ -1,0 +1,203 @@
+use actix_web::{test, web, App, http::header};
+use backend::handlers;
+use backend::middleware::jwt::create_jwt;
+use sqlx::{PgPool, postgres::PgPoolOptions};
+use argon2::{Argon2, PasswordHasher};
+use argon2::password_hash::SaltString;
+use uuid::Uuid;
+use serde_json::json;
+use wiremock::{MockServer, Mock, ResponseTemplate};
+use wiremock::matchers::method;
+use aws_config::meta::region::RegionProviderChain;
+use aws_smithy_http::endpoint::Endpoint;
+use aws_sdk_s3::Client as S3Client;
+use http::Uri;
+
+async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service<actix_http::Request, Response=actix_web::dev::ServiceResponse, Error=actix_web::Error>, PgPool) {
+    dotenvy::dotenv().ok();
+    let database_url = std::env::var("DATABASE_URL_TEST")
+        .unwrap_or_else(|_| std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to test database");
+    sqlx::migrate!(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"))
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations on test DB");
+
+    std::env::set_var("AWS_ACCESS_KEY_ID", "test");
+    std::env::set_var("AWS_SECRET_ACCESS_KEY", "test");
+    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    let shared_config = aws_config::from_env().region(region_provider).load().await;
+    let endpoint = Endpoint::immutable(Uri::from_str(&s3_server.uri()).unwrap());
+    let s3_config = aws_sdk_s3::config::Builder::from(&shared_config)
+        .endpoint_resolver(endpoint)
+        .force_path_style(true)
+        .build();
+    let s3_client = S3Client::from_conf(s3_config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(s3_client.clone()))
+            .configure(handlers::init)
+    ).await;
+    (app, pool)
+}
+
+fn generate_jwt_token(user_id: Uuid, org_id: Uuid, role: &str) -> String {
+    std::env::set_var("JWT_SECRET", "testsecret");
+    create_jwt(user_id, org_id, role)
+}
+
+async fn create_org(pool: &PgPool, name: &str) -> Uuid {
+    let org_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO organizations (id, name, api_key) VALUES ($1, $2, uuid_generate_v4())")
+        .bind(org_id)
+        .bind(name)
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO org_settings (org_id) VALUES ($1)")
+        .bind(org_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    org_id
+}
+
+async fn create_user(pool: &PgPool, org_id: Uuid, email: &str, role: &str) -> Uuid {
+    let user_id = Uuid::new_v4();
+    let salt = SaltString::generate(&mut rand::thread_rng());
+    let password_hash = Argon2::default()
+        .hash_password(b"password", &salt)
+        .unwrap()
+        .to_string();
+    sqlx::query("INSERT INTO users (id, org_id, email, password_hash, role, confirmed) VALUES ($1,$2,$3,$4,$5,true)")
+        .bind(user_id)
+        .bind(org_id)
+        .bind(email)
+        .bind(password_hash)
+        .bind(role)
+        .execute(pool)
+        .await
+        .unwrap();
+    user_id
+}
+
+fn multipart_body(boundary: &str, filename: &str, content_type: &str, content: &str) -> String {
+    format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n{content}\r\n--{boundary}--\r\n",
+        boundary = boundary,
+        filename = filename,
+        content_type = content_type,
+        content = content
+    )
+}
+
+#[actix_rt::test]
+async fn test_pdf_upload_success() {
+    let s3_server = MockServer::start().await;
+    let put_mock = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount_as_scoped(&s3_server)
+        .await;
+
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Doc Org").await;
+    let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    let pdf = "%PDF-1.5\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF";
+    let boundary = "BOUNDARY";
+    let body = multipart_body(boundary, "test.pdf", "application/pdf", pdf);
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 1);
+    assert_eq!(put_mock.hits(), 1);
+}
+
+#[actix_rt::test]
+async fn test_pdf_upload_bad_content_type() {
+    let s3_server = MockServer::start().await;
+    let put_mock = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount_as_scoped(&s3_server)
+        .await;
+
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Doc Org2").await;
+    let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    let pdf = "%PDF-1.5\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF";
+    let boundary = "BOUNDARY";
+    let body = multipart_body(boundary, "test.pdf", "text/plain", pdf);
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 0);
+    assert_eq!(put_mock.hits(), 0);
+}
+
+#[actix_rt::test]
+async fn test_cleanup_on_failed_upload() {
+    let s3_server = MockServer::start().await;
+    let put_mock = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount_as_scoped(&s3_server)
+        .await;
+    let delete_mock = Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(204))
+        .mount_as_scoped(&s3_server)
+        .await;
+
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Doc Org3").await;
+    let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    // remove user to trigger FK violation when inserting document
+    sqlx::query("DELETE FROM users WHERE id=$1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let pdf = "%PDF-1.5\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF";
+    let boundary = "BOUNDARY";
+    let body = multipart_body(boundary, "test.pdf", "application/pdf", pdf);
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(put_mock.hits(), 1);
+    assert_eq!(delete_mock.hits(), 1);
+}
