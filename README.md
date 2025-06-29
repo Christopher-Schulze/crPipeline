@@ -93,6 +93,8 @@ sqlx migrate run
 ## Testing
 - `cargo test` – backend unit tests
 - `npm run build --prefix frontend` – ensure Svelte app compiles
+- `npm install --prefix frontend` – install dev dependencies before running frontend tests
+- `npm test --prefix frontend` – run frontend unit and component tests
 
 ## Dev vs Prod
 During development use `cargo run` and `npm run dev`. For production build the frontend and compile the backend in release mode as shown above.
