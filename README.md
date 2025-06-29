@@ -402,7 +402,7 @@ document.body.addEventListener('pipelinesUpdated', () => {
 Run the background worker to process pending jobs:
 
 ```bash
-cargo run --bin worker
+cargo run --bin worker --features worker-bin
 ```
 
 The worker pulls job IDs from Redis (set via `REDIS_URL`). For each job it executes the configured pipeline stages sequentially and updates the status in PostgreSQL.
