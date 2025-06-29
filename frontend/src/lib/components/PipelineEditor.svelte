@@ -312,7 +312,7 @@
       return;
     }
     try {
-      const response = await fetch(`/api/pipelines/${pipeline.id}`, { method: 'DELETE' });
+      const response = await apiFetch(`/api/pipelines/${pipeline.id}`, { method: 'DELETE' });
       if (response.ok) {
         alert('Pipeline deleted.');
         dispatch('saved');

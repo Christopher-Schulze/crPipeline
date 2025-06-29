@@ -15,7 +15,7 @@ const initialPipeline = {
   stages: [{ id: 's1', type: 'parse' }]
 };
 
-test('uses apiFetch for loading templates and saving pipeline', async () => {
+test('uses apiFetch for loading templates, saving and deleting pipeline', async () => {
   const { getByText } = render(PipelineEditor, { props: { orgId: 'org1', initialPipeline } });
 
   expect(apiFetch).toHaveBeenCalledWith('/api/settings/org1');
@@ -24,4 +24,11 @@ test('uses apiFetch for loading templates and saving pipeline', async () => {
   await fireEvent.click(saveBtn);
 
   expect(apiFetch).toHaveBeenCalledWith('/api/pipelines/p1', expect.objectContaining({ method: 'PUT' }));
+
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+  const deleteBtn = getByText('Delete');
+  await fireEvent.click(deleteBtn);
+
+  expect(apiFetch).toHaveBeenCalledWith('/api/pipelines/p1', expect.objectContaining({ method: 'DELETE' }));
 });
