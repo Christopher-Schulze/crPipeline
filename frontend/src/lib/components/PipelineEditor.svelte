@@ -232,12 +232,11 @@
 
   // This function prepares the pipeline data for saving (e.g., removing temporary UI fields)
   function getSanitizedPipelineForSave(): Pipeline {
-    const pipelineToSave = JSON.parse(JSON.stringify(pipeline)); // Deep clone
-
-    // For this subtask, always treat as a new pipeline creation.
-    // The actual update (PUT) logic will be in a future subtask.
-    delete pipelineToSave.id;
-    pipelineToSave.org_id = orgId; // Ensure current orgId is set
+    const pipelineToSave = JSON.parse(JSON.stringify(pipeline));
+    pipelineToSave.org_id = orgId;
+    if (!pipeline.id) {
+      delete pipelineToSave.id;
+    }
 
     pipelineToSave.stages.forEach((stage: Stage) => {
         if (stage.type.toLowerCase() === 'parse' && stage.config?.strategy === 'SimpleTableExtraction' && stage.config.parameters) {
@@ -279,10 +278,10 @@
       return;
     }
 
+    const isEdit = !!pipeline.id;
     const finalPipelineData = getSanitizedPipelineForSave();
-
-    const url = '/api/pipelines'; // Always POST to create new for this subtask
-    const method = 'POST';
+    const url = isEdit ? `/api/pipelines/${pipeline.id}` : '/api/pipelines';
+    const method = isEdit ? 'PUT' : 'POST';
 
     try {
       // Assuming apiFetch is available globally or imported
@@ -307,6 +306,26 @@
     } catch (e: any) {
       console.error('Network or other error saving pipeline:', e);
       alert(`Network error while saving pipeline: ${e.message}`);
+    }
+  }
+
+  async function deletePipeline() {
+    if (!pipeline.id) return;
+    if (!confirm('Delete this pipeline?')) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/pipelines/${pipeline.id}`, { method: 'DELETE' });
+      if (response.ok) {
+        alert('Pipeline deleted.');
+        dispatch('saved');
+        document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        alert(`Error deleting pipeline: ${errorData.error || response.statusText}`);
+      }
+    } catch (e: any) {
+      alert(`Network error while deleting pipeline: ${e.message}`);
     }
   }
 
@@ -692,6 +711,16 @@
       <input class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" bind:value={newStageType} placeholder="New Stage Type" />
       <input class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" bind:value={newCommand} placeholder="Command (optional)" />
       <Button variant="primary" customClass="!px-3 !py-1.5" on:click={addStage}>Add Stage</Button>
+    </div>
+
+    <div class="flex items-center justify-between mt-6">
+      {#if pipeline.id}
+        <Button variant="ghost" customClass="text-red-500 hover:text-red-400" on:click={deletePipeline}>Delete</Button>
+      {/if}
+      <div class="ml-auto space-x-2">
+        <Button variant="secondary" on:click={() => dispatch('cancel')}>Cancel</Button>
+        <Button variant="primary" on:click={savePipeline}>Save</Button>
+      </div>
     </div>
   </div>
 </div>
