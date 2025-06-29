@@ -22,6 +22,7 @@
 6. The backend will be on `http://localhost:8080`, frontend on `http://localhost:5173`.
 
 Environment variables can be tweaked in `backend/.env` to point to a different database or S3 endpoint. Ensure the bucket defined in `S3_BUCKET` exists in your MinIO or AWS account.
+`PROCESS_ONE_JOB` makes the worker exit after a single job. Setting `LOCAL_S3_DIR` lets the worker store uploaded files under that path instead of S3, handy for local tests.
 
 The backend optionally supports an external OCR service. Set `OCR_API_ENDPOINT` and `OCR_API_KEY` in `backend/.env` to provide a global endpoint and API key used when no organization or stage-specific OCR configuration is present.
 

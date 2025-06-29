@@ -84,6 +84,8 @@ SMTP_FROM=noreply@example.com
 BASE_URL=http://localhost:8080
 OCR_API_ENDPOINT=
 OCR_API_KEY=
+#PROCESS_ONE_JOB=1
+#LOCAL_S3_DIR=/tmp/s3
 ```
 
 `BASE_URL` is used when generating confirmation and reset links.
@@ -92,6 +94,8 @@ OCR_API_KEY=
 `OCR_API_ENDPOINT` and `OCR_API_KEY` act as global defaults for an external OCR service. If these are not set, and no organization or stage-specific OCR settings are provided, the system falls back to local Tesseract OCR for "ocr" stages not using a custom command. These names are used consistently across the worker and documentation.
 
 Organization-specific settings for AI (including custom headers) and OCR can override these global defaults. Pipeline stage definitions can further override OCR settings for specific "ocr" stages. See 'Settings' and 'Pipelines' sections for more details.
+
+`PROCESS_ONE_JOB` tells the worker to exit after handling a single job. `LOCAL_S3_DIR` lets the worker read and write files from the specified directory instead of S3, useful for local tests.
 
 ### Health check
 Verify the server is running with:
