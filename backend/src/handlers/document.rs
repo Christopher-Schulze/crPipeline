@@ -35,7 +35,7 @@ impl S3Deleter for Client {
     }
 }
 
-pub(crate) async fn cleanup_s3_object<S: S3Deleter + Sync>(s3: &S, bucket: &str, key: &str) {
+pub async fn cleanup_s3_object<S: S3Deleter + Sync>(s3: &S, bucket: &str, key: &str) {
     if let Err(e) = s3.delete_object(bucket, key).await {
         log::error!("Failed to delete {} from S3 bucket {} during cleanup: {:?}", key, bucket, e);
     }
