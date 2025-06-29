@@ -7,9 +7,9 @@ use futures_util::future::{LocalBoxFuture, ready, Ready};
 use std::rc::Rc;
 use std::env;
 
-use crate::middleware::jwt::{verify_jwt, Claims}; // Assuming Claims is pub
+use crate::middleware::jwt::verify_jwt; // Assuming Claims is pub
 use redis::{AsyncCommands, Client as RedisClient};
-use actix_web::http::header::{AUTHORIZATION, COOKIE, HeaderName, HeaderValue};
+use actix_web::http::header::{AUTHORIZATION, HeaderName};
 use log::{error, warn}; // For logging
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
