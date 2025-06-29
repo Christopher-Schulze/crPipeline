@@ -26,7 +26,6 @@ async fn main() -> std::io::Result<()> {
     let shared_config = aws_config::from_env().region(region_provider).load().await;
     let s3_client = S3Client::new(&shared_config);
 
-    // Load CSRF Secret Key
     HttpServer::new(move || {
         let allowed_origin = env::var("FRONTEND_ORIGIN").unwrap_or_else(|_| "*".into());
         let cors = Cors::default()

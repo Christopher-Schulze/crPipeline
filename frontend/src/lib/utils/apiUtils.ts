@@ -23,20 +23,6 @@ export interface FetchOptions extends RequestInit {
 export async function apiFetch(url: string, options: FetchOptions = {}): Promise<Response> {
   const headers = new Headers(options.headers || {});
 
-  // Add CSRF token for state-changing methods
-  const method = options.method?.toUpperCase() || 'GET';
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-    const token = getCookie('csrf-token'); // Default cookie name for actix-csrf
-    if (token) {
-      headers.set('X-CSRF-TOKEN', token); // Default header name for actix-csrf
-    } else {
-      // Only warn if not in SSR context, as document.cookie isn't available there.
-      // Backend GET requests (like for initial page load) will set the cookie.
-      if (typeof document !== 'undefined') {
-        console.warn('CSRF token cookie "csrf-token" not found. State-changing request might fail if this is a client-side navigation/action after initial load.');
-      }
-    }
-  }
 
   // Set Content-Type for JSON unless it's FormData or already set
   if (!options.isFormData && options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
