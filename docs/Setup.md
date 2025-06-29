@@ -23,6 +23,8 @@
 
 Environment variables can be tweaked in `backend/.env` to point to a different database or S3 endpoint. Ensure the bucket defined in `S3_BUCKET` exists in your MinIO or AWS account.
 
+The backend optionally supports an external OCR service. Set `OCR_API_ENDPOINT` and `OCR_API_KEY` in `backend/.env` to provide a global endpoint and API key used when no organization or stage-specific OCR configuration is present.
+
 ### Docker Compose
 All services can also be started via Docker for convenience:
 
