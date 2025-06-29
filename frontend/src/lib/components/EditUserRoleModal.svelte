@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onUpdate } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
   import { apiFetch } from '$lib/utils/apiUtils'; // Import apiFetch

@@ -254,14 +254,13 @@
       </div>
       <div>
         <label for="ai_api_key" class="block text-sm font-medium text-gray-300">AI API Key</label>
-        <input
-          type="password"
-          id="ai_api_key"
-          bind:value={settings.ai_api_key}
-          class="glass-input w-full mt-1"
-          placeholder={settings.ai_api_key === "********" ? "Key is set. Type to change." : "Enter API Key (e.g., OpenRouter Key)"}
-          class="glass-input w-full mt-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
-        />
+          <input
+            type="password"
+            id="ai_api_key"
+            bind:value={settings.ai_api_key}
+            class="glass-input w-full mt-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
+            placeholder={settings.ai_api_key === "********" ? "Key is set. Type to change." : "Enter API Key (e.g., OpenRouter Key)"}
+          />
         <p class="text-sm font-light text-gray-400 dark:text-gray-500 mt-1">
           If a key shows '********', it means a key is currently set.
           To change it, type the new key. To clear it, delete all text and save.

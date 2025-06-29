@@ -454,7 +454,7 @@
   }
 </style>
 
-<div class="space-y-4 text-gray-200"> {/* Adjusted base text color for dark panel context */}
+<div class="space-y-4 text-gray-200">
   <input class="glass-input w-full !bg-neutral-700/50 !border-neutral-600/80 !text-gray-100" bind:value={pipeline.name} placeholder="Pipeline name" />
   {#if promptTemplatesError}
     <div class="bg-error/20 border border-error/40 text-error px-3 py-2 rounded text-sm">
@@ -464,7 +464,7 @@
   <div class="space-y-3">
     {#each pipeline.stages as stage, i (stage.id)}
       <div
-        class="stage-item p-4 rounded-lg cursor-grab border-2 {/* Changed p-3 to p-4 */}
+        class="stage-item p-4 rounded-lg cursor-grab border-2"
                {draggingVisualIndex === i ? 'dragging !border-accent' : 'border-neutral-700/70'}
                {draggedOverIndex === i && draggedItemId !== stage.id ? 'drag-over-highlight !border-accent' : 'hover:border-neutral-600'}"
         draggable="true"
@@ -483,7 +483,7 @@
           </Button>
         </div>
         {#if stage.type === 'ai'}
-          <div class="form-group pt-2 border-t border-neutral-700/50"> {/* AI prompt selector */}
+          <div class="form-group pt-2 border-t border-neutral-700/50">
             <label for={`stage-prompt-${stage.id}`} class="block text-xs font-light text-gray-300 mb-1">
               Prompt Template
             </label>

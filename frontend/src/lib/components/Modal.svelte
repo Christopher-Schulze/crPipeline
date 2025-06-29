@@ -70,16 +70,16 @@
       aria-labelledby="modal-title-text"
       in:fadeScale={{ duration: 200, delay: 50, startScale: 0.95, startOpacity: 0 }}
       out:fadeScale={{ duration: 200, startScale: 0.95, startOpacity: 0 }}
-      class="z-50 w-full {maxWidth} transform outline-none" <!-- Added transform and outline-none -->
+      class="z-50 w-full {maxWidth} transform outline-none"
       on:click|stopPropagation
     >
       <GlassCard
         padding="p-0"
         shadow="shadow-2xl"
         borderRadius="rounded-xl md:rounded-2xl"
-        bgOpacity="!bg-neutral-800/85" <!-- Darker theme for modal panel -->
+        bgOpacity="!bg-neutral-800/85"
         borderStyle="!border-neutral-700/70"
-        customClass="flex flex-col overflow-hidden" <!-- Ensure flex column for structure -->
+        customClass="flex flex-col overflow-hidden"
       >
         <!-- Header -->
         {#if title}
