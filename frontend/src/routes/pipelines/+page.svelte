@@ -39,21 +39,12 @@
     isLoading = true;
     error = null;
     try {
-      // Assuming backend endpoint is /api/pipelines OR /api/pipelines/{org_id}
-      // If it's /api/pipelines and backend filters by AuthUser.org_id, then orgId isn't needed in URL.
-      // If it's specific to an org for an admin, then /api/pipelines/{orgId} might be it.
-      // Let's assume the backend has an endpoint that lists pipelines for the current user's org
-      // or for a specific org if the user is a global admin.
-      // For now, using /api/pipelines and assuming backend handles org scoping.
-      // If /api/pipelines/:orgid is the endpoint, it should be:
-      // const response = await apiFetch(`/api/pipelines/for-org/${orgId}`);
-      // For now, assume /api/pipelines returns pipelines for the user's current org context.
-      const response = await apiFetch(`/api/pipelines`);
+      const response = await apiFetch(`/api/pipelines/${orgId}`);
 
       if (!response.ok) {
         const errText = await response.text();
         const errData = JSON.parse(errText || "{}");
-        throw new Error(errData.error || `Failed to fetch pipelines: ${response.statusText} - ${errText}`);
+        throw new Error(errData.error || `Failed to fetch pipelines for organization ${orgId}: ${response.statusText} - ${errText}`);
       }
       pipelines = await response.json();
     } catch (e: any) {
