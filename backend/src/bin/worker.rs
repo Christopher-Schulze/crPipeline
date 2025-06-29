@@ -1,7 +1,7 @@
 use std::{time::{Duration, SystemTime, UNIX_EPOCH}, env, path::PathBuf}; // Added SystemTime, UNIX_EPOCH
 use sqlx::{postgres::PgPoolOptions, PgPool}; // Added PgPool for helper fn type
 use backend::models::{AnalysisJob, Pipeline, Document, OrgSettings, NewJobStageOutput, JobStageOutput}; // Added JobStageOutput models
-use backend::processing;
+use backend::processing::{self, ai, ocr, parse, report};
 use tokio::time::sleep;
 use aws_sdk_s3::primitives::ByteStream; // For uploading from bytes
 use uuid::Uuid; // For helper fn type
@@ -136,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
         let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
         let mut local = std::env::temp_dir();
         local.push(format!("{}-input.pdf", job.id));
-        processing::download_pdf(&s3_client, &bucket, &doc.filename, &local).await?;
+        ocr::download_pdf(&s3_client, &bucket, &doc.filename, &local).await?;
         let mut txt_path = local.clone();
         txt_path.set_extension("txt");
         let mut json_result = serde_json::json!({});
@@ -194,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
                             Ok(file_bytes) => {
                                 let original_filename = local.file_name().unwrap_or_default().to_string_lossy().into_owned();
                                 tracing::debug!(job_id=%job.id, "OCR stage: Calling run_external_ocr for {} (Source: {})", endpoint, source_log);
-                                match processing::run_external_ocr(endpoint, key_opt.map(String::as_str), file_bytes, &original_filename).await {
+                                match ocr::run_external_ocr(endpoint, key_opt.map(String::as_str), file_bytes, &original_filename).await {
                                     Ok(ocr_text_result) => {
                                         if let Err(e_write) = tokio::fs::write(&txt_path, ocr_text_result).await {
                                             tracing::error!(job_id=%job.id, path=?txt_path, "OCR stage: Failed to write external OCR ({}) result: {:?}", source_log, e_write);
@@ -274,7 +274,7 @@ async fn main() -> anyhow::Result<()> {
                     if !ocr_method_determined_and_executed && !critical_ocr_failure {
                         tracing::debug!(job_id=%job.id, "OCR stage: Using DEFAULT LOCAL Tesseract. Input: {:?}, Output: {:?}", local, txt_path);
                         ocr_method_determined_and_executed = true; // Considered attempted even if it's the last resort
-                        if let Err(e) = processing::run_ocr(&local, &txt_path).await {
+                        if let Err(e) = ocr::run_ocr(&local, &txt_path).await {
                             tracing::error!(job_id=%job.id, "OCR stage: Default local OCR (Tesseract) failed: {:?}", e);
                             AnalysisJob::update_status(&pool, job.id, "failed").await?;
                             if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}", e_c); }}
@@ -331,7 +331,7 @@ async fn main() -> anyhow::Result<()> {
                         match tokio::fs::read_to_string(&txt_path).await {
                             Ok(text_content) => {
                                 tracing::debug!(job_id=%job.id, stage=%stage.stage_type, "Read text content from {:?} for parsing.", txt_path);
-                                match processing::run_parse_stage(&text_content, stage.config.as_ref()).await {
+                                match parse::run_parse_stage(&text_content, stage.config.as_ref()).await {
                                     Ok(parsed_val) => {
                                         json_result = parsed_val; // Update the main json_result
                                         info!(job_id=%job.id, stage=%stage.stage_type, "Parse stage completed.");
@@ -490,8 +490,8 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
 
-                    // 2. Call processing::run_ai
-                    let ai_processing_result = match processing::run_ai(
+                    // 2. Call AI processing
+                    let ai_processing_result = match ai::run_ai(
                         &final_ai_input,
                         &ai_endpoint_to_use,
                         &ai_key_to_use,
@@ -571,11 +571,11 @@ async fn main() -> anyhow::Result<()> {
 
                     if let Some(cfg) = report_config {
                         info!(job_id=%job.id, "Report stage: Using custom template.");
-                        match processing::generate_report_from_template(&cfg.template, &data_for_templating, &pdf_out_path).await {
+                        match report::generate_report_from_template(&cfg.template, &data_for_templating, &pdf_out_path).await {
                             Ok(_) => { info!(job_id=%job.id, "Custom report generated successfully to {:?}", pdf_out_path); }
                             Err(e) => {
                                 tracing::error!(job_id=%job.id, "Failed to generate custom report: {:?}. Attempting basic report.", e);
-                                if let Err(e_basic) = processing::generate_report(&data_for_templating, &pdf_out_path) {
+                                if let Err(e_basic) = report::generate_report(&data_for_templating, &pdf_out_path) {
                                     tracing::error!(job_id=%job.id, "Basic report generation also failed: {:?}", e_basic);
                                     AnalysisJob::update_status(&pool, job.id, "failed").await?;
                                     if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);}}
@@ -614,7 +614,7 @@ async fn main() -> anyhow::Result<()> {
 
                     } else {
                         info!(job_id=%job.id, "Report stage: No custom template. Using basic report generation.");
-                        if let Err(e) = processing::generate_report(&data_for_templating, &pdf_out_path) {
+                        if let Err(e) = report::generate_report(&data_for_templating, &pdf_out_path) {
                             tracing::error!(job_id=%job.id, "Basic report generation failed: {:?}", e);
                             AnalysisJob::update_status(&pool, job.id, "failed").await?;
                             if local.exists() { if let Err(e_c) = tokio::fs::remove_file(&local).await { tracing::error!(job_id=%job.id, "Cleanup error for input PDF: {:?}",e_c);}}
