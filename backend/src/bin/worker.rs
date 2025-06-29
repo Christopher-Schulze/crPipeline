@@ -12,7 +12,7 @@ use serde::Deserialize;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
 
-// Struct for deserializing prompt templates from OrgSettings
+/// Prompt template used during AI stages.
 #[derive(Deserialize, Debug, Clone)]
 struct PromptTemplate {
     name: String,
@@ -39,7 +39,11 @@ struct Stage {
     config: Option<Value>,
 }
 
-/// Upload a blob to S3 or write to `LOCAL_S3_DIR` when set.
+/// Upload a blob to S3 or, if `LOCAL_S3_DIR` is set, to the local filesystem.
+///
+/// * `bucket` - Destination bucket name.
+/// * `key` - Object key within the bucket.
+/// * `data` - Bytes to upload.
 async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u8>) -> Result<(), anyhow::Error> {
     if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
         let mut path = PathBuf::from(local_dir);
@@ -61,7 +65,11 @@ async fn upload_bytes(s3_client: &S3Client, bucket: &str, key: &str, data: Vec<u
     }
 }
 
-/// Upload stage output and record it in the database.
+/// Upload stage output to S3 and create a metadata record.
+///
+/// * `job_id` - Job the output belongs to.
+/// * `stage_name` - Name of the processing stage.
+/// * `output_type` - Logical type such as `json` or `pdf`.
 ///
 /// Uses `upload_bytes`, which honors `LOCAL_S3_DIR` when present.
 async fn save_stage_output(

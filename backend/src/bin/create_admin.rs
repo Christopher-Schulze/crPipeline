@@ -6,6 +6,7 @@ use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
 use tracing::{info, error};
 
+/// Convenience utility to create an initial admin user.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
