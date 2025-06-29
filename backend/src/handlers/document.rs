@@ -17,8 +17,10 @@ use serde_json;
 use anyhow::Error;
 use async_trait::async_trait;
 
+/// Abstraction over S3 deletion used for easier testing.
 #[async_trait]
 pub trait S3Deleter {
+    /// Delete a single object from `bucket` under `key`.
     async fn delete_object(&self, bucket: &str, key: &str) -> Result<(), Error>;
 }
 
@@ -35,23 +37,31 @@ impl S3Deleter for Client {
     }
 }
 
+/// Helper that attempts to delete the given S3 object, logging on failure.
 pub async fn cleanup_s3_object<S: S3Deleter + Sync>(s3: &S, bucket: &str, key: &str) {
     if let Err(e) = s3.delete_object(bucket, key).await {
         log::error!("Failed to delete {} from S3 bucket {} during cleanup: {:?}", key, bucket, e);
     }
 }
 
+/// Query parameters accepted by the upload endpoint.
 #[derive(serde::Deserialize)]
 pub struct UploadParams {
+    /// Organization receiving the document.
     pub org_id: Uuid,
-    // owner_id: Uuid, // This will be ignored in favor of user.user_id from AuthUser
+    // owner_id is taken from [`AuthUser`] instead.
+    /// Optional pipeline the document should immediately trigger.
     pub pipeline_id: Option<Uuid>,
+    /// Mark document as a target document counting against quota.
     pub is_target: Option<bool>,
 }
 
 // Define PDF magic bytes
 const PDF_MAGIC_BYTES: &[u8] = b"%PDF-";
 
+/// Upload a document and optionally queue it for analysis.
+///
+/// Accepts a multipart file upload together with [`UploadParams`].
 #[post("/upload")]
 pub async fn upload(
     mut payload: Multipart,
@@ -259,6 +269,7 @@ pub async fn upload(
     HttpResponse::Ok().json(created_document)
 }
 
+/// Configure Actix routes for document-related endpoints.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(upload)
         .service(list_documents)
@@ -290,6 +301,7 @@ struct PaginationParams {
     is_target: Option<bool>,
 }
 
+/// List documents for an organization with optional pagination and filtering.
 #[get("/documents/{org_id}")]
 async fn list_documents(
     path: web::Path<Uuid>, // org_id
@@ -422,6 +434,7 @@ async fn list_documents(
     }
 }
 
+/// Generate a presigned download URL for a document owned by the user.
 #[get("/download/{id}")]
 async fn download(
     path: web::Path<Uuid>,

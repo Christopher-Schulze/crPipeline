@@ -6,6 +6,7 @@ use aws_sdk_s3::Client as S3Client;
 use backend::models::Document;
 use tracing::{info, error};
 
+/// Remove expired documents and their blobs from storage.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();

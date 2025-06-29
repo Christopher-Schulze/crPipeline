@@ -10,7 +10,7 @@ use log;
 use aws_sdk_s3::presigning::PresigningConfig; // For S3 presigned URLs
 use serde_json; // For serde_json::json! macro in error responses
 
-// Response struct for get_job_details
+/// Combined details returned by [`get_job_details`].
 #[derive(Serialize)]
 struct JobDetailsResponse {
     // From AnalysisJob
@@ -32,6 +32,7 @@ struct JobDetailsResponse {
 }
 
 
+/// Return all jobs for an organization.
 #[get("/jobs/{org_id}")]
 async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
     match AnalysisJob::find_by_org(pool.as_ref(), *path).await {
@@ -40,6 +41,7 @@ async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpRespon
     }
 }
 
+/// Server-sent events stream sending job status updates.
 #[get("/jobs/{id}/events")]
 async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<ChannelStream> {
     let (tx, rx) = sse::channel(10);
@@ -59,6 +61,7 @@ async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<Chann
     rx
 }
 
+/// Retrieve job metadata along with document and pipeline info.
 #[get("/jobs/{job_id}/details")]
 async fn get_job_details(
     path: web::Path<Uuid>,
@@ -141,6 +144,7 @@ async fn get_job_details(
 }
 
 
+/// Register job-related endpoints on the Actix configuration.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(list_jobs)
        .service(job_events)
@@ -148,6 +152,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
        .service(get_stage_output_download_url); // Add the new service
 }
 
+/// Create a presigned URL for downloading an output file of a job stage.
 #[get("/jobs/outputs/{output_id}/download_url")]
 async fn get_stage_output_download_url(
     path: web::Path<Uuid>, // output_id from job_stage_outputs table
