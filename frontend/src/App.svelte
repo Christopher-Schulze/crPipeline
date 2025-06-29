@@ -167,7 +167,7 @@
 <!-- Adjust main layout to include Sidebar -->
 <main class="min-h-screen flex bg-gray-100 text-gray-900 dark:bg-neutral-900 dark:text-gray-200">
   {#if loggedIn && org} <!-- Show sidebar only when logged in and org context is available -->
-    <Sidebar {navItems} {currentPath} on:navigate={handleSidebarNavigate} />
+    <Sidebar navItems={mainNavItems} {currentPath} on:navigate={handleSidebarNavigate} />
   {/if}
 
   <div class="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
