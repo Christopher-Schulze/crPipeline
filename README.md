@@ -340,6 +340,15 @@ The frontend provides several key interfaces:
     - **AI Input/Output Side-by-Side:** A modal view to compare the JSON input sent to an AI stage and the JSON output it produced.
     - Lists all generated stage outputs with individual "Download" buttons (using pre-signed URLs) and "View (Modal)" buttons for text/JSON files.
 
+#### Frontend Events
+The Pipeline Editor dispatches a global `pipelinesUpdated` event on `document.body` after a successful save. Pages that list pipelines can listen for this event to refresh automatically:
+
+```ts
+document.body.addEventListener('pipelinesUpdated', () => {
+  // reload pipelines list
+});
+```
+
 ### Worker
 Run the background worker to process pending jobs:
 
