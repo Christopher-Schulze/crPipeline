@@ -23,7 +23,7 @@ async fn worker_processes_job() {
         .connect("postgres://postgres@localhost/testdb")
         .await
         .unwrap();
-    sqlx::migrate!("migrations").run(&pool).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
 
     // insert org, settings, user
     let org_id = Uuid::new_v4();
@@ -81,7 +81,12 @@ async fn worker_processes_job() {
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let mut conn = client.get_async_connection().await.unwrap();
-    redis::cmd("LPUSH").arg("jobs").arg(job.id.to_string()).query_async(&mut conn).await.unwrap();
+    redis::cmd("LPUSH")
+        .arg("jobs")
+        .arg(job.id.to_string())
+        .query_async::<_, ()>(&mut conn)
+        .await
+        .unwrap();
 
     // run worker binary
     let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_worker"))

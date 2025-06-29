@@ -63,6 +63,7 @@ required-features = ["worker-bin"]
 
 [dev-dependencies]
 actix-http-test = "3"
+actix-http = "3"
 tempfile = "3"
 lopdf = "0.32"
 wiremock = "0.6"

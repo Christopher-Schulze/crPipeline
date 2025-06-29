@@ -9,9 +9,7 @@ use serde_json::json;
 use wiremock::{MockServer, Mock, ResponseTemplate};
 use wiremock::matchers::method;
 use aws_config::meta::region::RegionProviderChain;
-use aws_smithy_http::endpoint::Endpoint;
 use aws_sdk_s3::Client as S3Client;
-use http::Uri;
 
 async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service<actix_http::Request, Response=actix_web::dev::ServiceResponse, Error=actix_web::Error>, PgPool) {
     dotenvy::dotenv().ok();
@@ -22,7 +20,7 @@ async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service
         .connect(&database_url)
         .await
         .expect("Failed to connect to test database");
-    sqlx::migrate!(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"))
+    sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations on test DB");
@@ -31,9 +29,8 @@ async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service
     std::env::set_var("AWS_SECRET_ACCESS_KEY", "test");
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
     let shared_config = aws_config::from_env().region(region_provider).load().await;
-    let endpoint = Endpoint::immutable(Uri::from_str(&s3_server.uri()).unwrap());
     let s3_config = aws_sdk_s3::config::Builder::from(&shared_config)
-        .endpoint_resolver(endpoint)
+        .endpoint_url(s3_server.uri())
         .force_path_style(true)
         .build();
     let s3_client = S3Client::from_conf(s3_config);
@@ -127,7 +124,7 @@ async fn test_pdf_upload_success() {
         .await
         .unwrap();
     assert_eq!(count.0, 1);
-    assert_eq!(put_mock.hits(), 1);
+    assert_eq!(put_mock.received_requests().await.len(), 1);
 }
 
 #[actix_rt::test]
@@ -160,7 +157,7 @@ async fn test_pdf_upload_bad_content_type() {
         .await
         .unwrap();
     assert_eq!(count.0, 0);
-    assert_eq!(put_mock.hits(), 0);
+    assert_eq!(put_mock.received_requests().await.len(), 0);
 }
 
 #[actix_rt::test]
@@ -198,6 +195,6 @@ async fn test_cleanup_on_failed_upload() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::INTERNAL_SERVER_ERROR);
-    assert_eq!(put_mock.hits(), 1);
-    assert_eq!(delete_mock.hits(), 1);
+    assert_eq!(put_mock.received_requests().await.len(), 1);
+    assert_eq!(delete_mock.received_requests().await.len(), 1);
 }
