@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    transformMode: { web: [/\.svelte$/] }
+    transformMode: { web: [/\.svelte$/] },
+    setupFiles: './vitest.setup.ts'
   }
 });
