@@ -8,7 +8,6 @@ folder containing experimental routes was removed.
 ## Table of Contents
 - [Requirements](#requirements)
 - [Setup](#setup)
-  - [Docker Compose](#docker-compose)
 - [Migrations](#migrations)
 - [Testing](#testing)
 - [Dev vs Prod](#dev-vs-prod)
@@ -43,45 +42,9 @@ folder containing experimental routes was removed.
 - PostgreSQL and MinIO (or AWS S3)
 
 ## Setup
-1. Copy environment variables:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-2. Ensure PostgreSQL and MinIO are running locally. Update `backend/.env` if your services use custom ports or credentials.
-   Alternatively run `docker compose up -d db minio` to start the services via Docker.
-3. Install Rust and Node dependencies (requires network access):
-   ```bash
-   ./scripts/bootstrap_deps.sh
-   ```
-4. Run database migrations:
-   ```bash
-   (cd backend && sqlx migrate run)
-   ```
-5. Start the backend and frontend in separate terminals:
-   ```bash
-   cargo run --manifest-path backend/Cargo.toml
-   npm run dev --prefix frontend
-   ```
-6. The backend will be on `http://localhost:8080`, frontend on `http://localhost:5173`.
-
-Environment variables can be tweaked in `backend/.env` to point to a different
-database or S3 endpoint. Ensure the bucket defined in `S3_BUCKET` exists in your
-MinIO or AWS account.
-
-### Docker Compose
-All services can also be started via Docker for convenience:
-
-```bash
-docker compose up --build
-```
-
-This launches Postgres, MinIO, Redis, the backend API and the compiled frontend. The
-application will be available on the same ports as above.
-
-After the first migration you can seed an admin user (role `admin`) with the following command:
-```bash
-cargo run --bin create_admin -- email@example.com password
-```
+Basic steps for running the project locally are documented in
+[docs/Setup.md](docs/Setup.md). It covers dependency installation,
+migrations and how to launch the services with or without Docker.
 
 ## Migrations
 Run migrations using `sqlx`:
@@ -425,7 +388,8 @@ accent color defined in each organization's settings is applied to interactive
 elements.
 
 ## Security
-All endpoints enforce JWT authentication and CORS restrictions via the `FRONTEND_ORIGIN` environment variable. The rate limiter normally stores counters in Redis. If Redis is unavailable, the behavior is controlled by `REDIS_RATE_LIMIT_FALLBACK` which defaults to an in-memory limit of 100 requests per minute. Setting this variable to `deny` will reject requests outright on Redis failures. Audit logs capture user actions such as login, uploads and downloads.
+Key authentication and rate‑limiting notes are documented in
+[docs/Security.md](docs/Security.md).
 
 ## Secret Management
 Use `scripts/generate_secrets.sh` to create a `backend/.env.prod` file with random credentials:
@@ -451,18 +415,9 @@ Serve the contents of `frontend/dist` with any static web server and run the com
 Use `scripts/bootstrap_deps.sh` to pre-fetch Rust crates and NPM packages and generate lockfiles. This step requires network access on first run but allows repeatable offline builds afterwards.
 
 ## Continuous Integration
-A GitHub Actions workflow is provided at `.github/workflows/ci.yml`. On every push or pull request, it performs the following checks and builds:
-
-- **Backend (Rust):**
-  - `cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings`: Runs Clippy for thorough static analysis and treats all warnings as errors.
-  - (Implicitly, `cargo test` would also be part of a full CI suite, though not explicitly listed as modified here).
-- **Frontend (Svelte/TypeScript):**
-  - `npm install --prefix frontend`: Installs frontend dependencies.
-  - `npm run lint --prefix frontend`: Executes `svelte-check` (using the configuration in `frontend/tsconfig.json`) for type checking and other Svelte-specific diagnostics.
-  - `npm test --prefix frontend`: Runs the frontend unit and component test suite using Vitest.
-  - `npm run build --prefix frontend`: Compiles the Svelte application to ensure the build process is successful.
-
-This CI pipeline helps maintain code quality and catch issues early in both the backend and frontend parts of the project.
+The GitHub Actions workflow outlined in
+[docs/Continuous_Integration.md](docs/Continuous_Integration.md)
+builds and tests both the Rust backend and Svelte frontend on each push.
 
 ## Lines of Code
 As of this commit the repository contains:
