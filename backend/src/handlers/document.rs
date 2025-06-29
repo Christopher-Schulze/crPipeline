@@ -14,6 +14,32 @@ use std::time::Duration;
 use sanitize_filename; // Added for sanitizing filenames
 use log;
 use serde_json;
+use anyhow::Error;
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait S3Deleter {
+    async fn delete_object(&self, bucket: &str, key: &str) -> Result<(), Error>;
+}
+
+#[async_trait]
+impl S3Deleter for Client {
+    async fn delete_object(&self, bucket: &str, key: &str) -> Result<(), Error> {
+        self.delete_object()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await
+            .map(|_| ())
+            .map_err(|e| Error::new(e))
+    }
+}
+
+pub(crate) async fn cleanup_s3_object<S: S3Deleter + Sync>(s3: &S, bucket: &str, key: &str) {
+    if let Err(e) = s3.delete_object(bucket, key).await {
+        log::error!("Failed to delete {} from S3 bucket {} during cleanup: {:?}", key, bucket, e);
+    }
+}
 
 #[derive(serde::Deserialize)]
 pub struct UploadParams {
@@ -182,7 +208,7 @@ pub async fn upload(
         Ok(d) => d,
         Err(e) => {
             log::error!("Failed to create document record for S3 key {}: {:?}", s3_key_name, e);
-            // TODO: Attempt to delete from S3 if DB insert fails (complex cleanup)
+            cleanup_s3_object(&*s3, &bucket, &s3_key_name).await;
             return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to save document information."}));
         }
     };
@@ -195,7 +221,7 @@ pub async fn upload(
                 let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM analysis_jobs WHERE org_id=$1 AND created_at >= date_trunc('month', NOW())")
                     .bind(params.org_id).fetch_one(pool.as_ref()).await.unwrap_or((0,));
                 if count >= settings.monthly_analysis_quota as i64 {
-                     // TODO: Consider deleting uploaded document from S3 if analysis cannot be queued due to quota
+                    cleanup_s3_object(&*s3, &bucket, &s3_key_name).await;
                     return HttpResponse::TooManyRequests().json(serde_json::json!({"error": "Monthly analysis quota exceeded. Document uploaded but not queued for analysis."}));
                 }
             }
