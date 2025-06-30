@@ -11,7 +11,7 @@ A GitHub Actions workflow is provided at `.github/workflows/ci.yml`. On every pu
     other packages are available. This mirrors the CI workflow where the
     install step comes first.
   - `npm run lint --prefix frontend`: Executes `svelte-check` (using the configuration in `frontend/tsconfig.json`) for type checking and other Svelte-specific diagnostics.
-  - `npm test --prefix frontend`: Runs the frontend unit and component test suite using Vitest.
+  - `npm test --prefix frontend`: Runs the frontend unit and component test suite using Vitest. Ensure `npm install --prefix frontend` has been run first so all dev dependencies are available.
   - `npm run build --prefix frontend`: Compiles the Svelte application to ensure the build process is successful.
 
 This CI pipeline helps maintain code quality and catch issues early in both the backend and frontend parts of the project.
