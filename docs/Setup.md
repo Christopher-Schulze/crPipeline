@@ -3,6 +3,7 @@
 1. Copy environment variables:
    ```bash
    cp backend/.env.example backend/.env
+   cp backend/.env.test.example backend/.env.test
    ```
 2. Ensure PostgreSQL and MinIO are running locally. Update `backend/.env` if your services use custom ports or credentials.
    Alternatively run `docker compose up -d db minio` to start the services via Docker.
@@ -21,8 +22,9 @@
    ```
 6. The backend will be on `http://localhost:8080`, frontend on `http://localhost:5173`.
 
-7. Backend tests read `backend/.env.test` for `DATABASE_URL_TEST`. Edit the file
-   if your test database differs and run:
+7. Backend tests read `backend/.env.test` for `DATABASE_URL_TEST`. Copy
+   `backend/.env.test.example` if it doesn't exist, edit it to match your setup,
+   and run:
    ```bash
    cargo test --manifest-path backend/Cargo.toml
    ```
