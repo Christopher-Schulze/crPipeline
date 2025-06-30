@@ -6,14 +6,14 @@ use aws_sdk_s3::Client as S3Client;
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct ReportStageConfig {
     template: String,
-    #[serde(default)]
-    summary_fields: Vec<String>,
+    #[serde(default, rename = "summaryFields")]
+    _summary_fields: Vec<String>,
 }
 
 pub async fn handle_report_stage(

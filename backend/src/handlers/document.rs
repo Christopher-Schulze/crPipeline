@@ -120,9 +120,7 @@ pub async fn upload(
     // 2. Validate based on filename extension and determined Content-Type / Magic Bytes
     // Use base_filename_for_validation for extension checks
     let lower_filename_for_validation = base_filename_for_validation.to_lowercase();
-    let mut detected_file_type: Option<&str> = None;
-
-    if lower_filename_for_validation.ends_with(".pdf") {
+    let detected_file_type = if lower_filename_for_validation.ends_with(".pdf") {
         if let Some(ref ct) = file_content_type {
             if ct != "application/pdf" {
                 if !ct.starts_with("application/octet-stream") {
@@ -138,27 +136,23 @@ pub async fn upload(
             log::warn!("Invalid PDF magic bytes for file '{}'", user_provided_filename);
             return HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid PDF file format (magic bytes mismatch)."}));
         }
-        detected_file_type = Some("pdf");
+        "pdf"
     } else if lower_filename_for_validation.ends_with(".md") {
         if file_content_type.as_deref().map_or(false, |ct| ct != "text/markdown" && ct != "text/plain" && !ct.starts_with("application/octet-stream")) {
             log::warn!("MD upload for '{}': Suspicious Content-Type: {:?}. Allowing.", user_provided_filename, file_content_type);
         }
-        detected_file_type = Some("md");
+        "md"
     } else if lower_filename_for_validation.ends_with(".txt") {
         if file_content_type.as_deref().map_or(false, |ct| ct != "text/plain" && !ct.starts_with("application/octet-stream")) {
             log::warn!("TXT upload for '{}': Suspicious Content-Type: {:?}. Allowing.", user_provided_filename, file_content_type);
         }
-        detected_file_type = Some("txt");
+        "txt"
     } else {
         return HttpResponse::BadRequest().json(serde_json::json!({"error": "Unsupported file type. Only .pdf, .md, .txt are allowed."}));
-    }
-
-    if detected_file_type.is_none() { // Should be caught by else above, but as a safeguard
-         return HttpResponse::BadRequest().json(serde_json::json!({"error": "Could not determine file type or type is unsupported."}));
-    }
+    };
 
     // 3. PDF Page Count (Only for PDFs)
-    let pages = if detected_file_type == Some("pdf") {
+    let pages = if detected_file_type == "pdf" {
         match PdfDoc::load_mem(&bytes_data).map(|d| d.get_pages().len() as i32) {
             Ok(p) => p,
             Err(e) => {
