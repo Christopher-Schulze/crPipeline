@@ -5,7 +5,7 @@ use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use sqlx::PgPool;
 use std::env;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 /// Execute an AI stage and return the resulting JSON.
 pub async fn handle_ai_stage(
@@ -40,7 +40,7 @@ pub async fn handle_ai_stage(
         return Err(anyhow::anyhow!("AI endpoint missing"));
     }
 
-    let mut input_json = current_json.clone();
+    let input_json = current_json.clone();
     // prompt handling skipped
 
     // Save AI input

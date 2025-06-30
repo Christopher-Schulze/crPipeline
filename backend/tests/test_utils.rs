@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use actix_web::{test, web, App};
 use backend::handlers;
 use backend::middleware::jwt::create_jwt;

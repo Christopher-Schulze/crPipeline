@@ -1,6 +1,4 @@
 use actix_web::{test, http::header};
-use backend::handlers;
-use uuid::Uuid;
 use serde_json::json;
 
 mod test_utils;

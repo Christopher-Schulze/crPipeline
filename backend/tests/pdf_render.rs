@@ -1,7 +1,6 @@
 use backend::processing::generate_report_from_template;
 use serde_json::json;
 use lopdf::Document as PdfDoc;
-use std::fs;
 
 #[actix_rt::test]
 async fn list_and_table_render() {

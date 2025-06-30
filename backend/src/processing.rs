@@ -11,7 +11,6 @@ use reqwest::multipart; // Added for multipart form data
 use printpdf::*;
 use tokio::process::Command;
 use serde::Deserialize; // For CustomHeader
-use serde_json::Value; // For Value type hint
 
 // For new report generation
 use pulldown_cmark::{Parser, Event, Tag, Options as MarkdownOptions, HeadingLevel};
@@ -254,14 +253,6 @@ pub async fn run_parse_stage(
 }
 
 // Helper struct for report stage config deserialization
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct ReportStageConfig {
-    template: String,
-    #[serde(default)]
-    summary_fields: Vec<String>,
-}
-
 // Helper for basic placeholder replacement
 fn replace_placeholders(template: &str, data: &JsonValue) -> String {
     let mut result = template.to_string();
@@ -313,7 +304,7 @@ pub async fn generate_report_from_template(
 
     let font = doc.add_builtin_font(BuiltinFont::Helvetica)
         .map_err(|e| anyhow!("Failed to add font: {}", e.to_string()))?;
-    let mut current_layer = doc.get_page(page1).get_layer(layer1);
+    let current_layer = doc.get_page(page1).get_layer(layer1);
 
     let mut options = MarkdownOptions::empty();
     options.insert(MarkdownOptions::ENABLE_TABLES);
@@ -543,7 +534,7 @@ pub async fn run_ai(
 ///
 /// Fails if the PDF cannot be written to disk.
 pub fn generate_report(json: &serde_json::Value, path: &Path) -> Result<()> {
-    let (mut doc, page1, layer1) = PdfDocument::new("Report", Mm(210.0), Mm(297.0), "Layer1");
+    let (doc, page1, layer1) = PdfDocument::new("Report", Mm(210.0), Mm(297.0), "Layer1");
     let current_layer = doc.get_page(page1).get_layer(layer1);
     let text = json.to_string();
     let font = doc.add_builtin_font(BuiltinFont::Helvetica)?;

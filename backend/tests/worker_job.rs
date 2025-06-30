@@ -1,7 +1,6 @@
 use std::time::Duration;
 use actix_rt::time::sleep;
-use backend::models::{Pipeline, NewPipeline, NewDocument, Document, NewAnalysisJob, AnalysisJob};
-use backend::models::job_stage_output::JobStageOutput;
+use backend::models::{Pipeline, NewDocument, Document, NewAnalysisJob, AnalysisJob};
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 use actix_rt;

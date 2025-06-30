@@ -1,8 +1,6 @@
 use actix_web::{test, web, App, http::header};
 use backend::handlers;
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use uuid::Uuid;
-use serde_json::json;
 
 mod test_utils;
 use test_utils::{create_org, create_user, generate_jwt_token};
