@@ -8,11 +8,9 @@ use argon2::password_hash::SaltString;
 use uuid::Uuid;
 
 pub async fn setup_test_app() -> (impl actix_web::dev::Service<actix_http::Request, Response = actix_web::dev::ServiceResponse, Error = actix_web::Error>, PgPool) {
-    if let Err(_) = std::env::var("DATABASE_URL_TEST") {
-        todo!("skip");
-    }
     dotenvy::from_filename(".env.test").ok();
-    let database_url = std::env::var("DATABASE_URL_TEST").expect("DATABASE_URL_TEST must be set");
+    let database_url = std::env::var("DATABASE_URL_TEST")
+        .unwrap_or_else(|_| std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
