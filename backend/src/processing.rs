@@ -4,7 +4,7 @@ use std::io::BufWriter;
 use aws_sdk_s3::Client as S3Client;
 use anyhow::{Result, anyhow, Context};
 use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use serde_json::Value as JsonValue; // For new parse stage
+use serde_json::Value; // For new parse stage
 use std::collections::HashMap; // For new parse stage
 use regex::Regex; // For new parse stage
 use reqwest::multipart; // Added for multipart form data
@@ -169,8 +169,8 @@ struct RegexPattern {
 /// fails.
 pub async fn run_parse_stage(
     text_content: &str,
-    config_json: Option<&JsonValue>,
-) -> Result<JsonValue> {
+    config_json: Option<&Value>,
+) -> Result<Value> {
     let config: Option<ParseConfig> = config_json
         .and_then(|c_val| serde_json::from_value(c_val.clone()).ok());
 
@@ -235,7 +235,7 @@ pub async fn run_parse_stage(
         Some(ParseConfig::SimpleTableExtraction { header_keywords, stop_keywords }) => {
             log::warn!("SimpleTableExtraction is a basic placeholder and may not yield useful results.");
             let mut result_data = HashMap::new();
-            result_data.insert("status".to_string(), JsonValue::String("SimpleTableExtraction (placeholder)".to_string()));
+            result_data.insert("status".to_string(), Value::String("SimpleTableExtraction (placeholder)".to_string()));
             result_data.insert("matched_headers".to_string(), serde_json::to_value(header_keywords)?);
             if let Some(sk) = stop_keywords {
                  result_data.insert("stop_keywords_provided".to_string(), serde_json::to_value(sk)?);
@@ -254,7 +254,7 @@ pub async fn run_parse_stage(
 
 // Helper struct for report stage config deserialization
 // Helper for basic placeholder replacement
-fn replace_placeholders(template: &str, data: &JsonValue) -> String {
+fn replace_placeholders(template: &str, data: &Value) -> String {
     let mut result = template.to_string();
     let placeholder_re = Regex::new(r"\{\{\s*([\w.-]+)\s*\}\}").unwrap(); // This unwrap is fine if regex is static & tested
 
@@ -268,7 +268,7 @@ fn replace_placeholders(template: &str, data: &JsonValue) -> String {
             [key1, key2, key3] => data.get(key1).and_then(|v| v.get(key2)).and_then(|v| v.get(key3)).and_then(|v| v.as_str()).unwrap_or("").to_string(),
             _ => {
                 // Basic jsonpath_rust usage for deeper or more complex paths
-                // Note: jsonpath_rust::JsonPath::query returns a Vec<&JsonValue>
+                // Note: jsonpath_rust::JsonPath::query returns a Vec<&Value>
                 // For simplicity, we'll try to get the first element and convert to string.
                 // A more robust solution would handle arrays/objects returned by path differently.
                 match data.query(&format!("$.{}", key_path)) {
@@ -291,7 +291,7 @@ fn replace_placeholders(template: &str, data: &JsonValue) -> String {
 /// Fails if the template cannot be rendered or the PDF cannot be written.
 pub async fn generate_report_from_template(
     template_markdown: &str,
-    data_for_templating: &JsonValue,
+    data_for_templating: &Value,
     output_pdf_path: &std::path::Path,
 ) -> Result<()> {
     let processed_markdown = replace_placeholders(template_markdown, data_for_templating);
