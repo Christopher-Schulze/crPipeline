@@ -602,7 +602,7 @@
                 {#each stage.config.parameters.keywords as keyword, k (k)}
                   <div class="flex items-center space-x-2">
                     <input type="text" bind:value={stage.config.parameters.keywords[k]} class="glass-input flex-grow !text-xs !bg-neutral-500/40" placeholder="Enter keyword"/>
-                    <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.keywords = stage.config.parameters.keywords.filter((_: any, idx: number) => idx !== k)}>X</Button>
+                    <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.keywords = stage.config.parameters.keywords.filter((_, idx) => idx !== k)}>X</Button>
                   </div>
                 {/each}
                 <Button variant="secondary" customClass="!text-xs !py-1" on:click={() => stage.config.parameters.keywords = [...stage.config.parameters.keywords, '']}>Add Keyword</Button>
@@ -621,7 +621,7 @@
                   <div class="p-2 bg-black/20 rounded space-y-1.5 mb-1.5">
                       <div class="flex items-center space-x-2">
                           <input type="text" bind:value={pattern.name} class="glass-input flex-grow !text-xs !bg-neutral-500/40" placeholder="Field Name (e.g., InvoiceID)"/>
-                          <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.patterns = stage.config.parameters.patterns.filter((p: RegexPatternConfig) => p.id !== pattern.id)}>X</Button>
+                          <Button variant="ghost" customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300" on:click={() => stage.config.parameters.patterns = stage.config.parameters.patterns.filter(p => p.id !== pattern.id)}>X</Button>
                       </div>
                       <input type="text" bind:value={pattern.regex} class="glass-input w-full !text-xs !bg-neutral-500/40" placeholder="Regex Pattern (e.g., INV-\d+)"/>
                       <!-- New Input for Capture Group Index -->
@@ -651,11 +651,11 @@
               <div class="pl-3 border-l-2 border-neutral-700 space-y-2 py-2 text-xs">
                   <label class="block font-medium text-gray-300 mb-0.5">Header Keywords (comma-separated):</label>
                   <input type="text" bind:value={stage.config.parameters._headerKeywordsString}
-                         on:input={() => stage.config.parameters.headerKeywords = (stage.config.parameters._headerKeywordsString || '').split(',').map((s:string)=>s.trim()).filter((s:string)=>s)}
+                         on:input={() => stage.config.parameters.headerKeywords = (stage.config.parameters._headerKeywordsString || '').split(',').map(s => s.trim()).filter(s => s)}
                          class="glass-input w-full !text-xs !bg-neutral-500/40" placeholder="e.g., Item, Qty, Price"/>
                   <label class="block font-medium text-gray-300 mt-1 mb-0.5">Stop Keywords (optional, comma-separated):</label>
                   <input type="text" bind:value={stage.config.parameters._stopKeywordsString}
-                         on:input={() => stage.config.parameters.stopKeywords = (stage.config.parameters._stopKeywordsString || '').split(',').map((s:string)=>s.trim()).filter((s:string)=>s)}
+                         on:input={() => stage.config.parameters.stopKeywords = (stage.config.parameters._stopKeywordsString || '').split(',').map(s => s.trim()).filter(s => s)}
                          class="glass-input w-full !text-xs !bg-neutral-500/40" placeholder="e.g., Total, Subtotal"/>
               </div>
             {/if}

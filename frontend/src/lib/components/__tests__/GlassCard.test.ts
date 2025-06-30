@@ -2,8 +2,8 @@ import { render } from '@testing-library/svelte';
 import GlassCard from '../GlassCard.svelte';
 import { expect, test } from 'vitest';
 
-test('applies custom opacity', () => {
-  const { container } = render(GlassCard, { props: { opacity: 0.5 } });
+test('applies custom bg opacity class', () => {
+  const { container } = render(GlassCard, { props: { bgOpacity: 'bg-white/80' } });
   const div = container.firstElementChild as HTMLElement;
-  expect(div.style.getPropertyValue('--glass-opacity')).toBe('0.5');
+  expect(div.classList.contains('bg-white/80')).toBe(true);
 });
