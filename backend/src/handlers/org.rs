@@ -9,9 +9,6 @@ use argon2::{Argon2, PasswordHasher}; // For placeholder password in invite
 use argon2::password_hash::SaltString; // For placeholder password in invite
 use rand::Rng; // For generating random passwords
 use chrono::{DateTime, Utc};
-use log;
-use serde_json;
-
 
 #[derive(Deserialize)]
 pub struct OrgInput { pub name: String }

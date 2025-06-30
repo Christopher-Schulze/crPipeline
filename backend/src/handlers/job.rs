@@ -6,9 +6,7 @@ use crate::middleware::auth::AuthUser;
 use actix_web_lab::sse::{self, ChannelStream, Sse};
 use std::time::Duration; // Already here, used for Sse and now PresigningConfig
 use serde::Serialize;
-use log;
 use aws_sdk_s3::presigning::PresigningConfig; // For S3 presigned URLs
-use serde_json; // For serde_json::json! macro in error responses
 
 /// Combined details returned by [`get_job_details`].
 #[derive(Serialize)]

@@ -4,8 +4,6 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use crate::models::{Pipeline, NewPipeline};
 use crate::middleware::auth::AuthUser;
-use serde_json; // For json! macro and potentially Value if not inferred
-use log; // For logging
 
 #[derive(Deserialize)]
 pub struct PipelineInput {

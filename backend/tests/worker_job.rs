@@ -3,7 +3,6 @@ use actix_rt::time::sleep;
 use backend::models::{Pipeline, NewDocument, Document, NewAnalysisJob, AnalysisJob};
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
-use actix_rt;
 
 #[actix_rt::test]
 async fn worker_processes_job() {
