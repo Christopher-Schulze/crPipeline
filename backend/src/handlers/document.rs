@@ -12,8 +12,6 @@ use crate::middleware::auth::AuthUser;
 use sqlx::PgPool;
 use std::time::Duration;
 use sanitize_filename; // Added for sanitizing filenames
-use log;
-use serde_json;
 use anyhow::Error;
 use async_trait::async_trait;
 

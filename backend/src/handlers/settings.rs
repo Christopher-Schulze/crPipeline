@@ -3,8 +3,7 @@ use uuid::Uuid;
 use crate::middleware::auth::AuthUser;
 use crate::models::OrgSettings;
 use sqlx::PgPool;
-use log; // Added for logging
-use serde_json; // Added for json error response
+
 
 #[get("/settings/{org_id}")]
 async fn get_settings(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {

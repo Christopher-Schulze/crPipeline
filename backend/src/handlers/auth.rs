@@ -8,8 +8,6 @@ use crate::email::send_email;
 use argon2::{Argon2, PasswordHasher};
 // log_action removed from here, as it's not suitable for public registration without an actor AuthUser
 // For admin actions, log_action would be used in those specific admin handlers.
-use log;
-use serde_json;
 use argon2::password_hash::SaltString;
 use actix_web::cookie::SameSite; // For cookie SameSite attribute
 use actix_web::cookie::time::Duration as ActixDuration; // For cookie Max-Age
