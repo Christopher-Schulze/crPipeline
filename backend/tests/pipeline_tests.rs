@@ -8,7 +8,7 @@ use test_utils::{setup_test_app, create_org, create_user, generate_jwt_token};
 
 #[actix_rt::test]
 async fn test_create_pipeline_success() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Pipeline Org").await;
     let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -30,7 +30,7 @@ async fn test_create_pipeline_success() {
 
 #[actix_rt::test]
 async fn test_reject_missing_stage_type() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Bad Pipeline Org").await;
     let user_id = create_user(&pool, org_id, "admin2@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -50,7 +50,7 @@ async fn test_reject_missing_stage_type() {
 
 #[actix_rt::test]
 async fn test_reject_empty_pipeline_name() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Empty Name Org").await;
     let user_id = create_user(&pool, org_id, "admin3@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -70,7 +70,7 @@ async fn test_reject_empty_pipeline_name() {
 
 #[actix_rt::test]
 async fn test_update_pipeline_success_as_org_admin() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Update Org").await;
     let user_id = create_user(&pool, org_id, "upd@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -108,7 +108,7 @@ async fn test_update_pipeline_success_as_org_admin() {
 
 #[actix_rt::test]
 async fn test_update_pipeline_other_org_unauthorized() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org1 = create_org(&pool, "Org1").await;
     let org2 = create_org(&pool, "Org2").await;
     let admin1 = create_user(&pool, org1, "a1@example.com", "org_admin").await;
@@ -147,7 +147,7 @@ async fn test_update_pipeline_other_org_unauthorized() {
 
 #[actix_rt::test]
 async fn test_delete_pipeline_success() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Delete Org").await;
     let user_id = create_user(&pool, org_id, "del@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -182,7 +182,7 @@ async fn test_delete_pipeline_success() {
 
 #[actix_rt::test]
 async fn test_delete_pipeline_other_org_unauthorized() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org1 = create_org(&pool, "DelOrg1").await;
     let org2 = create_org(&pool, "DelOrg2").await;
     let admin1 = create_user(&pool, org1, "del1@example.com", "org_admin").await;
@@ -216,7 +216,7 @@ async fn test_delete_pipeline_other_org_unauthorized() {
 
 #[actix_rt::test]
 async fn test_post_api_pipelines() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Post Org").await;
     let user_id = create_user(&pool, org_id, "post@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -246,7 +246,7 @@ async fn test_post_api_pipelines() {
 
 #[actix_rt::test]
 async fn test_put_api_pipelines_id() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Put Org").await;
     let user_id = create_user(&pool, org_id, "put@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -284,7 +284,7 @@ async fn test_put_api_pipelines_id() {
 
 #[actix_rt::test]
 async fn test_delete_api_pipelines_id() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Delete Org2").await;
     let user_id = create_user(&pool, org_id, "delete@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");

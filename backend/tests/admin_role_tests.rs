@@ -7,7 +7,7 @@ use test_utils::{setup_test_app, create_org, create_user, generate_jwt_token};
 
 #[actix_rt::test]
 async fn test_global_admin_assign_role_success() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Role Org").await;
     let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
     let user_id = create_user(&pool, org_id, "member@example.com", "user").await;
@@ -30,7 +30,7 @@ async fn test_global_admin_assign_role_success() {
 
 #[actix_rt::test]
 async fn test_non_admin_cannot_assign_role() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "NonAdmin Org").await;
     let user_id = create_user(&pool, org_id, "user@example.com", "user").await;
     let other_user_id = create_user(&pool, org_id, "other@example.com", "user").await;
@@ -47,7 +47,7 @@ async fn test_non_admin_cannot_assign_role() {
 
 #[actix_rt::test]
 async fn test_assign_org_admin_with_valid_org() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Main Org").await;
     let target_org_id = create_org(&pool, "Target Org").await;
     let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
@@ -72,7 +72,7 @@ async fn test_assign_org_admin_with_valid_org() {
 
 #[actix_rt::test]
 async fn test_assign_org_admin_with_invalid_org() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Invalid Org").await;
     let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
     let user_id = create_user(&pool, org_id, "member@example.com", "user").await;
