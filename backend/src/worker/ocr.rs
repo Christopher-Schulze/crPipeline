@@ -12,18 +12,77 @@ pub async fn handle_ocr_stage(
     s3: &S3Client,
     job: &AnalysisJob,
     stage: &Stage,
-    _org_settings: Option<&OrgSettings>,
+    org_settings: Option<&OrgSettings>,
     bucket: &str,
     local: &Path,
     txt_path: &Path,
 ) -> Result<bool> {
-    if let Err(e) = processing::run_ocr(local, txt_path).await {
-        error!(job_id=%job.id, "OCR failed: {:?}", e);
-        return Ok(true);
+    let text_result = if stage.ocr_engine.as_deref() == Some("external") {
+        let endpoint = stage
+            .ocr_stage_endpoint
+            .clone()
+            .or_else(|| org_settings.and_then(|s| s.ocr_api_endpoint.clone()))
+            .unwrap_or_else(|| std::env::var("OCR_API_URL").unwrap_or_default());
+        let key = stage
+            .ocr_stage_key
+            .clone()
+            .or_else(|| org_settings.and_then(|s| s.ocr_api_key.clone()))
+            .unwrap_or_else(|| std::env::var("OCR_API_KEY").unwrap_or_default());
+
+        let pdf_bytes = match tokio::fs::read(local).await {
+            Ok(b) => b,
+            Err(e) => {
+                error!(job_id=%job.id, "Failed to read input PDF for external OCR: {:?}", e);
+                return Ok(true);
+            }
+        };
+
+        match processing::run_external_ocr(
+            &endpoint,
+            if key.is_empty() { None } else { Some(key.as_str()) },
+            pdf_bytes,
+            local
+                .file_name()
+                .map(|f| f.to_string_lossy())
+                .unwrap_or_else(|| "input.pdf".into())
+                .as_ref(),
+        )
+        .await
+        {
+            Ok(text) => text,
+            Err(e) => {
+                error!(job_id=%job.id, "External OCR failed: {:?}", e);
+                return Ok(true);
+            }
+        }
+    } else {
+        if let Err(e) = processing::run_ocr(local, txt_path).await {
+            error!(job_id=%job.id, "OCR failed: {:?}", e);
+            return Ok(true);
+        }
+        match tokio::fs::read_to_string(txt_path).await {
+            Ok(t) => t,
+            Err(e) => {
+                error!(job_id=%job.id, "Failed to read OCR output: {:?}", e);
+                return Ok(true);
+            }
+        }
+    };
+
+    if let Err(e) = tokio::fs::write(txt_path, &text_result).await {
+        error!(job_id=%job.id, "Failed to write OCR text: {:?}", e);
     }
-    if let Ok(text) = tokio::fs::read_to_string(txt_path).await {
-        let _ = save_stage_output(pool, s3, job.id, &stage.stage_type, "txt", bucket, text.into_bytes(), "txt").await;
-    }
+    let _ = save_stage_output(
+        pool,
+        s3,
+        job.id,
+        &stage.stage_type,
+        "txt",
+        bucket,
+        text_result.clone().into_bytes(),
+        "txt",
+    )
+    .await;
     let _ = tokio::fs::remove_file(txt_path).await;
     Ok(false)
 }
@@ -35,8 +94,9 @@ mod tests {
     use aws_sdk_s3::Client as S3Client;
     use sqlx::postgres::PgPoolOptions;
     use tempfile::tempdir;
-    use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::PermissionsExt;
     use serial_test::serial;
+    use wiremock::{MockServer, Mock, ResponseTemplate, matchers::method};
 
     fn dummy_stage() -> Stage {
         Stage { stage_type: "ocr".into(), command: None, prompt_name: None, ocr_engine: None, ocr_stage_endpoint: None, ocr_stage_key: None, config: None }
@@ -92,5 +152,77 @@ mod tests {
         let txt = dir.path().join("out.txt");
         let res = handle_ocr_stage(&pool, &s3, &job, &stage, None, "bucket", &input, &txt).await.unwrap();
         assert!(!res);
+    }
+
+    #[actix_rt::test]
+    #[serial]
+    async fn ocr_stage_external_with_stage_fields() {
+        std::env::set_var("SKIP_DB", "1");
+        let dir = tempdir().unwrap();
+        std::env::set_var("LOCAL_S3_DIR", dir.path());
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ext"))
+            .mount(&server)
+            .await;
+        let (pool, s3) = dummy_clients().await;
+        let job = dummy_job();
+        let stage = Stage {
+            stage_type: "ocr".into(),
+            command: None,
+            prompt_name: None,
+            ocr_engine: Some("external".into()),
+            ocr_stage_endpoint: Some(format!("{}/ocr", server.uri())),
+            ocr_stage_key: Some("k".into()),
+            config: None,
+        };
+        let input = dir.path().join("in.pdf");
+        tokio::fs::write(&input, b"pdf").await.unwrap();
+        let txt = dir.path().join("out.txt");
+        let res = handle_ocr_stage(&pool, &s3, &job, &stage, None, "bucket", &input, &txt).await.unwrap();
+        assert!(!res);
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[actix_rt::test]
+    #[serial]
+    async fn ocr_stage_external_with_org_settings() {
+        std::env::set_var("SKIP_DB", "1");
+        let dir = tempdir().unwrap();
+        std::env::set_var("LOCAL_S3_DIR", dir.path());
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ext2"))
+            .mount(&server)
+            .await;
+        let (pool, s3) = dummy_clients().await;
+        let job = dummy_job();
+        let settings = OrgSettings {
+            org_id: job.org_id,
+            monthly_upload_quota: 100,
+            monthly_analysis_quota: 100,
+            accent_color: "#fff".into(),
+            ai_api_endpoint: None,
+            ai_api_key: None,
+            ocr_api_endpoint: Some(format!("{}/ocr2", server.uri())),
+            ocr_api_key: Some("k2".into()),
+            prompt_templates: None,
+            ai_custom_headers: None,
+        };
+        let stage = Stage {
+            stage_type: "ocr".into(),
+            command: None,
+            prompt_name: None,
+            ocr_engine: Some("external".into()),
+            ocr_stage_endpoint: None,
+            ocr_stage_key: None,
+            config: None,
+        };
+        let input = dir.path().join("in.pdf");
+        tokio::fs::write(&input, b"pdf").await.unwrap();
+        let txt = dir.path().join("out.txt");
+        let res = handle_ocr_stage(&pool, &s3, &job, &stage, Some(&settings), "bucket", &input, &txt).await.unwrap();
+        assert!(!res);
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
 }
