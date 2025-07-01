@@ -9,6 +9,7 @@ use regex::Regex; // For new parse stage
 use reqwest::multipart; // Added for multipart form data
 use printpdf::*;
 use tokio::process::Command;
+use tokio::time::Duration;
 use serde::Deserialize; // For CustomHeader
 
 // For new report generation
@@ -45,6 +46,7 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
 /// * `original_filename` - File name sent to the service.
 ///
 /// Errors are propagated for HTTP failures or non-successful status codes.
+#[tracing::instrument(skip(file_bytes))]
 pub async fn run_external_ocr(
     api_endpoint: &str,
     api_key: Option<&str>,
@@ -90,12 +92,24 @@ pub async fn run_external_ocr(
     }
 
     log::debug!("Sending file {} to external OCR API: {}", original_filename, api_endpoint);
-    let response = request_builder.send().await
-        .with_context(|| format!("External OCR API request to {} failed to send", api_endpoint))?;
+    let mut attempts = 0;
+    let response = loop {
+        match request_builder.try_clone().unwrap().send().await {
+            Ok(resp) => break resp,
+            Err(e) if attempts < 3 => {
+                attempts += 1;
+                log::warn!("OCR request failed attempt {}: {:?}", attempts, e);
+                tokio::time::sleep(Duration::from_millis(500 * attempts as u64)).await;
+                continue;
+            }
+            Err(e) => return Err(anyhow!(e).context("External OCR API request failed")),
+        }
+    };
 
     if response.status().is_success() {
         let ocr_text = response.text().await
             .context("Failed to read text response from external OCR API")?;
+        log::info!("External OCR succeeded");
         Ok(ocr_text)
     } else {
         let status = response.status();
@@ -166,6 +180,7 @@ struct RegexPattern {
 ///
 /// Errors if regex patterns fail to compile or if serialization of the result
 /// fails.
+#[tracing::instrument(skip(text_content, config_json))]
 pub async fn run_parse_stage(
     text_content: &str,
     config_json: Option<&serde_json::Value>,
@@ -460,12 +475,14 @@ struct CustomHeader {
 ///
 /// Returns an error if the request fails or if a non-successful status code is
 /// returned.
+#[tracing::instrument(skip(input, custom_headers_json))]
 pub async fn run_ai(
     input: &serde_json::Value,
     api_endpoint: &str, // Renamed from 'endpoint'
     api_key: &str,      // Renamed from 'key'
     custom_headers_json: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value> {
+    log::info!("Calling AI API at {}", api_endpoint);
     let client = reqwest::Client::new();
     let mut request_builder = client.post(api_endpoint);
 
@@ -514,9 +531,22 @@ pub async fn run_ai(
     // Set content type and send JSON body
     request_builder = request_builder.header(CONTENT_TYPE, "application/json");
 
-    let response = request_builder.json(input).send().await?;
+    let mut attempts = 0;
+    let response = loop {
+        match request_builder.try_clone().unwrap().json(input).send().await {
+            Ok(resp) => break resp,
+            Err(e) if attempts < 3 => {
+                attempts += 1;
+                log::warn!("AI request failed attempt {}: {:?}", attempts, e);
+                tokio::time::sleep(Duration::from_millis(500 * attempts as u64)).await;
+                continue;
+            }
+            Err(e) => return Err(e.into()),
+        }
+    };
 
     if response.status().is_success() {
+        log::info!("AI API call succeeded");
         Ok(response.json().await?)
     } else {
         let status = response.status();

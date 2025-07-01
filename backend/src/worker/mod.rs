@@ -27,6 +27,7 @@ use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
 use std::env;
 use std::path::PathBuf;
+use tokio::time::{sleep, Duration};
 
 /// Upload a blob to S3 or the local filesystem when `LOCAL_S3_DIR` is set.
 pub async fn upload_bytes(
@@ -44,13 +45,25 @@ pub async fn upload_bytes(
         tokio::fs::write(path, data).await?;
         Ok(())
     } else {
-        s3.put_object()
-            .bucket(bucket)
-            .key(key)
-            .body(ByteStream::from(data))
-            .send()
-            .await?;
-        Ok(())
+        let mut attempts = 0;
+        loop {
+            match s3
+                .put_object()
+                .bucket(bucket)
+                .key(key)
+                .body(ByteStream::from(data.clone()))
+                .send()
+                .await
+            {
+                Ok(_) => break Ok(()),
+                Err(_e) if attempts < 3 => {
+                    attempts += 1;
+                    sleep(Duration::from_millis(500 * attempts as u64)).await;
+                    continue;
+                }
+                Err(e) => break Err(e.into()),
+            }
+        }
     }
 }
 
@@ -70,6 +83,7 @@ pub async fn save_stage_output(
     content: Vec<u8>,
     file_ext: &str,
 ) -> Result<(), anyhow::Error> {
+    tracing::info!(job_id=%job_id, stage=%stage_name, "saving stage output");
     // Allow tests to run without a database by skipping the insert when
     // the SKIP_DB environment variable is set.
     #[cfg(test)]
@@ -89,5 +103,6 @@ pub async fn save_stage_output(
         s3_key: key,
     };
     JobStageOutput::create(pool, rec).await?;
+    tracing::info!(job_id=%job_id, stage=%stage_name, "stage output saved");
     Ok(())
 }

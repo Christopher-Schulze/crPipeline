@@ -5,8 +5,9 @@ use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use sqlx::PgPool;
 use std::path::Path;
-use tracing::error;
+use tracing::{error, info};
 
+#[tracing::instrument(skip(pool, s3, job, stage, org_settings, local, txt_path))]
 pub async fn handle_ocr_stage(
     pool: &PgPool,
     s3: &S3Client,
@@ -17,6 +18,7 @@ pub async fn handle_ocr_stage(
     local: &Path,
     txt_path: &Path,
 ) -> Result<bool> {
+    info!(job_id=%job.id, stage=%stage.stage_type, "start ocr stage");
     // Check if this stage should use an external OCR engine
     let use_external = stage.ocr_engine.as_deref() == Some("external");
 
@@ -87,6 +89,7 @@ pub async fn handle_ocr_stage(
     )
     .await;
     let _ = tokio::fs::remove_file(txt_path).await;
+    info!(job_id=%job.id, stage=%stage.stage_type, "finished ocr stage");
     Ok(false)
 }
 
