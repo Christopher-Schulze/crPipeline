@@ -15,7 +15,7 @@ async fn start_redis() -> (oneshot::Sender<()>, u16) {
     let port = listener.local_addr().unwrap().port();
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {
-        server::run(listener, async {
+        let _ = server::run(listener, async {
             let _ = rx.await;
         })
         .await;
