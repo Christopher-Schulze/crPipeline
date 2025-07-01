@@ -15,7 +15,7 @@ pub async fn setup_test_app() -> Result<(
     let database_url = match std::env::var("DATABASE_URL_TEST").or_else(|_| std::env::var("DATABASE_URL")) {
         Ok(url) => url,
         Err(_) => {
-            println!("Skipping test: DATABASE_URL_TEST or DATABASE_URL not set");
+            println!("skipping tests: DATABASE_URL_TEST not set");
             return Err(());
         }
     };
