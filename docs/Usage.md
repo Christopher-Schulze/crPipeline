@@ -49,9 +49,29 @@ REDIS_URL=redis://redis:6379/ ./target/release/worker
 Running the command in several processes allows jobs to be handled concurrently.
 
 ## Cleanup
-Remove expired documents periodically:
+Remove expired documents that have passed their `expires_at` timestamp.
+
+Run once:
 ```bash
 cargo run --bin cleanup
+```
+
+Set `CLEANUP_INTERVAL_MINUTES` to continuously run on a schedule:
+```bash
+CLEANUP_INTERVAL_MINUTES=60 cargo run --bin cleanup
+```
+
+### Cron
+After compiling the cleanup binary in release mode, invoke it from cron using `scripts/cleanup_cron.sh`:
+```
+0 * * * * /path/to/project/scripts/cleanup_cron.sh
+```
+
+### Kubernetes CronJob
+An example CronJob manifest is provided at `k8s/cleanup-cronjob.yaml`.
+Apply it with:
+```bash
+kubectl apply -f k8s/cleanup-cronjob.yaml
 ```
 
 ## Production Build
