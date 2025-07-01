@@ -17,7 +17,10 @@ pub async fn handle_ocr_stage(
     local: &Path,
     txt_path: &Path,
 ) -> Result<bool> {
-    let text_result = if stage.ocr_engine.as_deref() == Some("external") {
+    // Check if this stage should use an external OCR engine
+    let use_external = stage.ocr_engine.as_deref() == Some("external");
+
+    let text_result = if use_external {
         let endpoint = stage
             .ocr_stage_endpoint
             .clone()
