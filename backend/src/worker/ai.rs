@@ -5,9 +5,10 @@ use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use sqlx::PgPool;
 use std::env;
-use tracing::{error, warn};
+use tracing::{error, warn, info};
 
 /// Execute an AI stage and return the resulting JSON.
+#[tracing::instrument(skip(pool, s3, job, stage, org_settings, current_json, local_pdf))]
 pub async fn handle_ai_stage(
     pool: &PgPool,
     s3: &S3Client,
@@ -18,6 +19,7 @@ pub async fn handle_ai_stage(
     current_json: serde_json::Value,
     local_pdf: &std::path::Path,
 ) -> Result<serde_json::Value> {
+    info!(job_id=%job.id, stage=%stage.stage_type, "start ai stage");
     let (endpoint, key) = if let Some(settings) = org_settings {
         let ep = settings
             .ai_api_endpoint
@@ -80,6 +82,7 @@ pub async fn handle_ai_stage(
         let _ = local_pdf; // keep lint happy
     }
 
+    info!(job_id=%job.id, stage=%stage.stage_type, "finished ai stage");
     Ok(result)
 }
 
