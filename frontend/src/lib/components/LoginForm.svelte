@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { apiFetch } from '$lib/utils/apiUtils';
 
   const dispatch = createEventDispatcher();
   let email = '';
@@ -8,9 +9,8 @@
 
   async function submit() {
     error = '';
-    const res = await fetch('/api/login', {
+    const res = await apiFetch('/api/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
     if (res.ok) {

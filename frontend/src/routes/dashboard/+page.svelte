@@ -72,7 +72,7 @@
     <!-- This state should ideally be handled by redirects in +layout.ts or +page.ts -->
     <GlassCard title="Access Denied" padding="p-6" customClass="text-center">
       <p class="text-gray-400">You need to be logged in to view the dashboard.</p>
-      <a href="/login_placeholder" class="mt-4 inline-block text-accent hover:underline">Go to Login (Placeholder)</a>
+      <a href="/login" class="mt-4 inline-block text-accent hover:underline">Go to Login</a>
     </GlassCard>
   {/if}
 </div>
