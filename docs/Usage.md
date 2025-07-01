@@ -38,6 +38,16 @@ Run the background worker to process jobs:
 cargo run --bin worker --features worker-bin
 ```
 
+In production compile and run the worker binary in release mode. Set
+`REDIS_URL` to the Redis instance used by the API. Optionally set
+`PROCESS_ONE_JOB=1` so the worker exits after a single job which is useful in
+container pre-stop hooks. Start multiple workers for higher throughput:
+```bash
+cargo build --release --bin worker --features worker-bin
+REDIS_URL=redis://redis:6379/ ./target/release/worker
+```
+Running the command in several processes allows jobs to be handled concurrently.
+
 ## Cleanup
 Remove expired documents periodically:
 ```bash
