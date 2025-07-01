@@ -88,6 +88,54 @@ pub async fn handle_report_stage(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use aws_config::meta::region::RegionProviderChain;
+    use aws_sdk_s3::Client as S3Client;
+    use sqlx::postgres::PgPoolOptions;
+    use tempfile::tempdir;
+    use serial_test::serial;
+
+    fn stage() -> Stage {
+        Stage { stage_type: "report".into(), command: None, prompt_name: None, ocr_engine: None, ocr_stage_endpoint: None, ocr_stage_key: None, config: None }
+    }
+
+    fn job() -> AnalysisJob {
+        AnalysisJob { id: uuid::Uuid::new_v4(), org_id: uuid::Uuid::new_v4(), document_id: uuid::Uuid::new_v4(), pipeline_id: uuid::Uuid::new_v4(), status: String::new(), created_at: chrono::Utc::now() }
+    }
+
+    fn doc() -> Document {
+        Document { id: uuid::Uuid::new_v4(), org_id: uuid::Uuid::new_v4(), owner_id: uuid::Uuid::new_v4(), filename: "doc.pdf".into(), pages: 1, is_target: true, upload_date: chrono::Utc::now(), expires_at: None, display_name: "doc.pdf".into() }
+    }
+
+    async fn clients() -> (sqlx::Pool<sqlx::Postgres>, S3Client) {
+        let pool = PgPoolOptions::new().connect_lazy("postgres://user@localhost/db").unwrap();
+        let rp = RegionProviderChain::default_provider().or_else("us-east-1");
+        let shared = aws_config::from_env().region(rp).load().await;
+        let cfg = aws_sdk_s3::config::Builder::from(&shared).endpoint_url("http://localhost").force_path_style(true).build();
+        (pool, S3Client::from_conf(cfg))
+    }
+
     #[actix_rt::test]
-    async fn report_stage_compiles() { assert!(true); }
+    #[serial]
+    async fn report_stage_success() {
+        std::env::set_var("SKIP_DB", "1");
+        let dir = tempdir().unwrap();
+        std::env::set_var("LOCAL_S3_DIR", dir.path());
+        let (pool, s3) = clients().await;
+        let res = handle_report_stage(&pool, &s3, &job(), &doc(), &stage(), "bucket", &serde_json::json!({"val":1}), &dir.path().join("in.pdf"))
+            .await;
+        assert!(res.is_ok());
+    }
+
+    #[actix_rt::test]
+    #[serial]
+    async fn report_stage_upload_error() {
+        let dir = tempdir().unwrap();
+        std::env::set_var("LOCAL_S3_DIR", "/dev/null/dir");
+        std::env::set_var("SKIP_DB", "1");
+        let (pool, s3) = clients().await;
+        let res = handle_report_stage(&pool, &s3, &job(), &doc(), &stage(), "bucket", &serde_json::json!({"val":1}), &dir.path().join("in.pdf"))
+            .await;
+        assert!(res.is_err());
+    }
 }
