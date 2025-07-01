@@ -3,7 +3,6 @@ use crate::processing;
 use crate::worker::{save_stage_output, upload_bytes, Stage};
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
-use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
 use tracing::{error, info};
@@ -23,16 +22,16 @@ pub async fn handle_report_stage(
     doc: &Document,
     stage: &Stage,
     bucket: &str,
-    json_result: &Value,
+    json_result: &serde_json::Value,
     local_pdf: &Path,
 ) -> Result<()> {
     let mut data_for_templating = json_result.clone();
-    if let Value::Object(ref mut map) = data_for_templating {
+    if let serde_json::Value::Object(ref mut map) = data_for_templating {
         map.insert(
             "document_name".to_string(),
-            Value::String(doc.filename.clone()),
+            serde_json::Value::String(doc.filename.clone()),
         );
-        map.insert("job_id".to_string(), Value::String(job.id.to_string()));
+        map.insert("job_id".to_string(), serde_json::Value::String(job.id.to_string()));
     } else {
         data_for_templating = serde_json::json!({
             "document_name": doc.filename.clone(),
