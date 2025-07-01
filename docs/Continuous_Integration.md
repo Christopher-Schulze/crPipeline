@@ -6,7 +6,7 @@ A GitHub Actions workflow is provided at `.github/workflows/ci.yml`. On every pu
   - `cargo fmt --manifest-path backend/Cargo.toml --all -- --check`: Ensures code is formatted according to `rustfmt` and fails the build on mismatches.
   - (Implicitly, `cargo test` would also be part of a full CI suite, though not explicitly listed as modified here).
 - **Frontend (Svelte/TypeScript):**
-- `npm install --prefix frontend`: Installs frontend dependencies. **Run this command before `npm test --prefix frontend`** so Vitest and other packages are available. This mirrors the CI workflow where the install step comes first. Without installing dependencies first, the test runner may fail to launch.
+  - `npm install --prefix frontend`: Installs frontend dev dependencies. **This step must be executed before running `npm test --prefix frontend`** so Vitest and other packages are available. Without installing dependencies first, the test runner may fail to launch.
   - `npm run lint --prefix frontend`: Executes `svelte-check` (using the configuration in `frontend/tsconfig.json`) for type checking and other Svelte-specific diagnostics.
   - `npm test --prefix frontend`: Runs the frontend unit and component test suite using Vitest. Ensure `npm install --prefix frontend` has been run first so all dev dependencies are available.
   - `npm run build --prefix frontend`: Compiles the Svelte application to ensure the build process is successful.
