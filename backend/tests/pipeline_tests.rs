@@ -214,3 +214,106 @@ async fn test_delete_pipeline_other_org_unauthorized() {
 }
 
 
+#[actix_rt::test]
+async fn test_post_api_pipelines() {
+    let (app, pool) = setup_test_app().await;
+    let org_id = create_org(&pool, "Post Org").await;
+    let user_id = create_user(&pool, org_id, "post@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    let payload = json!({
+        "org_id": org_id,
+        "name": "PostPipeline",
+        "stages": [{"type": "ocr"}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let created: serde_json::Value = test::read_body_json(resp).await;
+    let pipeline_id = created["id"].as_str().unwrap();
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM pipelines WHERE id = $1")
+        .bind(Uuid::parse_str(pipeline_id).unwrap())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 1);
+}
+
+#[actix_rt::test]
+async fn test_put_api_pipelines_id() {
+    let (app, pool) = setup_test_app().await;
+    let org_id = create_org(&pool, "Put Org").await;
+    let user_id = create_user(&pool, org_id, "put@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    let payload = json!({
+        "org_id": org_id,
+        "name": "InitPipe",
+        "stages": [{"type": "ocr"}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let created: serde_json::Value = test::read_body_json(resp).await;
+    let pipeline_id = created["id"].as_str().unwrap();
+
+    let update_payload = json!({
+        "org_id": org_id,
+        "name": "UpdatedPipe",
+        "stages": [{"type": "ocr"}]
+    });
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/pipelines/{}", pipeline_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&update_payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let updated: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(updated["name"], "UpdatedPipe");
+}
+
+#[actix_rt::test]
+async fn test_delete_api_pipelines_id() {
+    let (app, pool) = setup_test_app().await;
+    let org_id = create_org(&pool, "Delete Org2").await;
+    let user_id = create_user(&pool, org_id, "delete@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    let payload = json!({
+        "org_id": org_id,
+        "name": "ToDelete",
+        "stages": [{"type": "ocr"}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let created: serde_json::Value = test::read_body_json(resp).await;
+    let pipeline_id = created["id"].as_str().unwrap();
+
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/pipelines/{}", pipeline_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM pipelines WHERE id = $1")
+        .bind(Uuid::parse_str(pipeline_id).unwrap())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 0);
+}
