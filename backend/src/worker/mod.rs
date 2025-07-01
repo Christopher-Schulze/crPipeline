@@ -70,6 +70,13 @@ pub async fn save_stage_output(
     content: Vec<u8>,
     file_ext: &str,
 ) -> Result<(), anyhow::Error> {
+    // Allow tests to run without a database by skipping the insert when
+    // the SKIP_DB environment variable is set.
+    #[cfg(test)]
+    if std::env::var("SKIP_DB").is_ok() {
+        upload_bytes(s3, bucket, "test", content).await?;
+        return Ok(());
+    }
     let ts = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
     let key = format!("jobs/{}/outputs/{}_{}.{}", job_id, stage_name, ts, file_ext);
     upload_bytes(s3, bucket, &key, content).await?;
