@@ -121,6 +121,11 @@ use std::os::unix::fs::PermissionsExt;
         let dir = tempdir().unwrap();
         std::env::set_var("LOCAL_S3_DIR", dir.path());
         std::env::set_var("PATH", "");
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
         let (pool, s3) = dummy_clients().await;
         let job = dummy_job();
         let stage = dummy_stage();
@@ -129,6 +134,7 @@ use std::os::unix::fs::PermissionsExt;
         let txt = dir.path().join("out.txt");
         let res = handle_ocr_stage(&pool, &s3, &job, &stage, None, "bucket", &input, &txt).await.unwrap();
         assert!(res);
+        assert_eq!(server.received_requests().await.unwrap().len(), 0);
     }
 
     #[actix_rt::test]
@@ -137,6 +143,11 @@ use std::os::unix::fs::PermissionsExt;
         std::env::set_var("SKIP_DB", "1");
         let dir = tempdir().unwrap();
         std::env::set_var("LOCAL_S3_DIR", dir.path());
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
         let bin_dir = dir.path().join("bin");
         tokio::fs::create_dir(&bin_dir).await.unwrap();
         let script = bin_dir.join("tesseract");
@@ -152,6 +163,7 @@ use std::os::unix::fs::PermissionsExt;
         let txt = dir.path().join("out.txt");
         let res = handle_ocr_stage(&pool, &s3, &job, &stage, None, "bucket", &input, &txt).await.unwrap();
         assert!(!res);
+        assert_eq!(server.received_requests().await.unwrap().len(), 0);
     }
 
     #[actix_rt::test]
