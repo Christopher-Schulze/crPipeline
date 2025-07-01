@@ -13,3 +13,14 @@ A GitHub Actions workflow is provided at `.github/workflows/ci.yml`. On every pu
 
 This CI pipeline helps maintain code quality and catch issues early in both the backend and frontend parts of the project.
 
+### Zero Warnings
+During development, unused imports may generate warnings when running `cargo test`.
+After removing these warnings (for example deleting an unused `Value` import in
+`backend/src/processing.rs` and unused imports in `backend/tests`), verify the
+backend builds cleanly with:
+```bash
+cargo check --all-targets
+```
+This should produce no warnings. The build was also confirmed with
+`cargo test --no-run` and `cargo check --tests --all-targets`.
+
