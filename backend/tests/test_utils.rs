@@ -12,13 +12,13 @@ pub async fn setup_test_app() -> Result<(
     PgPool,
 ), ()> {
     dotenvy::from_filename(".env.test").ok();
-    let database_url = match std::env::var("DATABASE_URL_TEST").ok()
+    // Skip tests entirely when no database URL is configured
+    let database_url = if let Some(url) = std::env::var("DATABASE_URL_TEST").ok()
         .or_else(|| std::env::var("DATABASE_URL").ok()) {
-        Some(url) => url,
-        None => {
-            println!("skipping tests: DATABASE_URL_TEST not set");
-            return Err(());
-        }
+        url
+    } else {
+        println!("skipping tests: DATABASE_URL_TEST not set");
+        return Err(());
     };
     let pool = PgPoolOptions::new()
         .max_connections(5)
