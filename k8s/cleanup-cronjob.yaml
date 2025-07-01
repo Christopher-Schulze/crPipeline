@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup-job
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cleanup
+            image: myorg/backend:latest
+            command: ["/usr/local/bin/cleanup"]
+            envFrom:
+            - secretRef:
+                name: backend-env
+          restartPolicy: OnFailure
