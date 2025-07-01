@@ -1,21 +1,61 @@
-import { vi, expect, test } from 'vitest';
+import { render, fireEvent } from '@testing-library/svelte';
+import { vi, expect, test, beforeEach } from 'vitest';
+import { tick } from 'svelte';
 
-// Tests for PipelineEditor rely on complex Svelte markup that fails to compile
-// in this minimal environment. Skip until component is stabilized.
+import * as apiUtils from '$lib/utils/apiUtils';
+const apiFetch = vi.spyOn(apiUtils, 'apiFetch').mockResolvedValue({ ok: true, json: async () => ({ prompt_templates: [] }) });
 
-vi.mock('../../utils/apiUtils', () => ({
-  apiFetch: vi.fn()
-}));
+import PipelineEditor from '../PipelineEditor.svelte';
 
-// import PipelineEditor from '../PipelineEditor.svelte';
+vi.stubGlobal('alert', vi.fn());
+vi.stubGlobal('confirm', vi.fn(() => true));
 
 const initialPipeline = {
   id: 'p1',
   name: 'Test',
   org_id: 'org1',
-  stages: [{ id: 's1', type: 'parse' }]
+  stages: []
 };
 
-test.skip('uses apiFetch for loading templates, saving and deleting pipeline', async () => {
-  // Skipped: component rendering currently fails in the test environment.
+beforeEach(() => {
+  apiFetch.mockClear();
+});
+
+test('adds and removes stages', async () => {
+  const { getByText, getByPlaceholderText, container } = render(PipelineEditor, { props: { orgId: 'org1', initialPipeline } });
+  await tick();
+  await tick();
+
+  await fireEvent.input(getByPlaceholderText('New Stage Type'), { target: { value: 'parse' } });
+  await fireEvent.click(getByText('Add Stage'));
+  await tick();
+  await tick();
+
+  expect(container.querySelectorAll('.stage-item').length).toBe(1);
+
+  const removeButton = container.querySelector('.stage-item button') as HTMLElement;
+  await fireEvent.click(removeButton);
+  await tick();
+
+  expect(container.querySelectorAll('.stage-item').length).toBe(0);
+});
+
+test('uses apiFetch for saving and deleting pipeline', async () => {
+  const { getByText, getByPlaceholderText } = render(PipelineEditor, { props: { orgId: 'org1', initialPipeline } });
+  await tick();
+
+  await fireEvent.input(getByPlaceholderText('New Stage Type'), { target: { value: 'parse' } });
+  await fireEvent.click(getByText('Add Stage'));
+  await tick();
+  await fireEvent.click(getByText('Save'));
+  await tick();
+  await tick();
+
+  expect(apiFetch).toHaveBeenCalledWith('/api/pipelines/p1', expect.objectContaining({ method: 'PUT' }));
+  apiFetch.mockClear();
+
+  await fireEvent.click(getByText('Delete'));
+  await tick();
+  await tick();
+  expect(apiFetch).toHaveBeenCalledWith('/api/pipelines/p1', { method: 'DELETE' });
 });

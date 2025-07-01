@@ -9,7 +9,12 @@
   export let initialPipeline: Pipeline | null = null;
 
   // Internal reactive state for the pipeline being edited
-  let pipeline: Pipeline;
+  let pipeline: Pipeline = {
+    id: undefined,
+    org_id: orgId,
+    name: '',
+    stages: [],
+  };
 
   function resetPipeline() {
     pipeline = {
@@ -103,21 +108,18 @@
   }
 
   // Reactive statement to handle prop changes if the editor is already mounted
-  // This is important if the initialPipeline prop changes while the component is still active.
   $: if (initialPipeline && pipeline && initialPipeline.id !== pipeline.id) { // Check if it's a different pipeline
     loadPipelineFromProp(initialPipeline);
   } else if (!initialPipeline && pipeline && (pipeline.id || pipeline.name || pipeline.stages.length > 0) ) {
-    // If initialPipeline becomes null (e.g. creating new after editing),
-    // and current pipeline isn't already a pristine new one.
     resetPipeline();
   }
 
   let newStageType = '';
-  let newCommand = ''; // This might become less relevant for stages with structured 'config'
+  let newCommand = '';
 
-  function addStage() { // Modified to use component-level newStageType, newCommand
+  function addStage() {
     if (newStageType.trim()) {
-      const type = newStageType.trim().toLowerCase(); // Use lowercase for consistent checks
+      const type = newStageType.trim().toLowerCase();
       let initialConfig: Stage['config'] = undefined;
       let commandValue: string | null = newCommand.trim() || null;
 
@@ -148,7 +150,6 @@
       newCommand = '';
     }
   }
-
 
   // This function prepares the pipeline data for saving (e.g., removing temporary UI fields)
   function getSanitizedPipelineForSave(): Pipeline {
@@ -188,7 +189,6 @@
   }
 
   async function savePipeline() {
-    // Basic validation (name is required)
     if (!pipeline.name.trim()) {
       alert("Pipeline name is required.");
       return;
@@ -211,8 +211,7 @@
 
       if (response.ok) {
         alert('Pipeline saved successfully!');
-        dispatch('saved'); // Notify parent to close the editor
-        // Emit global event so other pages can refresh pipeline lists
+        dispatch('saved');
         document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error during save." }));
@@ -245,54 +244,7 @@
     }
   }
 
-  const dispatch = createEventDispatcher(); // For 'saved' and 'cancel' events
-
-  /*
-  // Helper function to be called by parent component before saving the pipeline
-  // This is now effectively replaced by getSanitizedPipelineForSave for internal use.
-  // If it were needed as an export for other reasons, it would need to be maintained.
-  export function preparePipelineForSave(pipelineData: { stages: Stage[] }): { stages: Stage[] } {
-    const cleanedStages = pipelineData.stages.map(stage => {
-        const newStage = { ...stage };
-        if (newStage.type.toLowerCase() === 'parse' && newStage.config?.strategy === 'SimpleTableExtraction' && newStage.config.parameters) {
-            const params = { ...newStage.config.parameters };
-            delete params._headerKeywordsString;
-            delete params._stopKeywordsString;
-            if (params.stopKeywords && params.stopKeywords.length === 0) {
-                params.stopKeywords = null;
-            }
-            if (newStage.config) {
-                 newStage.config = { ...newStage.config, parameters: params };
-            }
-        }
-        if (newStage.type.toLowerCase() === 'parse' && newStage.config?.strategy === 'RegexExtraction' && newStage.config.parameters?.patterns) {
-          const patterns = newStage.config.parameters.patterns.map((pattern: RegexPatternConfig) => {
-            const newPattern = { ...pattern };
-            if (newPattern.captureGroupIndex === null || newPattern.captureGroupIndex === undefined || isNaN(parseInt(String(newPattern.captureGroupIndex)))) {
-              delete newPattern.captureGroupIndex;
-            } else {
-              newPattern.captureGroupIndex = parseInt(String(newPattern.captureGroupIndex), 10);
-            }
-            return newPattern;
-          });
-          if (newStage.config && newStage.config.parameters) {
-            newStage.config.parameters = { ...newStage.config.parameters, patterns: patterns };
-          }
-        }
-        if (newStage.type.toLowerCase() === 'report' && newStage.config) {
-            const cfg = { ...newStage.config };
-            delete cfg._summaryFieldsString;
-            if (cfg.summaryFields && cfg.summaryFields.length === 0) {
-                cfg.summaryFields = null;
-            }
-            newStage.config = cfg;
-        }
-        return newStage;
-    });
-    return { ...pipelineData, stages: cleanedStages };
-  }
-  */
-
+  const dispatch = createEventDispatcher();
 </script>
 
 <style>
@@ -305,9 +257,12 @@
       {promptTemplatesError}
     </div>
   {/if}
-    <div class="space-y-3">
-      <StageList bind:stages={pipeline.stages} {availablePromptTemplates} {isLoadingOrgSettings} />
-    </div>
+  <div class="space-y-3">
+    <StageList
+      bind:stages={pipeline.stages}
+      {availablePromptTemplates}
+      {isLoadingOrgSettings}
+    />
     <div class="flex gap-2 mt-3 p-3 border-t border-neutral-700/50">
       <input class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" bind:value={newStageType} placeholder="New Stage Type" />
       <input class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" bind:value={newCommand} placeholder="Command (optional)" />

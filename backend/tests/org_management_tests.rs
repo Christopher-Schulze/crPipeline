@@ -11,7 +11,7 @@ use test_utils::{setup_test_app, create_org, create_user, generate_jwt_token};
 
 #[actix_rt::test]
 async fn test_get_organization_users_as_org_admin() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
 
     let org_id = create_org(&pool, "Test Org").await;
     let admin_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
@@ -35,7 +35,7 @@ async fn test_get_organization_users_as_org_admin() {
 
 #[actix_rt::test]
 async fn test_invite_user_to_organization_as_org_admin() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
 
     let org_id = create_org(&pool, "Invite Test Org").await;
     let admin_id = create_user(&pool, org_id, "orgadmin@example.com", "org_admin").await;
@@ -64,7 +64,7 @@ async fn test_invite_user_to_organization_as_org_admin() {
 
 #[actix_rt::test]
 async fn test_get_organization_users_as_unauthorized_user() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
 
     let org_id = create_org(&pool, "Unauthorized Org").await;
     let user_id = create_user(&pool, org_id, "user@example.com", "user").await;
@@ -82,7 +82,7 @@ async fn test_get_organization_users_as_unauthorized_user() {
 
 #[actix_rt::test]
 async fn test_deactivate_and_reactivate_user() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
 
     let org_id = create_org(&pool, "Deactivate Org").await;
     let admin_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
