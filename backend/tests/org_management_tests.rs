@@ -121,3 +121,93 @@ async fn test_deactivate_and_reactivate_user() {
 
 // These tests require a PostgreSQL instance pointed to by `DATABASE_URL_TEST`.
 // Migrations are applied automatically during setup.
+
+#[actix_rt::test]
+async fn test_remove_user_from_organization() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Remove Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let user_id = create_user(&pool, org_id, "user_to_remove@example.com", "user").await;
+    let token = generate_jwt_token(admin_id, org_id, "org_admin");
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/organizations/me/users/{}/remove", user_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let active: bool = sqlx::query_scalar("SELECT is_active FROM users WHERE id=$1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!active);
+}
+
+#[actix_rt::test]
+async fn test_remove_user_from_organization_unauthorized() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Remove Unauthorized Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let user_id = create_user(&pool, org_id, "member@example.com", "user").await;
+    let token = generate_jwt_token(user_id, org_id, "user");
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/organizations/me/users/{}/remove", admin_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+}
+
+#[actix_rt::test]
+async fn test_resend_confirmation_email_org_user() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Resend Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let user_id = create_user(&pool, org_id, "unconfirmed@example.com", "user").await;
+
+    sqlx::query("UPDATE users SET confirmed=false WHERE id=$1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let token = generate_jwt_token(admin_id, org_id, "org_admin");
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/organizations/me/users/{}/resend_confirmation", user_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let confirmed: bool = sqlx::query_scalar("SELECT confirmed FROM users WHERE id=$1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!confirmed);
+}
+
+#[actix_rt::test]
+async fn test_resend_confirmation_email_org_user_unauthorized() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Resend Unauthorized Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
+    let user_id = create_user(&pool, org_id, "unconfirmed@example.com", "user").await;
+
+    sqlx::query("UPDATE users SET confirmed=false WHERE id=$1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let token = generate_jwt_token(user_id, org_id, "user");
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/organizations/me/users/{}/resend_confirmation", admin_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+}
