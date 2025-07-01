@@ -11,5 +11,6 @@ test('emits loggedin on successful submit', async () => {
   component.$on('loggedin', handler);
   await fireEvent.click(getByText('Login'));
   await tick();
+  await tick();
   expect(handler).toHaveBeenCalled();
 });

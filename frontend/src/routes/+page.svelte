@@ -47,7 +47,7 @@
         Advanced document processing and analysis.
       </p>
       <p class="text-md text-gray-700 dark:text-gray-200">
-        Please <a href="/api/login_page_placeholder" class="text-accent hover:underline font-medium">login</a> to access your dashboard and features.
+        Please <a href="/login" class="text-accent hover:underline font-medium">login</a> to access your dashboard and features.
       </p>
       <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">
         (This is the root page. If you have an account, logging in will redirect you to your dashboard.
