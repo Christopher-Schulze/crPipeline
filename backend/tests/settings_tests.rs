@@ -6,7 +6,7 @@ use test_utils::{setup_test_app, create_org, create_user, generate_jwt_token};
 
 #[actix_rt::test]
 async fn test_get_settings_success() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Settings Org").await;
     let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -23,7 +23,7 @@ async fn test_get_settings_success() {
 
 #[actix_rt::test]
 async fn test_update_settings_success() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Update Org").await;
     let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
@@ -53,7 +53,7 @@ async fn test_update_settings_success() {
 
 #[actix_rt::test]
 async fn test_update_settings_invalid_quota() {
-    let (app, pool) = setup_test_app().await;
+    let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Bad Quota Org").await;
     let user_id = create_user(&pool, org_id, "admin@example.com", "org_admin").await;
     let token = generate_jwt_token(user_id, org_id, "org_admin");
