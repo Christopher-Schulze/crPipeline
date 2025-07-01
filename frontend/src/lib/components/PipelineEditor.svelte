@@ -43,7 +43,12 @@
   export let initialPipeline: Pipeline | null = null;
 
   // Internal reactive state for the pipeline being edited
-  let pipeline: Pipeline;
+  let pipeline: Pipeline = {
+    id: undefined,
+    org_id: orgId,
+    name: '',
+    stages: [],
+  };
 
   function resetPipeline() {
     pipeline = {
@@ -674,7 +679,7 @@
                 bind:value={stage.config.template}
                 rows={8}
                 class="glass-input w-full !text-sm custom-scrollbar !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
-                placeholder="Enter Markdown template. Use {{placeholder.path}} for data. e.g., {{document_name}}, {{ai_result.summary}}"
+                placeholder={'Enter Markdown template. Use {{placeholder.path}} for data. e.g., {{document_name}}, {{ai_result.summary}}'}
               ></textarea>
               <p class="text-sm font-light text-gray-400 dark:text-gray-500 mt-1">
                 Available placeholders depend on data from previous stages (e.g., `ai_result`, `parse_result`) and job metadata (`document_name`, `job_id`).
