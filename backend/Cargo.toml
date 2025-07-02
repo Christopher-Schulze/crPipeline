@@ -38,6 +38,7 @@ regex = "1" # Added for parse stage processing
 pulldown-cmark = "0.9" # For Markdown to PDF report generation
 jsonpath-rust = "1.0.2"  # For extracting summary fields in report stage
 sanitize-filename = "0.1" # For sanitizing original filenames for S3 keys
+url = "2"
 log = "0.4"
 async-trait = "0.1"
 
