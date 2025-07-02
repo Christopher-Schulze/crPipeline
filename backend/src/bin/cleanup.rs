@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     let s3 = S3Client::new(&shared);
     let bucket = env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
 
-    if let Ok(interval) = env::var("CLEANUP_INTERVAL_MINUTES")
+    if let Some(interval) = env::var("CLEANUP_INTERVAL_MINUTES")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
     {
