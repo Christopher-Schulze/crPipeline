@@ -55,46 +55,29 @@ pub async fn run_external_ocr(
 ) -> Result<String> {
     let client = reqwest::Client::new();
 
-    let file_part = multipart::Part::bytes(file_bytes)
-        .file_name(original_filename.to_string())
-        .mime_str("application/pdf") // Assuming PDF input for now
-        .context("Failed to create file part for external OCR")?;
-
-    let form = multipart::Form::new().part("file", file_part); // "file" is a common field name
-
-    let mut request_builder = client.post(api_endpoint).multipart(form);
-
-    if let Some(key_str) = api_key.filter(|k| !k.trim().is_empty()) {
-        if key_str.to_lowercase().starts_with("bearer ") {
-            let token_part = key_str.split_at("bearer ".len()).1;
-            match HeaderValue::from_str(token_part) {
-                Ok(mut header_val) => { // Make mutable to potentially set sensitive
-                    header_val.set_sensitive(true); // Mark bearer token as sensitive
-                    request_builder = request_builder.header(AUTHORIZATION, header_val);
-                    log::debug!("Added Bearer token to external OCR request.");
-                }
-                Err(e) => {
-                    log::warn!("Invalid characters in Bearer token for external OCR: {:?}. Authorization header not sent.", e);
-                }
-            }
-        } else { // Assume it's a simple key for X-API-KEY or similar
-            match HeaderValue::from_str(key_str) {
-                Ok(mut header_val) => {
-                    header_val.set_sensitive(true); // Also mark this as sensitive
-                    request_builder = request_builder.header("X-API-KEY", header_val);
-                    log::debug!("Added X-API-KEY to external OCR request.");
-                }
-                Err(e) => {
-                    log::warn!("Invalid characters in X-API-KEY for external OCR: {:?}. Header not sent.", e);
-                }
-            }
-        }
-    }
-
     log::debug!("Sending file {} to external OCR API: {}", original_filename, api_endpoint);
     let mut attempts = 0;
     let response = loop {
-        match request_builder.try_clone().unwrap().send().await {
+        let file_part = multipart::Part::bytes(file_bytes.clone())
+            .file_name(original_filename.to_string())
+            .mime_str("application/pdf")?;
+
+        let mut request_builder = client.post(api_endpoint).multipart(multipart::Form::new().part("file", file_part));
+
+        if let Some(key_str) = api_key.filter(|k| !k.trim().is_empty()) {
+            if key_str.to_lowercase().starts_with("bearer ") {
+                let token_part = key_str.split_at("bearer ".len()).1;
+                if let Ok(mut header_val) = HeaderValue::from_str(token_part) {
+                    header_val.set_sensitive(true);
+                    request_builder = request_builder.header(AUTHORIZATION, header_val);
+                }
+            } else if let Ok(mut header_val) = HeaderValue::from_str(key_str) {
+                header_val.set_sensitive(true);
+                request_builder = request_builder.header("X-API-KEY", header_val);
+            }
+        }
+
+        match request_builder.send().await {
             Ok(resp) => break resp,
             Err(e) if attempts < 3 => {
                 attempts += 1;
