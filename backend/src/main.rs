@@ -5,14 +5,30 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
-use std::env;
+use std::{env, process};
 
 use backend::handlers;
 use backend::middleware::{jwt::init_jwt_secret, rate_limit::RateLimit};
 
+fn require_env_vars(vars: &[&str]) {
+    let missing: Vec<&str> = vars
+        .iter()
+        .copied()
+        .filter(|v| env::var(v).is_err())
+        .collect();
+    if !missing.is_empty() {
+        for var in &missing {
+            tracing::error!("Missing required environment variable: {}", var);
+        }
+        eprintln!("Missing required environment variables: {}", missing.join(", "));
+        process::exit(1);
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
+    require_env_vars(&["DATABASE_URL", "JWT_SECRET", "S3_BUCKET"]);
     init_jwt_secret();
     tracing_subscriber::fmt::init(); // Or your existing logger
 
