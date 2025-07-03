@@ -12,7 +12,7 @@ See [Setup](Setup.md) for dependency installation and how to launch the services
 Run migrations with:
 ```bash
 cd backend
-sqlx migrate run
+cargo run --bin migrate
 ```
 
 ## Testing
@@ -72,6 +72,18 @@ An example CronJob manifest is provided at `k8s/cleanup-cronjob.yaml`.
 Apply it with:
 ```bash
 kubectl apply -f k8s/cleanup-cronjob.yaml
+```
+
+### Example prompt_templates JSON
+Add AI prompt templates to organization settings using the following structure:
+
+```json
+{
+  "prompt_templates": [
+    { "name": "summary", "text": "Summarize the document" },
+    { "name": "qa", "text": "Answer questions about the document" }
+  ]
+}
 ```
 
 ## Production Build

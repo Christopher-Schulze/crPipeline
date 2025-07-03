@@ -213,6 +213,29 @@ async fn test_delete_pipeline_other_org_unauthorized() {
     assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
 }
 
+#[actix_rt::test]
+async fn test_reject_duplicate_stage_ids() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Dup Org").await;
+    let user_id = create_user(&pool, org_id, "dup@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let payload = json!({
+        "org_id": org_id,
+        "name": "DupPipe",
+        "stages": [
+            {"id":"a", "type":"ocr"},
+            {"id":"a", "type":"ai"}
+        ]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+}
+
 
 #[actix_rt::test]
 async fn test_post_api_pipelines() {

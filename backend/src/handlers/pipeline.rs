@@ -2,6 +2,7 @@ use actix_web::{web, get, post, put, delete, HttpResponse};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
+use std::collections::HashSet;
 use crate::models::{Pipeline, NewPipeline};
 use crate::middleware::auth::AuthUser;
 
@@ -33,8 +34,16 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
         if stages_array.is_empty() {
             return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline must have at least one stage."}));
         }
+        let mut seen_ids = HashSet::new();
         for (index, stage_val) in stages_array.iter().enumerate() {
             if let Some(stage_obj) = stage_val.as_object() {
+                if let Some(id_val) = stage_obj.get("id").and_then(|v| v.as_str()) {
+                    if !seen_ids.insert(id_val.to_string()) {
+                        return HttpResponse::BadRequest().json(serde_json::json!({
+                            "error": format!("Duplicate stage id '{}'", id_val)
+                        }));
+                    }
+                }
                 // Check for 'type' field
                 let stage_type_str: String;
                 match stage_obj.get("type") {

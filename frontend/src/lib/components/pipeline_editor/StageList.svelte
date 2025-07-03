@@ -1,7 +1,8 @@
 <script lang="ts">
   import Button from '../Button.svelte';
   import ParseConfigEditor from './ParseConfigEditor.svelte';
-  import type { Stage, EditorPromptTemplate } from './types';
+  import type { Stage } from '$lib/types/api';
+  import type { EditorPromptTemplate } from './types';
   import { createEventDispatcher } from 'svelte';
 
   export let stages: Stage[] = [];
@@ -233,7 +234,7 @@
           {#if stage.ocr_engine === 'external'}
             <div class="mt-2 space-y-2 pl-2 border-l-2 border-neutral-700/40 ml-1">
               <div class="pt-1">
-                <label for={`stage-ocr-endpoint-${stage.id}`} class="block text-xs font-light text-gray-300 mb-1">
+                <label for={`stage-ocr-endpoint-${stage.id}`} class="block text-xs font-light text-gray-300 mb-1" title="Endpoint for external OCR service">
                   Stage OCR API Endpoint
                 </label>
                 <input
@@ -241,11 +242,12 @@
                   id={`stage-ocr-endpoint-${stage.id}`}
                   bind:value={stage.ocr_stage_endpoint}
                   class="glass-input w-full text-sm !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
+                  title="Leave empty to use the global OCR endpoint"
                   placeholder="Overrides global OCR endpoint"
                 />
               </div>
               <div>
-                <label for={`stage-ocr-key-${stage.id}`} class="block text-xs font-light text-gray-300 mb-1">
+                <label for={`stage-ocr-key-${stage.id}`} class="block text-xs font-light text-gray-300 mb-1" title="API key for the external OCR service">
                   Stage OCR API Key
                 </label>
                 <input
@@ -253,6 +255,7 @@
                   id={`stage-ocr-key-${stage.id}`}
                   bind:value={stage.ocr_stage_key}
                   class="glass-input w-full text-sm !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
+                  title="Leave empty to use the global OCR key"
                   placeholder="Overrides global OCR key"
                 />
               </div>

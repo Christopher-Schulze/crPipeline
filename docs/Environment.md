@@ -5,6 +5,7 @@ The file `backend/.env` defines required settings:
 ```
 DATABASE_URL=postgres://postgres:postgres@localhost/db
 JWT_SECRET=changeme
+# Must be at least 32 characters in production
 AWS_ENDPOINT=http://localhost:9000
 AWS_ACCESS_KEY=minioadmin
 AWS_SECRET_KEY=minioadmin
@@ -35,3 +36,12 @@ The backend API always serves metrics at `/metrics` on its regular port.
 
 ### Secret Management
 Run `scripts/generate_secrets.sh` to create `backend/.env.prod` with random credentials. Update it with your production endpoints and load it on startup with `source backend/.env.prod`.
+
+### Frontend Variables
+Frontend builds can consume environment variables prefixed with `VITE_`.
+Only `VITE_PUBLIC_BACKEND_URL` is used currently to point the Svelte app at the backend API:
+
+```bash
+VITE_PUBLIC_BACKEND_URL=http://localhost:8080
+```
+Provide these variables when running `npm run build` or via Kubernetes secrets referenced by `frontend-env`.

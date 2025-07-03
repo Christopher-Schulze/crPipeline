@@ -8,6 +8,7 @@ use wiremock::{MockServer, Mock, ResponseTemplate};
 use wiremock::matchers::method;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
+use backend::models::{NewDocument, Document};
 
 async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service<actix_http::Request, Response=actix_web::dev::ServiceResponse, Error=actix_web::Error>, PgPool) {
     dotenvy::dotenv().ok();
@@ -156,4 +157,24 @@ async fn test_cleanup_on_failed_upload() {
     assert_eq!(resp.status(), actix_web::http::StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(put_mock.received_requests().await.len(), 1);
     assert_eq!(delete_mock.received_requests().await.len(), 1);
+}
+
+#[actix_rt::test]
+async fn reject_dangerous_filename() {
+    let s3_server = MockServer::start().await;
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Sanitize Org").await;
+    let user_id = create_user(&pool, org_id, "san@example.com", "org_admin").await;
+
+    let result = Document::create(&pool, NewDocument {
+        org_id,
+        owner_id: user_id,
+        filename: "../evil.pdf".into(),
+        pages: 1,
+        is_target: false,
+        expires_at: None,
+        display_name: "evil.pdf".into(),
+    }).await;
+
+    assert!(result.is_err());
 }

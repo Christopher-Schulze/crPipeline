@@ -4,17 +4,10 @@ import DataTable from './DataTable.svelte';
 import type { TableHeader } from './DataTable.svelte';
 import PaginationControls from './PaginationControls.svelte';
 import { onMount } from 'svelte';
+import type { Document as APIDocument } from '$lib/types/api';
 
-// Base Document interface matching backend model (or relevant parts)
-interface Document { // This now represents the raw structure from backend
-  id: string;
-  filename: string; // This is the S3 key from backend
-  display_name: string; // New field from backend
-  is_target: boolean;
-  upload_date: string;
-  expires_at?: string | null;
-  pages?: number;
-}
+// Base Document interface matching backend model
+type Document = APIDocument;
 
 // AppDocument for internal use within this component after transformation
 interface AppDocument {

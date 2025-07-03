@@ -13,6 +13,9 @@ impl AppConfig {
         dotenv().ok();
         let database_url = env::var("DATABASE_URL").map_err(|_| "DATABASE_URL not set".to_string())?;
         let jwt_secret = env::var("JWT_SECRET").map_err(|_| "JWT_SECRET not set".to_string())?;
+        if jwt_secret.len() < 32 {
+            return Err("JWT_SECRET must be at least 32 characters".into());
+        }
         let s3_bucket = env::var("S3_BUCKET").map_err(|_| "S3_BUCKET not set".to_string())?;
         let frontend_origin = env::var("FRONTEND_ORIGIN").unwrap_or_else(|_| "*".into());
         Ok(Self { database_url, jwt_secret, s3_bucket, frontend_origin })
