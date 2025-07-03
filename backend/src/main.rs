@@ -1,11 +1,11 @@
-use actix_web::{web, App, HttpServer, middleware::Logger};
 use actix_cors::Cors;
-use dotenvy::dotenv;
-use std::env;
-use sqlx::postgres::PgPoolOptions;
+use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web_prom::PrometheusMetricsBuilder;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
-
+use dotenvy::dotenv;
+use sqlx::postgres::PgPoolOptions;
+use std::env;
 
 use backend::handlers;
 use backend::middleware::{jwt::init_jwt_secret, rate_limit::RateLimit};
@@ -27,6 +27,11 @@ async fn main() -> std::io::Result<()> {
     let shared_config = aws_config::from_env().region(region_provider).load().await;
     let s3_client = S3Client::new(&shared_config);
 
+    let prometheus = PrometheusMetricsBuilder::new("api")
+        .endpoint("/metrics")
+        .build()
+        .unwrap();
+
     HttpServer::new(move || {
         let allowed_origin = env::var("FRONTEND_ORIGIN").unwrap_or_else(|_| "*".into());
         let cors = Cors::default()
@@ -39,6 +44,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(cors)
             .wrap(RateLimit)
+            .wrap(prometheus.clone())
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(s3_client.clone()))
             .configure(handlers::init)

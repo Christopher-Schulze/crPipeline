@@ -29,5 +29,9 @@ OCR_API_KEY=
 
 `PROCESS_ONE_JOB` causes the worker to exit after a single job. `LOCAL_S3_DIR` lets the worker store files on disk instead of S3 during local tests.
 
+`METRICS_PORT` controls the port of the worker metrics HTTP endpoint. When set,
+the worker exposes Prometheus metrics at `http://0.0.0.0:$METRICS_PORT/metrics`.
+The backend API always serves metrics at `/metrics` on its regular port.
+
 ### Secret Management
 Run `scripts/generate_secrets.sh` to create `backend/.env.prod` with random credentials. Update it with your production endpoints and load it on startup with `source backend/.env.prod`.

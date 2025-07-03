@@ -1,0 +1,45 @@
+use actix_web::{web, App, HttpResponse, HttpServer};
+use once_cell::sync::Lazy;
+use prometheus::{Encoder, HistogramVec, IntCounterVec, Registry, TextEncoder};
+
+pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
+
+pub static STAGE_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
+    let opts = prometheus::HistogramOpts::new(
+        "stage_duration_seconds",
+        "Time spent processing each stage",
+    );
+    let hist = HistogramVec::new(opts, &["stage"]).unwrap();
+    REGISTRY.register(Box::new(hist.clone())).unwrap();
+    hist
+});
+
+pub static JOB_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
+    let opts = prometheus::Opts::new("jobs_total", "Total jobs processed");
+    let counter = IntCounterVec::new(opts, &["status"]).unwrap();
+    REGISTRY.register(Box::new(counter.clone())).unwrap();
+    counter
+});
+
+async fn metrics() -> HttpResponse {
+    let encoder = TextEncoder::new();
+    let metric_families = REGISTRY.gather();
+    let mut buffer = Vec::new();
+    encoder.encode(&metric_families, &mut buffer).unwrap();
+    HttpResponse::Ok()
+        .content_type(encoder.format_type())
+        .body(buffer)
+}
+
+pub fn spawn_metrics_server(port: u16) {
+    tokio::spawn(async move {
+        if let Err(e) = HttpServer::new(|| App::new().route("/metrics", web::get().to(metrics)))
+            .bind(("0.0.0.0", port))
+            .unwrap()
+            .run()
+            .await
+        {
+            eprintln!("failed to start metrics server: {:?}", e);
+        }
+    });
+}
