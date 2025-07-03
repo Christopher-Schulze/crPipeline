@@ -1,6 +1,7 @@
 use std::time::Duration;
 use actix_rt::time::sleep;
 use backend::models::{Pipeline, NewDocument, Document, NewAnalysisJob, AnalysisJob};
+use backend::worker::metrics::{STAGE_HISTOGRAM, JOB_COUNTER};
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -11,6 +12,9 @@ async fn worker_processes_job() {
     std::env::set_var("REDIS_URL", "redis://127.0.0.1/");
     std::env::set_var("S3_BUCKET", "uploads");
     std::env::set_var("PROCESS_ONE_JOB", "1");
+
+    let before_jobs = JOB_COUNTER.with_label_values(&["success"]).get();
+    let before_hist = STAGE_HISTOGRAM.with_label_values(&["ocr"]).get_sample_count();
 
     let tempdir = tempfile::tempdir().unwrap();
     std::env::set_var("LOCAL_S3_DIR", tempdir.path());
@@ -97,4 +101,9 @@ async fn worker_processes_job() {
 
     let outs = backend::models::job_stage_output::JobStageOutput::find_by_job_id(&pool, job.id).await.unwrap();
     assert!(!outs.is_empty());
+
+    let after_jobs = JOB_COUNTER.with_label_values(&["success"]).get();
+    let after_hist = STAGE_HISTOGRAM.with_label_values(&["ocr"]).get_sample_count();
+    assert!(after_jobs > before_jobs);
+    assert!(after_hist > before_hist);
 }

@@ -21,3 +21,16 @@ kubectl apply -f k8s/frontend-deployment.yaml
 ```
 
 Secrets referenced by the deployments should contain the required environment variables.
+For example:
+
+```bash
+kubectl create secret generic backend-env \
+  --from-literal=DATABASE_URL=postgres://user:pass@db/production \
+  --from-literal=JWT_SECRET=$(openssl rand -hex 32) \
+  --from-literal=S3_BUCKET=uploads
+
+kubectl create secret generic frontend-env \
+  --from-literal=PUBLIC_BACKEND_URL=https://example.com
+```
+
+Set the `REGISTRY` secret in your CI settings so images are pushed to your container registry.

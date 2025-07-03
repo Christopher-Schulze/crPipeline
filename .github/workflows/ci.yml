@@ -29,6 +29,8 @@ jobs:
         run: npm run build --prefix frontend
       - name: Check backend (Clippy)
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
+      - name: Run migrations
+        run: cargo run --manifest-path backend/Cargo.toml --bin migrate
 
   backend-tests:
     needs: build

@@ -3,7 +3,8 @@
   import StageList from './pipeline_editor/StageList.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
-  import type { Stage, Pipeline, EditorPromptTemplate, RegexPatternConfig } from './pipeline_editor/types';
+  import type { Stage, Pipeline } from '$lib/types/api';
+  import type { EditorPromptTemplate, RegexPatternConfig } from './pipeline_editor/types';
 
   export let orgId: string;
   export let initialPipeline: Pipeline | null = null;

@@ -33,7 +33,8 @@ async fn run_stages(
     for stage in stages {
         info!(job_id=%job.id, stage=?stage.stage_type, command=?stage.command, prompt_name=?stage.prompt_name, ocr_engine=?stage.ocr_engine, "running stage");
         let start = Instant::now();
-        match stage.stage_type.as_str() {
+        let mut break_after = false;
+        let stage_result: Result<(), anyhow::Error> = match stage.stage_type.as_str() {
             "ocr" => {
                 if worker::ocr::handle_ocr_stage(
                     pool,
@@ -45,10 +46,10 @@ async fn run_stages(
                     local,
                     txt_path,
                 )
-                .await?
-                {
-                    break;
+                .await? {
+                    break_after = true;
                 }
+                Ok(())
             }
             "parse" => {
                 if !txt_path.exists() {
@@ -71,6 +72,7 @@ async fn run_stages(
                     )
                     .await;
                 }
+                Ok(())
             }
             "ai" => {
                 json_result = worker::ai::handle_ai_stage(
@@ -84,6 +86,7 @@ async fn run_stages(
                     local,
                 )
                 .await?;
+                Ok(())
             }
             "report" => {
                 worker::report::handle_report_stage(
@@ -97,6 +100,7 @@ async fn run_stages(
                     local,
                 )
                 .await?;
+                Ok(())
             }
             _ => {
                 if let Some(cmd) = stage.command.as_ref() {
@@ -108,11 +112,25 @@ async fn run_stages(
                 } else {
                     sleep(Duration::from_secs(1)).await;
                 }
+                Ok(())
             }
-        }
+        };
+        let elapsed = start.elapsed().as_secs_f64();
         STAGE_HISTOGRAM
             .with_label_values(&[stage.stage_type.as_str()])
-            .observe(start.elapsed().as_secs_f64());
+            .observe(elapsed);
+        match stage_result {
+            Ok(_) => {
+                info!(job_id=%job.id, stage=%stage.stage_type, duration=%elapsed, "stage finished");
+            }
+            Err(e) => {
+                error!(job_id=%job.id, stage=%stage.stage_type, duration=%elapsed, "stage failed: {:?}", e);
+                return Err(e);
+            }
+        }
+        if break_after {
+            break;
+        }
     }
     Ok(())
 }

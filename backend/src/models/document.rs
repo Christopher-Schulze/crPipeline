@@ -36,6 +36,10 @@ pub struct NewDocument {
 impl Document {
     /// Insert a new document and return the created row.
     pub async fn create(pool: &PgPool, new: NewDocument) -> sqlx::Result<Document> {
+        let sanitized = sanitize_filename::sanitize(&new.filename);
+        if sanitized != new.filename {
+            return Err(sqlx::Error::RowNotFound);
+        }
         sqlx::query_as::<_, Document>(
             "INSERT INTO documents (id, org_id, owner_id, filename, pages, is_target, expires_at, display_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *"
         )
