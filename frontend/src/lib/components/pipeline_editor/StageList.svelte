@@ -110,8 +110,10 @@
         stage.config.parameters = {
           _headerKeywordsString: '',
           _stopKeywordsString: '',
+          _delimiterRegex: '',
           headerKeywords: [],
           stopKeywords: [],
+          delimiterRegex: '',
         };
         break;
       case 'Passthrough':
