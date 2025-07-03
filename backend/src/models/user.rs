@@ -65,8 +65,11 @@ impl User {
 
     /// Verify a plaintext password against the stored hash.
     pub fn verify_password(&self, password: &str) -> bool {
-        let parsed = PasswordHash::new(&self.password_hash).unwrap();
-        Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+        if let Ok(parsed) = PasswordHash::new(&self.password_hash) {
+            Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+        } else {
+            false
+        }
     }
 
     /// Mark the user as confirmed using a confirmation token.

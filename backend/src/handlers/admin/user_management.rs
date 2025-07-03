@@ -216,7 +216,7 @@ pub async fn assign_user_role(
                     }
                 }
             } else {
-                target_org_id_for_update.unwrap()
+                new_org_uuid
             }
         }
         None => target_user.org_id,

@@ -1,6 +1,5 @@
-use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
-use std::env;
+use backend::config::AdminConfig;
 use backend::models::{NewUser, User, Organization, NewOrganization, OrgSettings};
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
@@ -10,15 +9,17 @@ use anyhow::Result;
 /// Convenience utility to create an initial admin user.
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv().ok();
+    let cfg = match AdminConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => { eprintln!("{}", e); return Ok(()); }
+    };
     tracing_subscriber::fmt::init();
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 3 {
         error!("Usage: create_admin <email> <password>");
         return Ok(());
     }
-    let database_url = env::var("DATABASE_URL")?;
-    let pool = PgPoolOptions::new().connect(&database_url).await?;
+    let pool = PgPoolOptions::new().connect(&cfg.database_url).await?;
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = Argon2::default()
         .hash_password(args[2].as_bytes(), &salt)

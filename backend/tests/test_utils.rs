@@ -39,7 +39,7 @@ pub async fn setup_test_app() -> Result<(
 
 pub fn generate_jwt_token(user_id: Uuid, org_id: Uuid, role: &str) -> String {
     std::env::set_var("JWT_SECRET", "testsecret");
-    create_jwt(user_id, org_id, role)
+    create_jwt(user_id, org_id, role).unwrap()
 }
 
 pub async fn create_org(pool: &PgPool, name: &str) -> Uuid {

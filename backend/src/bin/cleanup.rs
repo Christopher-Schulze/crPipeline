@@ -1,9 +1,9 @@
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
 use backend::models::Document;
-use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
-use std::{env, time::Duration};
+use std::time::Duration;
+use backend::config::CleanupConfig;
 use tracing::{error, info};
 
 async fn run_cleanup(
@@ -40,9 +40,12 @@ async fn run_cleanup(
 /// Remove expired documents and their blobs from storage.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenv().ok();
+    let cfg = match CleanupConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => { eprintln!("{}", e); std::process::exit(1); }
+    };
     tracing_subscriber::fmt::init();
-    let database_url = env::var("DATABASE_URL")?;
+    let database_url = cfg.database_url;
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -51,11 +54,9 @@ async fn main() -> anyhow::Result<()> {
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
     let shared = aws_config::from_env().region(region_provider).load().await;
     let s3 = S3Client::new(&shared);
-    let bucket = env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
+    let bucket = cfg.s3_bucket;
 
-    if let Some(interval) = env::var("CLEANUP_INTERVAL_MINUTES")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
+    if let Some(interval) = cfg.interval_minutes
     {
         loop {
             run_cleanup(&pool, &s3, &bucket).await?;

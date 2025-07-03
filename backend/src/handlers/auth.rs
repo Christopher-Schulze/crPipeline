@@ -36,10 +36,13 @@ pub struct ResetInput { pub token: Uuid, pub password: String }
 #[post("/register")]
 pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -> HttpResponse {
     let salt = SaltString::generate(&mut rand::thread_rng());
-    let password_hash = Argon2::default()
-        .hash_password(data.password.as_bytes(), &salt)
-        .unwrap()
-        .to_string();
+    let password_hash = match Argon2::default().hash_password(data.password.as_bytes(), &salt) {
+        Ok(ph) => ph.to_string(),
+        Err(e) => {
+            log::error!("Password hash error: {:?}", e);
+            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to register user."}));
+        }
+    };
     let new_user_role = data.role.clone().unwrap_or_else(|| "user".to_string());
     // Further validation for `new_user_role` could be added here if needed,
     // e.g., ensuring only specific roles can be set, or that "admin" cannot be self-assigned.
@@ -96,7 +99,13 @@ pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> Http
                      return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Account not confirmed. Please check your email or contact an administrator to resend confirmation."}));
                 }
 
-                let token = create_jwt(user.id, user.org_id, &user.role); // JWT has 24h expiry
+                let token = match create_jwt(user.id, user.org_id, &user.role) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log::error!("Failed to create JWT for {}: {:?}", user.email, e);
+                        return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Login failed"}));
+                    }
+                }; // JWT has 24h expiry
 
                 // Determine if 'Secure' flag should be set based on BASE_URL
                 let base_url_str = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
@@ -159,10 +168,10 @@ async fn request_reset(data: web::Json<ResetRequest>, pool: web::Data<PgPool>) -
 #[post("/reset_password")]
 async fn reset_password(data: web::Json<ResetInput>, pool: web::Data<PgPool>) -> HttpResponse {
     let salt = SaltString::generate(&mut rand::thread_rng());
-    let password_hash = Argon2::default()
-        .hash_password(data.password.as_bytes(), &salt)
-        .unwrap()
-        .to_string();
+    let password_hash = match Argon2::default().hash_password(data.password.as_bytes(), &salt) {
+        Ok(ph) => ph.to_string(),
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    };
     match User::reset_with_token(&pool, data.token, password_hash).await {
         Ok(true) => HttpResponse::Ok().finish(),
         Ok(false) => HttpResponse::BadRequest().finish(),
