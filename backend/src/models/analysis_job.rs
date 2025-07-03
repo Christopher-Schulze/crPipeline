@@ -19,6 +19,19 @@ pub struct NewAnalysisJob {
     pub status: String,
 }
 
+/// Analysis job with joined document and pipeline names.
+#[derive(Serialize, FromRow, Debug)]
+pub struct JobWithNames {
+    pub id: Uuid,
+    pub org_id: Uuid,
+    pub document_id: Uuid,
+    pub pipeline_id: Uuid,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub document_name: String,
+    pub pipeline_name: String,
+}
+
 impl AnalysisJob {
     pub async fn create(pool: &PgPool, new: NewAnalysisJob) -> sqlx::Result<AnalysisJob> {
         sqlx::query_as::<_, AnalysisJob>("INSERT INTO analysis_jobs (id, org_id, document_id, pipeline_id, status) VALUES ($1,$2,$3,$4,$5) RETURNING *")
@@ -49,11 +62,20 @@ impl AnalysisJob {
         Ok(())
     }
 
-    pub async fn find_by_org(pool: &PgPool, org: Uuid) -> sqlx::Result<Vec<AnalysisJob>> {
-        sqlx::query_as::<_, AnalysisJob>("SELECT * FROM analysis_jobs WHERE org_id=$1 ORDER BY created_at DESC")
-            .bind(org)
-            .fetch_all(pool)
-            .await
+    pub async fn find_by_org(pool: &PgPool, org: Uuid) -> sqlx::Result<Vec<JobWithNames>> {
+        sqlx::query_as::<_, JobWithNames>(
+            r#"
+            SELECT aj.*, d.display_name AS document_name, p.name AS pipeline_name
+            FROM analysis_jobs aj
+            JOIN documents d ON aj.document_id = d.id
+            JOIN pipelines p ON aj.pipeline_id = p.id
+            WHERE aj.org_id = $1
+            ORDER BY aj.created_at DESC
+            "#,
+        )
+        .bind(org)
+        .fetch_all(pool)
+        .await
     }
 
     pub async fn find(pool: &PgPool, id: Uuid) -> sqlx::Result<AnalysisJob> {

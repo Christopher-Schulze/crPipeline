@@ -1,12 +1,12 @@
-use actix_web::{get, web, HttpResponse};
-use uuid::Uuid;
-use sqlx::PgPool;
-use crate::models::{AnalysisJob, Document, Pipeline, JobStageOutput};
 use crate::middleware::auth::AuthUser;
+use crate::models::{AnalysisJob, Document, JobStageOutput, JobWithNames, Pipeline};
+use actix_web::{get, web, HttpResponse};
 use actix_web_lab::sse::{self, ChannelStream, Sse};
-use std::time::Duration; // Already here, used for Sse and now PresigningConfig
+use aws_sdk_s3::presigning::PresigningConfig;
 use serde::Serialize;
-use aws_sdk_s3::presigning::PresigningConfig; // For S3 presigned URLs
+use sqlx::PgPool;
+use std::time::Duration; // Already here, used for Sse and now PresigningConfig
+use uuid::Uuid; // For S3 presigned URLs
 
 /// Combined details returned by [`get_job_details`].
 #[derive(Serialize)]
@@ -29,7 +29,6 @@ struct JobDetailsResponse {
     stage_outputs: Vec<JobStageOutput>,
 }
 
-
 /// Return all jobs for an organization.
 #[get("/jobs/{org_id}")]
 async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
@@ -48,10 +47,17 @@ async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<Chann
         loop {
             match AnalysisJob::find(pool.as_ref(), job_id).await {
                 Ok(job) => {
-                    if tx.send(sse::Data::new(job.status.clone())).await.is_err() { break; }
-                    if job.status == "completed" || job.status == "failed" { break; }
+                    if tx.send(sse::Data::new(job.status.clone())).await.is_err() {
+                        break;
+                    }
+                    if job.status == "completed" || job.status == "failed" {
+                        break;
+                    }
                 }
-                Err(_) => { let _ = tx.send(sse::Data::new("error")).await; break; }
+                Err(_) => {
+                    let _ = tx.send(sse::Data::new("error")).await;
+                    break;
+                }
             }
             actix_web::rt::time::sleep(Duration::from_secs(2)).await;
         }
@@ -75,17 +81,27 @@ async fn get_job_details(
         .await
     {
         Ok(j) => j,
-        Err(sqlx::Error::RowNotFound) => return HttpResponse::NotFound().json(serde_json::json!({"error": "Job not found"})),
+        Err(sqlx::Error::RowNotFound) => {
+            return HttpResponse::NotFound().json(serde_json::json!({"error": "Job not found"}))
+        }
         Err(e) => {
             log::error!("Failed to fetch job {}: {:?}", job_id, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to fetch job details"}));
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to fetch job details"}));
         }
     };
 
     // 2. Authorization: Ensure the user's org_id matches the job's org_id
     if job.org_id != user.org_id {
-        log::warn!("Unauthorized attempt to access job {} by user {} (org {} vs job org {})", job_id, user.user_id, user.org_id, job.org_id);
-        return HttpResponse::Unauthorized().json(serde_json::json!({"error": "You are not authorized to view this job"}));
+        log::warn!(
+            "Unauthorized attempt to access job {} by user {} (org {} vs job org {})",
+            job_id,
+            user.user_id,
+            user.org_id,
+            job.org_id
+        );
+        return HttpResponse::Unauthorized()
+            .json(serde_json::json!({"error": "You are not authorized to view this job"}));
     }
 
     // 3. Fetch Document
@@ -96,8 +112,14 @@ async fn get_job_details(
     {
         Ok(d) => d,
         Err(e) => {
-            log::error!("Failed to fetch document {} for job {}: {:?}", job.document_id, job_id, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to fetch associated document"}));
+            log::error!(
+                "Failed to fetch document {} for job {}: {:?}",
+                job.document_id,
+                job_id,
+                e
+            );
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to fetch associated document"}));
         }
     };
 
@@ -109,8 +131,14 @@ async fn get_job_details(
     {
         Ok(p) => p,
         Err(e) => {
-            log::error!("Failed to fetch pipeline {} for job {}: {:?}", job.pipeline_id, job_id, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to fetch associated pipeline"}));
+            log::error!(
+                "Failed to fetch pipeline {} for job {}: {:?}",
+                job.pipeline_id,
+                job_id,
+                e
+            );
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to fetch associated pipeline"}));
         }
     };
 
@@ -141,13 +169,12 @@ async fn get_job_details(
     HttpResponse::Ok().json(response)
 }
 
-
 /// Register job-related endpoints on the Actix configuration.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(list_jobs)
-       .service(job_events)
-       .service(get_job_details)
-       .service(get_stage_output_download_url); // Add the new service
+        .service(job_events)
+        .service(get_job_details)
+        .service(get_stage_output_download_url); // Add the new service
 }
 
 /// Create a presigned URL for downloading an output file of a job stage.
@@ -161,30 +188,43 @@ async fn get_stage_output_download_url(
     let output_id = path.into_inner();
 
     // 1. Fetch JobStageOutput record
-    let stage_output = match sqlx::query_as::<_, JobStageOutput>("SELECT * FROM job_stage_outputs WHERE id = $1")
-        .bind(output_id)
-        .fetch_one(pool.as_ref())
-        .await
-    {
-        Ok(so) => so,
-        Err(sqlx::Error::RowNotFound) => return HttpResponse::NotFound().json(serde_json::json!({"error": "Stage output not found"})),
-        Err(e) => {
-            log::error!("Failed to fetch stage output {}: {:?}", output_id, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to retrieve stage output details"}));
-        }
-    };
+    let stage_output =
+        match sqlx::query_as::<_, JobStageOutput>("SELECT * FROM job_stage_outputs WHERE id = $1")
+            .bind(output_id)
+            .fetch_one(pool.as_ref())
+            .await
+        {
+            Ok(so) => so,
+            Err(sqlx::Error::RowNotFound) => {
+                return HttpResponse::NotFound()
+                    .json(serde_json::json!({"error": "Stage output not found"}))
+            }
+            Err(e) => {
+                log::error!("Failed to fetch stage output {}: {:?}", output_id, e);
+                return HttpResponse::InternalServerError()
+                    .json(serde_json::json!({"error": "Failed to retrieve stage output details"}));
+            }
+        };
 
     // 2. Fetch associated AnalysisJob to get org_id for authorization
     // Selecting only necessary fields for efficiency
-    let job_core_details = match sqlx::query_as::<_, (Uuid, Uuid)>("SELECT id, org_id FROM analysis_jobs WHERE id = $1")
-        .bind(stage_output.job_id)
-        .fetch_one(pool.as_ref())
-        .await
+    let job_core_details = match sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT id, org_id FROM analysis_jobs WHERE id = $1",
+    )
+    .bind(stage_output.job_id)
+    .fetch_one(pool.as_ref())
+    .await
     {
         Ok((id, org_id_val)) => (id, org_id_val), // Destructure the tuple
         Err(e) => {
-            log::error!("Failed to fetch job {} for stage output {}: {:?}", stage_output.job_id, output_id, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to verify job association"}));
+            log::error!(
+                "Failed to fetch job {} for stage output {}: {:?}",
+                stage_output.job_id,
+                output_id,
+                e
+            );
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to verify job association"}));
         }
     };
 
@@ -196,15 +236,23 @@ async fn get_stage_output_download_url(
             "Unauthorized attempt to access stage output {} (job {}) by user {} (org {} vs job org {})",
             output_id, stage_output.job_id, user.user_id, user.org_id, job_org_id
         );
-        return HttpResponse::Unauthorized().json(serde_json::json!({"error": "You are not authorized to access this output."}));
+        return HttpResponse::Unauthorized()
+            .json(serde_json::json!({"error": "You are not authorized to access this output."}));
     }
 
     // 4. Generate S3 pre-signed URL
-    let presigning_config = match PresigningConfig::expires_in(Duration::from_secs(3600)) { // 1 hour expiry
+    let presigning_config = match PresigningConfig::expires_in(Duration::from_secs(3600)) {
+        // 1 hour expiry
         Ok(config) => config,
         Err(e) => {
-            log::error!("Failed to create presigning config for output {}: {:?}", output_id, e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not generate download URL (config error)"}));
+            log::error!(
+                "Failed to create presigning config for output {}: {:?}",
+                output_id,
+                e
+            );
+            return HttpResponse::InternalServerError().json(
+                serde_json::json!({"error": "Could not generate download URL (config error)"}),
+            );
         }
     };
 
@@ -218,11 +266,18 @@ async fn get_stage_output_download_url(
         Ok(presigned_request) => {
             // Optional: log action for audit trail
             // log_action(&pool, user.org_id, user.user_id, "download_stage_output", Some(output_id), Some(serde_json::json!({"s3_key": stage_output.s3_key}))).await;
-            HttpResponse::Ok().json(serde_json::json!({ "url": presigned_request.uri().to_string() }))
+            HttpResponse::Ok()
+                .json(serde_json::json!({ "url": presigned_request.uri().to_string() }))
         }
         Err(e) => {
-            log::error!("Failed to generate presigned URL for output {}: {:?}", output_id, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not generate download URL (presign error)"}))
+            log::error!(
+                "Failed to generate presigned URL for output {}: {:?}",
+                output_id,
+                e
+            );
+            HttpResponse::InternalServerError().json(
+                serde_json::json!({"error": "Could not generate download URL (presign error)"}),
+            )
         }
     }
 }

@@ -14,8 +14,8 @@
     pipeline_id: string; // UUID
     status: string;
     created_at: string; // ISO date string
-    document_name?: string; // Will be placeholder for now
-    pipeline_name?: string; // Will be placeholder for now
+    document_name: string;
+    pipeline_name: string;
     // Any other fields from AnalysisJob that might be useful
   }
   export let jobs: Job[] = [];
@@ -43,8 +43,8 @@
     ...job,
     // Format for sortability and readability: YYYY-MM-DD HH:MM:SS
     created_at_formatted: new Date(job.created_at).toISOString().replace('T', ' ').substring(0, 19),
-    document_name: job.document_name || `Doc: ${job.document_id.substring(0,8)}...`, // Shortened placeholder prefix
-    pipeline_name: job.pipeline_name || `Pipe: ${job.pipeline_id.substring(0,8)}...`, // Shortened placeholder prefix
+    document_name: job.document_name,
+    pipeline_name: job.pipeline_name,
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); // Initial sort
 
   let sources: ReconnectingEventSource[] = [];
