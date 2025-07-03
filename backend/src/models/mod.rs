@@ -1,17 +1,17 @@
-pub mod user;
-pub mod organization;
-pub mod settings;
-pub mod document;
-pub mod pipeline;
 pub mod analysis_job;
 pub mod audit_log;
-pub mod job_stage_output; // Added new module
+pub mod document;
+pub mod job_stage_output;
+pub mod organization;
+pub mod pipeline;
+pub mod settings;
+pub mod user; // Added new module
 
-pub use user::{User, NewUser};
-pub use organization::{Organization, NewOrganization};
-pub use settings::{OrgSettings, NewOrgSettings};
-pub use document::{Document, NewDocument};
-pub use pipeline::{Pipeline, NewPipeline};
-pub use analysis_job::{AnalysisJob, NewAnalysisJob};
+pub use analysis_job::{AnalysisJob, JobWithNames, NewAnalysisJob};
 pub use audit_log::{AuditLog, NewAuditLog};
-pub use job_stage_output::{JobStageOutput, NewJobStageOutput}; // Added new pub use
+pub use document::{Document, NewDocument};
+pub use job_stage_output::{JobStageOutput, NewJobStageOutput};
+pub use organization::{NewOrganization, Organization};
+pub use pipeline::{NewPipeline, Pipeline};
+pub use settings::{NewOrgSettings, OrgSettings};
+pub use user::{NewUser, User}; // Added new pub use
