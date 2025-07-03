@@ -24,7 +24,7 @@ pub struct Claims {
     pub exp: usize,
 }
 
-pub fn create_jwt(user_id: Uuid, org_id: Uuid, role: &str) -> String {
+pub fn create_jwt(user_id: Uuid, org_id: Uuid, role: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let exp = chrono::Utc::now() + chrono::Duration::hours(24);
     let claims = Claims {
         sub: user_id,
@@ -32,7 +32,7 @@ pub fn create_jwt(user_id: Uuid, org_id: Uuid, role: &str) -> String {
         role: role.to_string(),
         exp: exp.timestamp() as usize,
     };
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET.as_bytes())).unwrap()
+    encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET.as_bytes()))
 }
 
 pub fn verify_jwt(token: &str) -> Option<Claims> {

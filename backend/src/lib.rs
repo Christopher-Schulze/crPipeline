@@ -5,3 +5,4 @@ pub mod utils;
 pub mod processing;
 pub mod email;
 pub mod worker;
+pub mod config;

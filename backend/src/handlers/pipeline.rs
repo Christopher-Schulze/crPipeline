@@ -145,7 +145,7 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
                         // or if ocr_engine is not provided at all but key is.
                         if stage_obj.get("ocr_engine").as_ref().map_or(true, |v| v.as_str() != Some("external")) {
                              if stage_obj.contains_key("ocr_stage_endpoint") || stage_obj.contains_key("ocr_stage_key") {
-                                if stage_obj.get("ocr_engine").is_none() || stage_obj.get("ocr_engine").unwrap().as_str() == Some("default") {
+                                if stage_obj.get("ocr_engine").is_none() || stage_obj.get("ocr_engine").and_then(|v| v.as_str()) == Some("default") {
                                      // Warn or error if endpoint/key are provided with default/missing engine?
                                      // For now, let's be permissive: if engine isn't 'external', these fields are ignored by worker.
                                      // However, if they are present and malformed, it's good to catch.

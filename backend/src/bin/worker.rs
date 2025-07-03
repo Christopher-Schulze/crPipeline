@@ -8,10 +8,10 @@ use backend::worker::{self, Stage};
 use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
-    env,
     path::PathBuf,
     time::{Duration, Instant},
 };
+use backend::config::WorkerConfig;
 use tokio::process::Command;
 use tokio::time::sleep;
 use tracing::{error, info, warn};
@@ -119,10 +119,16 @@ async fn run_stages(
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().ok();
+    let cfg = match WorkerConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
     tracing_subscriber::fmt::init();
 
-    let database_url = env::var("DATABASE_URL")?;
+    let database_url = cfg.database_url;
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -132,16 +138,11 @@ async fn main() -> Result<()> {
     let shared_config = aws_config::from_env().region(region_provider).load().await;
     let s3_client = S3Client::new(&shared_config);
 
-    let redis_url = env::var("REDIS_URL")?;
-    let client = redis::Client::open(redis_url)?;
+    let client = redis::Client::open(cfg.redis_url)?;
     let mut conn = client.get_async_connection().await?;
 
-    let process_once = env::var("PROCESS_ONE_JOB").is_ok();
-    let metrics_port = env::var("METRICS_PORT")
-        .ok()
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(9100);
-    spawn_metrics_server(metrics_port);
+    let process_once = cfg.process_one_job;
+    spawn_metrics_server(cfg.metrics_port);
 
     loop {
         let (_queue, job_id_str): (String, String) = redis::cmd("BLPOP")
@@ -187,7 +188,7 @@ async fn main() -> Result<()> {
             .await?;
         let stages: Vec<Stage> = serde_json::from_value(pipeline.stages)?;
 
-        let bucket = env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
+        let bucket = cfg.s3_bucket.clone();
         let mut local = std::env::temp_dir();
         local.push(format!("{}-input.pdf", job.id));
         processing::download_pdf(&s3_client, &bucket, &doc.filename, &local).await?;

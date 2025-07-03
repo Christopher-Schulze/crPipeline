@@ -3,36 +3,28 @@ use actix_web::{middleware::Logger, web, App, HttpServer};
 use actix_web_prom::PrometheusMetricsBuilder;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
-use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
-use std::{env, process};
+use std::env;
+
+use backend::config::AppConfig;
 
 use backend::handlers;
 use backend::middleware::{jwt::init_jwt_secret, rate_limit::RateLimit};
 
-fn require_env_vars(vars: &[&str]) {
-    let missing: Vec<&str> = vars
-        .iter()
-        .copied()
-        .filter(|v| env::var(v).is_err())
-        .collect();
-    if !missing.is_empty() {
-        for var in &missing {
-            tracing::error!("Missing required environment variable: {}", var);
-        }
-        eprintln!("Missing required environment variables: {}", missing.join(", "));
-        process::exit(1);
-    }
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv().ok();
-    require_env_vars(&["DATABASE_URL", "JWT_SECRET", "S3_BUCKET"]);
+    let config = match AppConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
+    std::env::set_var("JWT_SECRET", &config.jwt_secret);
     init_jwt_secret();
-    tracing_subscriber::fmt::init(); // Or your existing logger
+    tracing_subscriber::fmt::init();
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = config.database_url;
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -46,10 +38,10 @@ async fn main() -> std::io::Result<()> {
     let prometheus = PrometheusMetricsBuilder::new("api")
         .endpoint("/metrics")
         .build()
-        .unwrap();
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("metrics init: {e}")))?;
+    let allowed_origin = config.frontend_origin.clone();
 
     HttpServer::new(move || {
-        let allowed_origin = env::var("FRONTEND_ORIGIN").unwrap_or_else(|_| "*".into());
         let cors = Cors::default()
             .allowed_origin(&allowed_origin)
             .allow_any_method()
