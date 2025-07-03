@@ -3,6 +3,8 @@
   import GlassCard from './GlassCard.svelte';
   import Button from './Button.svelte';
   import Modal from './Modal.svelte';
+  import StageOutputsTable from './StageOutputsTable.svelte';
+  import StageOutputViewer from './StageOutputViewer.svelte';
   import * as Diff from 'diff'; // Import the diff library
 
   export let jobId: string;
@@ -725,52 +727,13 @@
               {/if}
             </div>
 
-            <section>
-              <h3 class="text-lg font-semibold mb-2 text-gray-200">All Stage Outputs</h3>
-              {#if jobDetails.stage_outputs && jobDetails.stage_outputs.length > 0}
-                <div class="space-y-3">
-                  {#each jobDetails.stage_outputs as output (output.id)}
-                    <div class="p-3 bg-black/20 rounded-md flex justify-between items-center border border-neutral-700/50 hover:border-neutral-600/80 transition-colors">
-                      <div class="truncate pr-2">
-                        <span class="font-semibold text-gray-200 truncate block" title={output.stage_name}>{output.stage_name}</span>
-                        <span class="ml-1 px-2 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-neutral-600/60 text-neutral-300">
-                          {output.output_type}
-                        </span>
-                      </div>
-                      <div class="flex items-center space-x-2 flex-shrink-0">
-                          {#if output.output_type === 'txt' || output.output_type === 'json'}
-                              <Button variant="ghost" customClass="text-xs !py-1 !px-2 !text-sky-400 hover:!text-sky-300 hover:!bg-sky-500/10" on:click={() => viewStageOutput(output)}>
-                                  View (Modal)
-                              </Button>
-                          {/if}
-                          <Button
-                              variant="secondary"
-                              customClass="text-xs !py-1 !px-2"
-                              on:click={() => {
-                                if (jobDetails) {
-                                  let baseName = jobDetails.document_name && jobDetails.document_name.trim() !== '' ? jobDetails.document_name : `job_${jobDetails.id}`;
-                                  baseName = baseName.replace(/\.[^/.]+$/, ""); // Remove existing extension
-
-                                  let suggestedFilename = `${baseName}_${output.stage_name}.${output.output_type}`;
-                                  suggestedFilename = suggestedFilename.replace(/[\s\\/:*?"<>|]+/g, '_').replace(/__+/g, '_'); // Sanitize and collapse multiple underscores
-                                  downloadStageOutput(output.id, suggestedFilename);
-                                }
-                              }}
-                              title={`S3 Path: s3://${output.s3_bucket}/${output.s3_key}`}
-                              disabled={!jobDetails}
-                          >
-                              Download
-                          </Button>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {:else}
-                <div class="p-4 bg-black/20 rounded-md text-center border border-white/10">
-                    <p class="text-gray-400">No individual stage outputs recorded for this job.</p>
-                </div>
-              {/if}
-            </section>
+            <StageOutputsTable
+              documentName={jobDetails.document_name}
+              {jobId}
+              outputs={jobDetails.stage_outputs}
+              onView={viewStageOutput}
+              onDownload={downloadStageOutput}
+            />
           </div>
         {:else}
            <div class="flex justify-center items-center min-h-[200px]">
@@ -786,34 +749,13 @@
 </div>
 
 <!-- Modal for Viewing Stage Output Content -->
-<Modal
+<StageOutputViewer
   isOpen={showOutputViewerModal}
   title={viewingOutputTitle}
+  {isLoadingOutputContent}
+  content={viewingOutputContent}
   on:close={closeOutputViewer}
-  maxWidth="max-w-3xl" <!-- Adjusted for potentially wide content like JSON -->
->
-  <div slot="content">
-    {#if isLoadingOutputContent}
-      <div class="flex justify-center items-center min-h-[200px]">
-        <p class="text-gray-300 text-lg">Loading output content...</p>
-      </div>
-    {:else if viewingOutputContent}
-      <pre
-        class="whitespace-pre-wrap break-all p-2 text-xs text-gray-200 bg-neutral-900/60
-               max-h-[70vh] overflow-y-auto rounded custom-scrollbar"
-      >
-        {viewingOutputContent}
-      </pre>
-    {:else}
-      <div class="flex justify-center items-center min-h-[200px]">
-        <p class="text-gray-400">No content to display or an error occurred.</p>
-      </div>
-    {/if}
-  </div>
-  <div slot="footer" class="flex justify-end">
-    <Button variant="secondary" on:click={closeOutputViewer}>Close Viewer</Button>
-  </div>
-</Modal>
+/>
 
 <!-- Modal for AI Input/Output Diff View -->
 <Modal

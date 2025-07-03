@@ -268,12 +268,12 @@
         </p>
       </div>
 
-      <div class="mt-4 pt-3 border-t border-neutral-600/70"> {/* Adjusted border color */}
+      <div class="mt-4 pt-3 border-t border-neutral-600/70"><!-- Adjusted border color -->
         <h4 class="text-sm font-semibold text-gray-200 mb-2">Custom AI HTTP Headers (Optional)</h4>
         {#if settings.ai_custom_headers && settings.ai_custom_headers.length > 0}
           <div class="space-y-2">
             {#each settings.ai_custom_headers as header (header.id)}
-              <div class="flex items-center space-x-2 p-2 bg-black/20 rounded-md border border-neutral-600/50"> {/* Darker bg and border for items */}
+              <div class="flex items-center space-x-2 p-2 bg-black/20 rounded-md border border-neutral-600/50"><!-- Darker bg and border for items -->
                 <input
                   type="text"
                   bind:value={header.name}

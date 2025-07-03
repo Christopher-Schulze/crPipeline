@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
         .max_connections(5)
         .connect(&database_url)
         .await
-        .expect("Failed to create pool");
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create pool: {e}")))?;
 
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
     let shared_config = aws_config::from_env().region(region_provider).load().await;

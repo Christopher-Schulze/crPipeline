@@ -295,7 +295,7 @@ pub async fn run_parse_stage(
             if let Some(h_idx) = header_index {
                 let regex_pattern = delimiter_regex.as_deref().unwrap_or(r"\s{2,}|\t|\s*\|\s*");
                 let delim_re = Regex::new(regex_pattern)
-                    .unwrap_or_else(|_| Regex::new(r"\s{2,}|\t|\s*\|\s*").unwrap());
+                    .map_err(|e| anyhow!("Invalid delimiter regex: {e}"))?;
                 let headers: Vec<String> = delim_re
                     .split(lines[h_idx].trim())
                     .filter(|s| !s.is_empty())
@@ -332,8 +332,7 @@ pub async fn run_parse_stage(
 
                 if numeric_summary {
                     if let (Some(h), Some(r)) = (result.get("headers"), result.get("rows")) {
-                        let headers_vec = h.as_array().unwrap();
-                        let rows_vec = r.as_array().unwrap();
+                        let (Some(headers_vec), Some(rows_vec)) = (h.as_array(), r.as_array()) else { return Ok(result) };
                         let mut summary = serde_json::Map::new();
                         for (col_idx, header_val) in headers_vec.iter().enumerate() {
                             if let Some(header_str) = header_val.as_str() {
@@ -364,10 +363,12 @@ pub async fn run_parse_stage(
                             }
                         }
                         if !summary.is_empty() {
-                            result.as_object_mut().unwrap().insert(
-                                "numeric_summary".to_string(),
-                                serde_json::Value::Object(summary),
-                            );
+                            if let Some(obj) = result.as_object_mut() {
+                                obj.insert(
+                                    "numeric_summary".to_string(),
+                                    serde_json::Value::Object(summary),
+                                );
+                            }
                         }
                     }
                 }
@@ -704,7 +705,7 @@ pub async fn run_ai(
     let response = loop {
         match request_builder
             .try_clone()
-            .unwrap()
+            .ok_or_else(|| anyhow!("failed to clone request builder"))?
             .json(input)
             .send()
             .await
