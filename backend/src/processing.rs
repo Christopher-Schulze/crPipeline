@@ -156,6 +156,8 @@ enum ParseConfig {
         stop_keywords: Option<Vec<String>>,
         #[serde(default)]
         delimiter_regex: Option<String>,
+        #[serde(default)]
+        numeric_summary: bool,
     },
     Passthrough {
         // No parameters needed
@@ -273,6 +275,7 @@ pub async fn run_parse_stage(
             header_keywords,
             stop_keywords,
             delimiter_regex,
+            numeric_summary,
         }) => {
             // Basic table detection based on provided header keywords. We search the
             // text for a line containing all header keywords (case-insensitive).
@@ -321,11 +324,55 @@ pub async fn run_parse_stage(
                     }
                 }
 
-                Ok(serde_json::json!({
+                let mut result = serde_json::json!({
                     "status": "ok",
                     "headers": headers,
                     "rows": rows,
-                }))
+                });
+
+                if numeric_summary {
+                    if let (Some(h), Some(r)) = (result.get("headers"), result.get("rows")) {
+                        let headers_vec = h.as_array().unwrap();
+                        let rows_vec = r.as_array().unwrap();
+                        let mut summary = serde_json::Map::new();
+                        for (col_idx, header_val) in headers_vec.iter().enumerate() {
+                            if let Some(header_str) = header_val.as_str() {
+                                let mut numeric: Vec<f64> = Vec::new();
+                                for row in rows_vec {
+                                    if let Some(cell) = row.get(col_idx) {
+                                        let normalized =
+                                            cell.as_str().unwrap_or("").replace(',', ".");
+                                        if let Ok(n) = normalized.parse::<f64>() {
+                                            numeric.push(n);
+                                        } else {
+                                            numeric.clear();
+                                            break;
+                                        }
+                                    } else {
+                                        numeric.clear();
+                                        break;
+                                    }
+                                }
+                                if !numeric.is_empty() {
+                                    let sum: f64 = numeric.iter().sum();
+                                    let avg = sum / numeric.len() as f64;
+                                    summary.insert(
+                                        header_str.to_string(),
+                                        serde_json::json!({"sum": sum, "avg": avg}),
+                                    );
+                                }
+                            }
+                        }
+                        if !summary.is_empty() {
+                            result.as_object_mut().unwrap().insert(
+                                "numeric_summary".to_string(),
+                                serde_json::Value::Object(summary),
+                            );
+                        }
+                    }
+                }
+
+                Ok(result)
             } else {
                 Ok(serde_json::json!({
                     "status": "header_not_found"

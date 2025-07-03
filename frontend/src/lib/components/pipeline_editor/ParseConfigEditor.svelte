@@ -103,6 +103,14 @@
         class="glass-input w-full !text-xs !bg-neutral-500/40"
         placeholder="optional, defaults to whitespace or '|'"
       />
+      <label class="flex items-center space-x-2 mt-1">
+        <input
+          type="checkbox"
+          bind:checked={stage.config.parameters.numericSummary}
+          class="form-checkbox h-4 w-4 text-accent rounded !bg-neutral-700 border-neutral-600 focus:ring-accent/50"
+        />
+        <span class="text-gray-300">Generate Numeric Summary</span>
+      </label>
     </div>
   {/if}
 </div>
