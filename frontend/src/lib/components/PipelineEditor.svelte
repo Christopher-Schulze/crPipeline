@@ -90,6 +90,9 @@
       if (typeof stage.config.parameters._stopKeywordsString === 'undefined') {
         stage.config.parameters._stopKeywordsString = (stage.config.parameters.stopKeywords || []).join(', ');
       }
+      if (typeof stage.config.parameters._delimiterRegex === 'undefined') {
+        stage.config.parameters._delimiterRegex = stage.config.parameters.delimiterRegex || '';
+      }
     }
     // Initialize client-side IDs and default captureGroupIndex for RegexExtraction patterns
     if (stage.type?.toLowerCase() === 'parse' && stage.config?.strategy === 'RegexExtraction' && stage.config.parameters?.patterns) {
@@ -163,8 +166,12 @@
         if (stage.type.toLowerCase() === 'parse' && stage.config?.strategy === 'SimpleTableExtraction' && stage.config.parameters) {
             delete stage.config.parameters._headerKeywordsString;
             delete stage.config.parameters._stopKeywordsString;
+            delete stage.config.parameters._delimiterRegex;
             if (stage.config.parameters.stopKeywords && stage.config.parameters.stopKeywords.length === 0) {
                 stage.config.parameters.stopKeywords = null;
+            }
+            if (!stage.config.parameters.delimiterRegex) {
+                delete stage.config.parameters.delimiterRegex;
             }
         }
         if (stage.type.toLowerCase() === 'parse' && stage.config?.strategy === 'RegexExtraction' && stage.config.parameters?.patterns) {

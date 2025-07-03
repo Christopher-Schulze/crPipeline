@@ -21,7 +21,7 @@
       <option value="Passthrough">Passthrough (Basic Lines/Text)</option>
       <option value="KeywordExtraction">Keyword Extraction</option>
       <option value="RegexExtraction">Regex Extraction</option>
-      <option value="SimpleTableExtraction">Simple Table Extraction (Basic Placeholder)</option>
+      <option value="SimpleTableExtraction">Simple Table Extraction</option>
     </select>
   </div>
 
@@ -94,6 +94,14 @@
             .filter((s) => s))}
         class="glass-input w-full !text-xs !bg-neutral-500/40"
         placeholder="e.g., Total, Subtotal"
+      />
+      <label class="block font-medium text-gray-300 mt-1 mb-0.5">Column Separator Regex:</label>
+      <input
+        type="text"
+        bind:value={stage.config.parameters._delimiterRegex}
+        on:input={() => (stage.config.parameters.delimiterRegex = stage.config.parameters._delimiterRegex)}
+        class="glass-input w-full !text-xs !bg-neutral-500/40"
+        placeholder="optional, defaults to whitespace or '|'"
       />
     </div>
   {/if}

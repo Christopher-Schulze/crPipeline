@@ -1,20 +1,20 @@
-use std::path::Path;
-use std::fs::{File};
-use std::io::BufWriter;
+use anyhow::{anyhow, Context, Result};
 use aws_sdk_s3::Client as S3Client;
-use anyhow::{Result, anyhow, Context};
-use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use std::collections::HashMap; // For new parse stage
-use regex::Regex; // For new parse stage
-use reqwest::multipart; // Added for multipart form data
 use printpdf::*;
+use regex::Regex; // For new parse stage
+use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::multipart; // Added for multipart form data
+use serde::Deserialize;
+use std::collections::HashMap; // For new parse stage
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::Path;
 use tokio::process::Command;
-use tokio::time::Duration;
-use serde::Deserialize; // For CustomHeader
+use tokio::time::Duration; // For CustomHeader
 
 // For new report generation
-use pulldown_cmark::{Parser, Event, Tag, Options as MarkdownOptions, HeadingLevel};
 use jsonpath_rust::JsonPath;
+use pulldown_cmark::{Event, HeadingLevel, Options as MarkdownOptions, Parser, Tag};
 // printpdf types are already imported via printpdf::*
 
 /// Download a PDF from S3 (or from `LOCAL_S3_DIR` when set) and write it to `path`.
@@ -55,14 +55,20 @@ pub async fn run_external_ocr(
 ) -> Result<String> {
     let client = reqwest::Client::new();
 
-    log::debug!("Sending file {} to external OCR API: {}", original_filename, api_endpoint);
+    log::debug!(
+        "Sending file {} to external OCR API: {}",
+        original_filename,
+        api_endpoint
+    );
     let mut attempts = 0;
     let response = loop {
         let file_part = multipart::Part::bytes(file_bytes.clone())
             .file_name(original_filename.to_string())
             .mime_str("application/pdf")?;
 
-        let mut request_builder = client.post(api_endpoint).multipart(multipart::Form::new().part("file", file_part));
+        let mut request_builder = client
+            .post(api_endpoint)
+            .multipart(multipart::Form::new().part("file", file_part));
 
         if let Some(key_str) = api_key.filter(|k| !k.trim().is_empty()) {
             if key_str.to_lowercase().starts_with("bearer ") {
@@ -90,15 +96,29 @@ pub async fn run_external_ocr(
     };
 
     if response.status().is_success() {
-        let ocr_text = response.text().await
+        let ocr_text = response
+            .text()
+            .await
             .context("Failed to read text response from external OCR API")?;
         log::info!("External OCR succeeded");
         Ok(ocr_text)
     } else {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error content from OCR API".to_string());
-        log::error!("External OCR API request to {} failed with status {}: {}", api_endpoint, status, error_text);
-        Err(anyhow!("External OCR API request failed with status {}: {}", status, error_text))
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error content from OCR API".to_string());
+        log::error!(
+            "External OCR API request to {} failed with status {}: {}",
+            api_endpoint,
+            status,
+            error_text
+        );
+        Err(anyhow!(
+            "External OCR API request failed with status {}: {}",
+            status,
+            error_text
+        ))
     }
 }
 
@@ -120,7 +140,6 @@ pub async fn run_ocr(input: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-
 #[derive(Deserialize, Debug)]
 #[serde(tag = "strategy", content = "parameters", rename_all = "camelCase")]
 enum ParseConfig {
@@ -135,6 +154,8 @@ enum ParseConfig {
     SimpleTableExtraction {
         header_keywords: Vec<String>,
         stop_keywords: Option<Vec<String>>,
+        #[serde(default)]
+        delimiter_regex: Option<String>,
     },
     Passthrough {
         // No parameters needed
@@ -168,15 +189,26 @@ pub async fn run_parse_stage(
     text_content: &str,
     config_json: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value> {
-    let config: Option<ParseConfig> = config_json
-        .and_then(|c_val| serde_json::from_value(c_val.clone()).ok());
+    let config: Option<ParseConfig> =
+        config_json.and_then(|c_val| serde_json::from_value(c_val.clone()).ok());
 
     match config {
-        Some(ParseConfig::KeywordExtraction { keywords, case_sensitive }) => {
+        Some(ParseConfig::KeywordExtraction {
+            keywords,
+            case_sensitive,
+        }) => {
             let mut counts = HashMap::new();
             for keyword_orig in keywords {
-                let keyword_to_search = if case_sensitive { keyword_orig.clone() } else { keyword_orig.to_lowercase() };
-                let content_to_search = if case_sensitive { text_content.to_string() } else { text_content.to_lowercase() };
+                let keyword_to_search = if case_sensitive {
+                    keyword_orig.clone()
+                } else {
+                    keyword_orig.to_lowercase()
+                };
+                let content_to_search = if case_sensitive {
+                    text_content.to_string()
+                } else {
+                    text_content.to_lowercase()
+                };
 
                 let count = content_to_search.matches(&keyword_to_search).count();
                 counts.insert(keyword_orig, count);
@@ -222,29 +254,91 @@ pub async fn run_parse_stage(
                         }
                     }
                     Err(e) => {
-                        log::warn!("Invalid regex pattern '{}' for field '{}': {:?}. Skipping.", pattern_def.regex, pattern_def.name.clone(), e);
-                        extractions.insert(pattern_def.name.clone(), vec![format!("Regex Compile Error: {}", e)]);
+                        log::warn!(
+                            "Invalid regex pattern '{}' for field '{}': {:?}. Skipping.",
+                            pattern_def.regex,
+                            pattern_def.name.clone(),
+                            e
+                        );
+                        extractions.insert(
+                            pattern_def.name.clone(),
+                            vec![format!("Regex Compile Error: {}", e)],
+                        );
                     }
                 }
             }
             Ok(serde_json::to_value(extractions)?)
         }
-        Some(ParseConfig::SimpleTableExtraction { header_keywords, stop_keywords }) => {
-            log::warn!("SimpleTableExtraction is a basic placeholder and may not yield useful results.");
-            let mut result_data = HashMap::new();
-            result_data.insert("status".to_string(), serde_json::Value::String("SimpleTableExtraction (placeholder)".to_string()));
-            result_data.insert("matched_headers".to_string(), serde_json::to_value(header_keywords)?);
-            if let Some(sk) = stop_keywords {
-                 result_data.insert("stop_keywords_provided".to_string(), serde_json::to_value(sk)?);
+        Some(ParseConfig::SimpleTableExtraction {
+            header_keywords,
+            stop_keywords,
+            delimiter_regex,
+        }) => {
+            // Basic table detection based on provided header keywords. We search the
+            // text for a line containing all header keywords (case-insensitive).
+            let lines: Vec<&str> = text_content.lines().collect();
+            let mut header_index = None;
+            for (idx, line) in lines.iter().enumerate() {
+                let lower = line.to_lowercase();
+                if header_keywords
+                    .iter()
+                    .all(|kw| lower.contains(&kw.to_lowercase()))
+                {
+                    header_index = Some(idx);
+                    break;
+                }
             }
-            Ok(serde_json::to_value(result_data)?)
+
+            if let Some(h_idx) = header_index {
+                let regex_pattern = delimiter_regex.as_deref().unwrap_or(r"\s{2,}|\t|\s*\|\s*");
+                let delim_re = Regex::new(regex_pattern)
+                    .unwrap_or_else(|_| Regex::new(r"\s{2,}|\t|\s*\|\s*").unwrap());
+                let headers: Vec<String> = delim_re
+                    .split(lines[h_idx].trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.trim().to_string())
+                    .collect();
+
+                let mut rows: Vec<Vec<String>> = Vec::new();
+                for line in lines.iter().skip(h_idx + 1) {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    let lower = trimmed.to_lowercase();
+                    if let Some(stops) = &stop_keywords {
+                        if stops.iter().any(|kw| lower.contains(&kw.to_lowercase())) {
+                            break;
+                        }
+                    }
+                    let row: Vec<String> = delim_re
+                        .split(trimmed)
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.trim().to_string())
+                        .collect();
+                    if !row.is_empty() {
+                        rows.push(row);
+                    }
+                }
+
+                Ok(serde_json::json!({
+                    "status": "ok",
+                    "headers": headers,
+                    "rows": rows,
+                }))
+            } else {
+                Ok(serde_json::json!({
+                    "status": "header_not_found"
+                }))
+            }
         }
-        Some(ParseConfig::Passthrough {}) | None => { // Default or Passthrough
-             let lines: Vec<&str> = text_content.lines().map(|l| l.trim()).collect();
-             Ok(serde_json::json!({
-                 "strategy_used": if config.is_some() { "Passthrough" } else { "Default (Lines)" },
-                 "lines": lines,
-             }))
+        Some(ParseConfig::Passthrough {}) | None => {
+            // Default or Passthrough
+            let lines: Vec<&str> = text_content.lines().map(|l| l.trim()).collect();
+            Ok(serde_json::json!({
+                "strategy_used": if config.is_some() { "Passthrough" } else { "Default (Lines)" },
+                "lines": lines,
+            }))
         }
     }
 }
@@ -260,16 +354,35 @@ fn replace_placeholders(template: &str, data: &serde_json::Value) -> String {
         let key_path = cap.get(1).unwrap().as_str();
 
         let replacement_value = match key_path.split('.').collect::<Vec<&str>>().as_slice() {
-            [key] => data.get(key).and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            [key1, key2] => data.get(key1).and_then(|v| v.get(key2)).and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            [key1, key2, key3] => data.get(key1).and_then(|v| v.get(key2)).and_then(|v| v.get(key3)).and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            [key] => data
+                .get(key)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            [key1, key2] => data
+                .get(key1)
+                .and_then(|v| v.get(key2))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            [key1, key2, key3] => data
+                .get(key1)
+                .and_then(|v| v.get(key2))
+                .and_then(|v| v.get(key3))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             _ => {
                 // Basic jsonpath_rust usage for deeper or more complex paths
                 // Note: jsonpath_rust::JsonPath::query returns a Vec<&serde_json::Value>
                 // For simplicity, we'll try to get the first element and convert to string.
                 // A more robust solution would handle arrays/objects returned by path differently.
                 match data.query(&format!("$.{}", key_path)) {
-                    Ok(nodes) => nodes.first().and_then(|v_ref| v_ref.as_str()).unwrap_or("").to_string(),
+                    Ok(nodes) => nodes
+                        .first()
+                        .and_then(|v_ref| v_ref.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     Err(_) => format!("{{{{UNRESOLVED: {}}}}}", key_path),
                 }
             }
@@ -294,12 +407,18 @@ pub async fn generate_report_from_template(
     let processed_markdown = replace_placeholders(template_markdown, data_for_templating);
 
     let (mut doc, page1, layer1) = PdfDocument::new(
-        data_for_templating.get("document_name").and_then(|v|v.as_str()).unwrap_or("Report"),
-        Mm(210.0), Mm(297.0), "Layer1"
+        data_for_templating
+            .get("document_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Report"),
+        Mm(210.0),
+        Mm(297.0),
+        "Layer1",
     );
     doc = doc.with_conformance(PdfConformance::X3_2002_PDF_1_3); // Example conformance
 
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica)
+    let font = doc
+        .add_builtin_font(BuiltinFont::Helvetica)
         .map_err(|e| anyhow!("Failed to add font: {}", e.to_string()))?;
     let current_layer = doc.get_page(page1).get_layer(layer1);
 
@@ -318,8 +437,11 @@ pub async fn generate_report_from_template(
     // let right_margin = Mm(210.0 - 15.0); // Not directly used in this basic renderer for line breaks
 
     for event in parser {
-        if y_cursor < Mm(20.0) { // Rudimentary page break check
-            log::warn!("Report content exceeded single page (basic renderer). Content may be truncated.");
+        if y_cursor < Mm(20.0) {
+            // Rudimentary page break check
+            log::warn!(
+                "Report content exceeded single page (basic renderer). Content may be truncated."
+            );
             break;
         }
         match event {
@@ -357,7 +479,9 @@ pub async fn generate_report_from_template(
                 for (i, line_str) in text.split("\n").enumerate() {
                     if i > 0 {
                         y_cursor -= line_height_normal;
-                        if y_cursor < Mm(20.0) { break; }
+                        if y_cursor < Mm(20.0) {
+                            break;
+                        }
                         current_layer.set_text_cursor(left_margin, y_cursor);
                     }
                     current_layer.write_text(line_str.to_string(), &font);
@@ -434,12 +558,15 @@ pub async fn generate_report_from_template(
         }
     }
 
-    let file = File::create(output_pdf_path).context(format!("Failed to create output PDF file: {:?}", output_pdf_path))?;
+    let file = File::create(output_pdf_path).context(format!(
+        "Failed to create output PDF file: {:?}",
+        output_pdf_path
+    ))?;
     let mut writer = BufWriter::new(file);
-    doc.save(&mut writer).map_err(|e| anyhow!("Failed to save PDF: {}", e.to_string()))?;
+    doc.save(&mut writer)
+        .map_err(|e| anyhow!("Failed to save PDF: {}", e.to_string()))?;
     Ok(())
 }
-
 
 #[derive(Deserialize, Debug, Clone)]
 struct CustomHeader {
@@ -482,14 +609,18 @@ pub async fn run_ai(
                 Ok(headers_vec) => {
                     for header_obj in headers_vec {
                         if header_obj.name.trim().is_empty() {
-                            log::warn!("Skipping custom AI header with empty name: {:?}", header_obj);
+                            log::warn!(
+                                "Skipping custom AI header with empty name: {:?}",
+                                header_obj
+                            );
                             continue;
                         }
                         match HeaderName::from_bytes(header_obj.name.as_bytes()) {
                             Ok(header_name) => {
                                 match HeaderValue::from_str(&header_obj.value) {
                                     Ok(header_value) => {
-                                        request_builder = request_builder.header(header_name, header_value);
+                                        request_builder =
+                                            request_builder.header(header_name, header_value);
                                     }
                                     Err(e) => {
                                         log::warn!("Invalid custom AI header value for '{}': {:?}. Skipping.", header_obj.name, e);
@@ -497,17 +628,25 @@ pub async fn run_ai(
                                 }
                             }
                             Err(e) => {
-                                log::warn!("Invalid custom AI header name '{}': {:?}. Skipping.", header_obj.name, e);
+                                log::warn!(
+                                    "Invalid custom AI header name '{}': {:?}. Skipping.",
+                                    header_obj.name,
+                                    e
+                                );
                             }
                         }
                     }
                 }
                 Err(e) => {
-                     log::warn!("Failed to deserialize ai_custom_headers JSON into Vec<CustomHeader>: {:?}. Headers JSON: {}", e, headers_val);
+                    log::warn!("Failed to deserialize ai_custom_headers JSON into Vec<CustomHeader>: {:?}. Headers JSON: {}", e, headers_val);
                 }
             }
-        } else if !headers_val.is_null() { // Allow null, but not other non-array types
-            log::warn!("ai_custom_headers is not an array, skipping. Headers JSON: {}", headers_val);
+        } else if !headers_val.is_null() {
+            // Allow null, but not other non-array types
+            log::warn!(
+                "ai_custom_headers is not an array, skipping. Headers JSON: {}",
+                headers_val
+            );
         }
     }
 
@@ -516,7 +655,13 @@ pub async fn run_ai(
 
     let mut attempts = 0;
     let response = loop {
-        match request_builder.try_clone().unwrap().json(input).send().await {
+        match request_builder
+            .try_clone()
+            .unwrap()
+            .json(input)
+            .send()
+            .await
+        {
             Ok(resp) => break resp,
             Err(e) if attempts < 3 => {
                 attempts += 1;
@@ -533,9 +678,21 @@ pub async fn run_ai(
         Ok(response.json().await?)
     } else {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error content".to_string());
-        log::error!("AI API request to {} failed with status {}: {}", api_endpoint, status, error_text);
-        Err(anyhow!("AI API request failed with status {}: {}", status, error_text))
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error content".to_string());
+        log::error!(
+            "AI API request to {} failed with status {}: {}",
+            api_endpoint,
+            status,
+            error_text
+        );
+        Err(anyhow!(
+            "AI API request failed with status {}: {}",
+            status,
+            error_text
+        ))
     }
 }
 
