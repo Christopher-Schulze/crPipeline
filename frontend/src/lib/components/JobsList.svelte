@@ -4,6 +4,7 @@
   // import GlassCard from './GlassCard.svelte';
   import Button from './Button.svelte';
   import DataTable, { type TableHeader } from './DataTable.svelte'; // Import DataTable and TableHeader
+  import { createReconnectingEventSource, type ReconnectingEventSource } from '$lib/utils/eventSourceUtils';
 
   // Define a more complete Job interface based on AnalysisJob model + potential names
   interface Job {
@@ -46,19 +47,22 @@
     pipeline_name: job.pipeline_name || `Pipe: ${job.pipeline_id.substring(0,8)}...`, // Shortened placeholder prefix
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); // Initial sort
 
-  let sources: EventSource[] = [];
+  let sources: ReconnectingEventSource[] = [];
 
   $: if (jobs.length) {
     sources.forEach((s) => s.close());
     sources = jobs.map((job) => {
-      const es = new EventSource(`/api/jobs/${job.id}/events`);
-      es.onmessage = (e) => {
-        job.status = e.data;
-        if (e.data === 'completed' || e.data === 'failed') {
-          es.close();
+      let source: ReconnectingEventSource;
+      source = createReconnectingEventSource(
+        `/api/jobs/${job.id}/events`,
+        (e) => {
+          job.status = e.data;
+          if (e.data === 'completed' || e.data === 'failed') {
+            source.close();
+          }
         }
-      };
-      return es;
+      );
+      return source;
     });
   }
 
