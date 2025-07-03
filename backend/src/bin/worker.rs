@@ -1,16 +1,21 @@
-use std::{env, path::PathBuf, time::Duration};
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use backend::models::{AnalysisJob, Pipeline, Document, OrgSettings};
-use backend::processing;
-use backend::worker::{self, Stage};
-use tokio::time::sleep;
-use uuid::Uuid;
-use tokio::process::Command;
-use tracing::{error, info, warn};
-use serde_json::{self, Value};
+use anyhow::Result;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
-use anyhow::Result;
+use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
+use backend::processing;
+use backend::worker::metrics::{spawn_metrics_server, JOB_COUNTER, STAGE_HISTOGRAM};
+use backend::worker::{self, Stage};
+use serde_json::{self, Value};
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use std::{
+    env,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
+use tokio::process::Command;
+use tokio::time::sleep;
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 /// Execute all stages of a job. Returns `Ok` on success or `Err` on the first stage failure.
 async fn run_stages(
@@ -27,6 +32,7 @@ async fn run_stages(
     let mut json_result = Value::default();
     for stage in stages {
         info!(job_id=%job.id, stage=?stage.stage_type, command=?stage.command, prompt_name=?stage.prompt_name, ocr_engine=?stage.ocr_engine, "running stage");
+        let start = Instant::now();
         match stage.stage_type.as_str() {
             "ocr" => {
                 if worker::ocr::handle_ocr_stage(
@@ -38,7 +44,9 @@ async fn run_stages(
                     bucket,
                     local,
                     txt_path,
-                ).await? {
+                )
+                .await?
+                {
                     break;
                 }
             }
@@ -47,10 +55,21 @@ async fn run_stages(
                     warn!(job_id=%job.id, stage=%stage.stage_type, "Input text file {:?} not found for parse stage. Skipping.", txt_path);
                 } else {
                     let text_content = tokio::fs::read_to_string(txt_path).await?;
-                    json_result = processing::run_parse_stage(&text_content, stage.config.as_ref()).await?;
+                    json_result =
+                        processing::run_parse_stage(&text_content, stage.config.as_ref()).await?;
                 }
                 if let Ok(b) = serde_json::to_vec_pretty(&json_result) {
-                    let _ = worker::save_stage_output(pool, s3_client, job.id, &stage.stage_type, "json", bucket, b, "json").await;
+                    let _ = worker::save_stage_output(
+                        pool,
+                        s3_client,
+                        job.id,
+                        &stage.stage_type,
+                        "json",
+                        bucket,
+                        b,
+                        "json",
+                    )
+                    .await;
                 }
             }
             "ai" => {
@@ -63,7 +82,8 @@ async fn run_stages(
                     bucket,
                     json_result.clone(),
                     local,
-                ).await?;
+                )
+                .await?;
             }
             "report" => {
                 worker::report::handle_report_stage(
@@ -75,7 +95,8 @@ async fn run_stages(
                     bucket,
                     &json_result,
                     local,
-                ).await?;
+                )
+                .await?;
             }
             _ => {
                 if let Some(cmd) = stage.command.as_ref() {
@@ -89,6 +110,9 @@ async fn run_stages(
                 }
             }
         }
+        STAGE_HISTOGRAM
+            .with_label_values(&[stage.stage_type.as_str()])
+            .observe(start.elapsed().as_secs_f64());
     }
     Ok(())
 }
@@ -113,6 +137,11 @@ async fn main() -> Result<()> {
     let mut conn = client.get_async_connection().await?;
 
     let process_once = env::var("PROCESS_ONE_JOB").is_ok();
+    let metrics_port = env::var("METRICS_PORT")
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
+        .unwrap_or(9100);
+    spawn_metrics_server(metrics_port);
 
     loop {
         let (_queue, job_id_str): (String, String) = redis::cmd("BLPOP")
@@ -175,16 +204,19 @@ async fn main() -> Result<()> {
             &bucket,
             &local,
             &txt_path,
-        ).await;
+        )
+        .await;
 
         match result {
             Ok(_) => {
                 AnalysisJob::update_status(&pool, job.id, "completed").await?;
+                JOB_COUNTER.with_label_values(&["success"]).inc();
                 info!(job_id=%job.id, "Job processing completed successfully.");
             }
             Err(e) => {
                 error!(job_id=%job.id, "Job processing failed: {:?}", e);
                 AnalysisJob::update_status(&pool, job.id, "failed").await?;
+                JOB_COUNTER.with_label_values(&["failed"]).inc();
             }
         }
 
@@ -203,4 +235,3 @@ async fn main() -> Result<()> {
     }
     Ok(())
 }
-

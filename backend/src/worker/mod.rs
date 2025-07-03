@@ -20,6 +20,7 @@ pub struct Stage {
 }
 
 pub mod ai;
+pub mod metrics;
 pub mod ocr;
 pub mod report;
 
