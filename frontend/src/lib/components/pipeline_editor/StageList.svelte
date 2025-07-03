@@ -114,6 +114,7 @@
           headerKeywords: [],
           stopKeywords: [],
           delimiterRegex: '',
+          numericSummary: false,
         };
         break;
       case 'Passthrough':

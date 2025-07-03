@@ -3,12 +3,10 @@ import { vi, expect, test, beforeEach } from "vitest";
 import { tick } from "svelte";
 
 import * as apiUtils from "$lib/utils/apiUtils";
-const apiFetch = vi
-  .spyOn(apiUtils, "apiFetch")
-  .mockResolvedValue({
-    ok: true,
-    json: async () => ({ prompt_templates: [] }),
-  });
+const apiFetch = vi.spyOn(apiUtils, "apiFetch").mockResolvedValue({
+  ok: true,
+  json: async () => ({ prompt_templates: [] }),
+});
 
 import PipelineEditor from "../PipelineEditor.svelte";
 
@@ -106,4 +104,5 @@ test("renders delimiter regex field for table extraction", async () => {
   expect(
     getByPlaceholderText("optional, defaults to whitespace or '|"),
   ).toBeTruthy();
+  expect(getByText("Generate Numeric Summary")).toBeTruthy();
 });
