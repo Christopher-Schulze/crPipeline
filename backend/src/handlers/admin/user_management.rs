@@ -23,16 +23,52 @@ pub struct AdminUserView {
     pub confirmed: bool,
     pub is_active: bool,
     pub deactivated_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PaginationParams {
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct PaginatedUsers {
+    pub items: Vec<AdminUserView>,
+    pub total_items: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub total_pages: i64,
 }
 
 #[get("/admin/users")]
-pub async fn list_all_users(user: AuthUser, pool: web::Data<PgPool>) -> impl Responder {
+pub async fn list_all_users(
+    query: web::Query<PaginationParams>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> impl Responder {
     if user.role != "admin" {
         return HttpResponse::Forbidden()
             .json(serde_json::json!({"error": "You do not have permission to access this resource."}));
     }
 
-    let query = r#"
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(20).max(1).min(100);
+    let offset = (page - 1) * limit;
+
+    let total_items: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(pool.as_ref())
+        .await
+    {
+        Ok(count) => count,
+        Err(e) => {
+            log::error!("Failed to count users for admin view: {:?}", e);
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to retrieve user list."}));
+        }
+    };
+
+    let query_str = r#"
         SELECT
             u.id,
             u.email,
@@ -41,23 +77,37 @@ pub async fn list_all_users(user: AuthUser, pool: web::Data<PgPool>) -> impl Res
             o.name as organization_name,
             u.confirmed,
             u.is_active,
-            u.deactivated_at
+            u.deactivated_at,
+            u.created_at
         FROM
             users u
         LEFT JOIN
             organizations o ON u.org_id = o.id
         ORDER BY
             u.email ASC
+        LIMIT $1 OFFSET $2
     "#;
 
-    match sqlx::query_as::<_, AdminUserView>(query)
+    match sqlx::query_as::<_, AdminUserView>(query_str)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool.as_ref())
         .await
     {
-        Ok(users) => HttpResponse::Ok().json(users),
+        Ok(users) => {
+            let total_pages = (total_items as f64 / limit as f64).ceil() as i64;
+            HttpResponse::Ok().json(PaginatedUsers {
+                items: users,
+                total_items,
+                page,
+                per_page: limit,
+                total_pages,
+            })
+        }
         Err(e) => {
             log::error!("Failed to fetch all users for admin view: {:?}", e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to retrieve user list."}))
+            HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to retrieve user list."}))
         }
     }
 }
