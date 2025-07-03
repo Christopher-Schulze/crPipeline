@@ -9,6 +9,7 @@ Multi-tenant document analysis platform built with Rust and Svelte.
 - [Setup](docs/Setup.md)
 - [Security](docs/Security.md)
 - [Continuous Integration](docs/Continuous_Integration.md)
+- [Deployment](docs/Deployment.md)
 
 See [PLAN.md](PLAN.md) for the project roadmap.
 

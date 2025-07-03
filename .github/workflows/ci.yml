@@ -12,8 +12,8 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 20 # Matches existing setup
-      - name: Install Rust toolchain # Explicitly add this for clarity
+          node-version: 20
+      - name: Install Rust toolchain
         uses: actions/setup-rust@v1
         with:
           rust-version: stable
@@ -22,12 +22,51 @@ jobs:
       - name: Install frontend deps
         run: npm install --prefix frontend
       - name: Svelte Check
-        run: npm run lint --prefix frontend # Changed from npx svelte-check...
+        run: npm run lint --prefix frontend
       - name: Run frontend tests
         run: npm test --prefix frontend
       - name: Build frontend
-        run: npm run build --prefix frontend # This can also serve as a test that the build passes
-      - name: Check backend (Clippy) # Modified Step
+        run: npm run build --prefix frontend
+      - name: Check backend (Clippy)
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
+
+  backend-tests:
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-rust@v1
+        with:
+          rust-version: stable
       - name: Run backend tests
         run: cargo test --manifest-path backend/Cargo.toml --all-targets
+
+  release:
+    needs: [build, backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build backend image
+        run: docker build -t backend:latest -f backend/Dockerfile .
+      - name: Build frontend image
+        run: docker build -t frontend:latest -f frontend/Dockerfile .
+      - name: Log in to registry
+        if: ${{ secrets.REGISTRY != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Push backend image
+        if: ${{ secrets.REGISTRY != '' }}
+        run: |
+          docker tag backend:latest ${{ secrets.REGISTRY }}/backend:latest
+          docker push ${{ secrets.REGISTRY }}/backend:latest
+      - name: Push frontend image
+        if: ${{ secrets.REGISTRY != '' }}
+        run: |
+          docker tag frontend:latest ${{ secrets.REGISTRY }}/frontend:latest
+          docker push ${{ secrets.REGISTRY }}/frontend:latest
