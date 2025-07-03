@@ -3,6 +3,7 @@
   import Button from './Button.svelte';
   import Modal from './Modal.svelte';
   import DataTable, { type TableHeader } from './DataTable.svelte';
+  import PaginationControls from './PaginationControls.svelte';
   import EditUserRoleModal from './EditUserRoleModal.svelte';
   import ConfirmationModal from './ConfirmationModal.svelte';
   import InviteUserModal from './InviteUserModal.svelte';
@@ -93,6 +94,10 @@
   let allUsers: AdminUserView[] = [];
   let isLoadingUsers = false;
   let usersError: string | null = null;
+  let currentUserPage = 1;
+  let totalUsers = 0;
+  let usersPerPage = 10;
+  let totalUserPages = 0;
   let showEditRoleModal = false;
   let editingUser: AdminUserView | null = null;
 
@@ -187,23 +192,36 @@
     showEditRoleModal = true;
   }
 
-  async function loadAllUsers() {
-    // Assuming this component is only shown to admins, so direct role check here is mostly belt-and-suspenders
+  async function loadAllUsers(pageToLoad = 1) {
     isLoadingUsers = true;
     usersError = null;
+    currentUserPage = pageToLoad;
     try {
-      const response = await apiFetch('/api/admin/users'); // Use apiFetch
+      const response = await apiFetch(`/api/admin/users?page=${pageToLoad}&limit=${usersPerPage}`);
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error || `Failed to fetch users: ${response.statusText}`);
       }
-      allUsers = await response.json();
+      const data = await response.json();
+      allUsers = data.items;
+      totalUsers = data.total_items;
+      usersPerPage = data.per_page;
+      totalUserPages = data.total_pages;
+      currentUserPage = data.page;
     } catch (e: any) {
       usersError = e.message;
       allUsers = [];
+      totalUsers = 0;
+      totalUserPages = 0;
       console.error("Error loading users:", e);
     } finally {
       isLoadingUsers = false;
+    }
+  }
+
+  function handleUserPageChange(event: CustomEvent<{ page: number }>) {
+    if (event.detail.page !== currentUserPage) {
+      loadAllUsers(event.detail.page);
     }
   }
 
@@ -299,7 +317,14 @@
         <p class="text-red-400 bg-red-500/10 p-3 rounded-md text-center">Error loading users: {usersError}</p>
       <!-- DataTable will now show its own empty state if allUsers is empty and not loading/error -->
       {:else}
-        <DataTable headers={userTableHeaders} items={allUsers} keyField="id"
+        <DataTable
+            headers={userTableHeaders}
+            items={allUsers}
+            keyField="id"
+            currentPage={currentUserPage}
+            totalPages={totalUserPages}
+            totalItems={totalUsers}
+            itemsPerPage={usersPerPage}
             tableContainerClass="overflow-hidden shadow-md rounded-lg border border-neutral-700/50 bg-neutral-800/30 backdrop-blur-sm"
             tableClass="min-w-full divide-y divide-neutral-700/30"
             emptyStateMessage="No users found in the system."
@@ -378,6 +403,13 @@
                 Resend Email
               </Button>
             {/if}
+          </div>
+          <div slot="paginationControls" let:currentPageProps let:totalPagesProps>
+            <PaginationControls
+              currentPage={currentPageProps}
+              totalPages={totalPagesProps}
+              on:pageChange={handleUserPageChange}
+            />
           </div>
         </DataTable>
       {/if}
