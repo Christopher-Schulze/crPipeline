@@ -102,7 +102,7 @@ test("renders delimiter regex field for table extraction", async () => {
   await tick();
 
   expect(
-    getByPlaceholderText("optional, defaults to whitespace or '|"),
+    getByPlaceholderText("optional, defaults to whitespace or '|'"),
   ).toBeTruthy();
   expect(getByText("Generate Numeric Summary")).toBeTruthy();
 });
