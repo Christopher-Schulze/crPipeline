@@ -1,5 +1,5 @@
 use crate::middleware::auth::AuthUser;
-use crate::models::{AnalysisJob, Document, JobStageOutput, JobWithNames, Pipeline};
+use crate::models::{AnalysisJob, Document, JobStageOutput, Pipeline};
 use actix_web::{get, web, HttpResponse};
 use actix_web_lab::sse::{self, ChannelStream, Sse};
 use aws_sdk_s3::presigning::PresigningConfig;
