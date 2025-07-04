@@ -1,0 +1,61 @@
+# Monitoring
+
+The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard.
+
+## docker-compose example
+
+```yaml
+version: '3.9'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:9.5.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+```
+
+Place the following provisioning file at `grafana/provisioning/dashboards/dashboard.yaml`:
+
+```yaml
+apiVersion: 1
+providers:
+  - name: 'default'
+    folder: ''
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
+```
+
+Create the dashboard JSON at `grafana/dashboards/metrics.json`:
+
+```json
+{
+  "title": "crPipeline Metrics",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Stage Duration",
+      "targets": [{ "expr": "stage_duration_seconds", "legendFormat": "{{stage}}" }]
+    },
+    {
+      "type": "graph",
+      "title": "Jobs Processed",
+      "targets": [{ "expr": "jobs_total", "legendFormat": "{{status}}" }]
+    }
+  ]
+}
+```
+
+Grafana loads the dashboard on startup. Navigate to `http://localhost:3000` to view the charts.
