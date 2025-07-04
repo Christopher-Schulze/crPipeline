@@ -1,5 +1,12 @@
 use crate::middleware::auth::AuthUser;
-use crate::models::{AnalysisJob, Document, NewAnalysisJob, NewDocument, OrgSettings};
+use crate::models::{
+    AnalysisJob,
+    Document,
+    DocumentError,
+    NewAnalysisJob,
+    NewDocument,
+    OrgSettings,
+};
 use crate::utils::log_action;
 use actix_multipart::Multipart;
 use actix_web::{get, post, web, HttpResponse};
@@ -250,4 +257,131 @@ pub async fn upload(
 
     while let Some(Ok(mut field)) = payload.next().await {
         if let Some(name) = field.content_disposition().get_filename() {
-            user_provided_filename =
+            user_provided_filename = name.to_string();
+        }
+        if let Some(content_type) = field.content_type() {
+            file_content_type = Some(content_type.to_string());
+        }
+
+        while let Some(chunk) = field.next().await {
+            match chunk {
+                Ok(data) => bytes_data.extend_from_slice(&data),
+                Err(e) => {
+                    log::error!("Error reading chunk from multipart field: {:?}", e);
+                    return HttpResponse::BadRequest()
+                        .json(serde_json::json!({"error": "Error reading uploaded file."}));
+                }
+            }
+        }
+    }
+
+    let (base_filename, pages) = match validate_document(
+        &user_provided_filename,
+        &file_content_type,
+        &bytes_data,
+    )
+    .await
+    {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+
+    if params.org_id != user.org_id && user.role != "admin" {
+        log::warn!(
+            "User {} (org_id {}) attempted to upload to org_id {} without admin rights.",
+            user.user_id,
+            user.org_id,
+            params.org_id
+        );
+        return HttpResponse::Unauthorized()
+            .json(serde_json::json!({"error": "You are not authorized to upload to this organization."}));
+    }
+
+    if params.is_target.unwrap_or(false) {
+        if let Err(resp) = check_upload_quota(&pool, params.org_id).await {
+            return resp;
+        }
+    }
+
+    let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
+
+    let sanitized_filename_part = sanitize_filename::sanitize(&base_filename);
+    let s3_key_name = format!("{}-{}", Uuid::new_v4(), sanitized_filename_part);
+
+    if let Err(resp) = upload_to_s3(s3.get_ref(), &bucket, &s3_key_name, bytes_data.clone()).await {
+        return resp;
+    }
+
+    let doc_to_create = NewDocument {
+        org_id: params.org_id,
+        owner_id: user.user_id,
+        filename: s3_key_name.clone(),
+        display_name: user_provided_filename,
+        pages,
+        is_target: params.is_target.unwrap_or(false),
+        expires_at: None,
+    };
+
+    let created_document = match Document::create(&pool, doc_to_create).await {
+        Ok(d) => d,
+        Err(DocumentError::SanitizationFailed) => {
+            log::warn!("Rejected unsafe filename during document creation: {}", s3_key_name);
+            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+            return HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid filename."}));
+        }
+        Err(DocumentError::Sqlx(e)) => {
+            log::error!("Failed to create document record for S3 key {}: {:?}", s3_key_name, e);
+            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Failed to save document information."}));
+        }
+    };
+
+    log_action(&pool, user.org_id, user.user_id, &format!("upload:{}", created_document.id)).await;
+
+    if let Some(pipeline_id) = params.pipeline_id {
+        if let Err(resp) = check_analysis_quota(&pool, params.org_id).await {
+            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+            return resp;
+        }
+
+        let job_to_create = NewAnalysisJob {
+            org_id: params.org_id,
+            document_id: created_document.id,
+            pipeline_id,
+            status: "pending".into(),
+        };
+        match AnalysisJob::create(&pool, job_to_create).await {
+            Ok(j) => {
+                log_action(&pool, user.org_id, user.user_id, &format!("job_created:{}", j.id)).await;
+                if let Ok(redis_url) = std::env::var("REDIS_URL") {
+                    if let Ok(client) = redis::Client::open(redis_url) {
+                        if let Ok(mut conn) = client.get_async_connection().await {
+                            let _: Result<(), _> = conn.rpush("jobs", j.id.to_string()).await;
+                        } else {
+                            log::error!("Failed to connect to Redis to queue job {}.", j.id);
+                        }
+                    } else {
+                        log::error!("Failed to open Redis client to queue job {}.", j.id);
+                    }
+                } else {
+                    log::warn!("REDIS_URL not set, job {} not queued via Redis.", j.id);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to create analysis job for document {}: {:?}", created_document.id, e);
+                cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+                return HttpResponse::InternalServerError()
+                    .json(serde_json::json!({"error": "Failed to queue analysis job."}));
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(created_document)
+}
+
+/// Configure Actix routes for document-related endpoints.
+pub fn routes(cfg: &mut web::ServiceConfig) {
+    cfg.service(upload);
+}
+
