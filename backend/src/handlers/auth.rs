@@ -1,4 +1,4 @@
-use actix_web::{post, get, web, HttpResponse};
+use actix_web::{post, get, web, HttpResponse, http::StatusCode, ResponseError};
 use crate::error::ApiError;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -167,8 +167,8 @@ pub async fn login(
 async fn confirm(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
     match User::confirm(&pool, *path).await {
         Ok(Some(_)) => HttpResponse::Ok().finish(),
-        Ok(None) => HttpResponse::BadRequest().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Ok(None) => ApiError::new("Invalid token", StatusCode::BAD_REQUEST).error_response(),
+        Err(_) => ApiError::new("Failed to confirm", StatusCode::INTERNAL_SERVER_ERROR).error_response(),
     }
 }
 
@@ -192,12 +192,12 @@ async fn reset_password(data: web::Json<ResetInput>, pool: web::Data<PgPool>) ->
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = match Argon2::default().hash_password(data.password.as_bytes(), &salt) {
         Ok(ph) => ph.to_string(),
-        Err(_) => return HttpResponse::InternalServerError().finish(),
+        Err(_) => return ApiError::new("Password hashing failed", StatusCode::INTERNAL_SERVER_ERROR).error_response(),
     };
     match User::reset_with_token(&pool, data.token, password_hash).await {
         Ok(true) => HttpResponse::Ok().finish(),
-        Ok(false) => HttpResponse::BadRequest().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Ok(false) => ApiError::new("Invalid token", StatusCode::BAD_REQUEST).error_response(),
+        Err(_) => ApiError::new("Failed to reset password", StatusCode::INTERNAL_SERVER_ERROR).error_response(),
     }
 }
 

@@ -46,6 +46,8 @@ async fn test_reject_missing_stage_type() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -66,6 +68,8 @@ async fn test_reject_empty_pipeline_name() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -143,6 +147,8 @@ async fn test_update_pipeline_other_org_unauthorized() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -211,6 +217,8 @@ async fn test_delete_pipeline_other_org_unauthorized() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -234,6 +242,8 @@ async fn test_reject_duplicate_stage_ids() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 

@@ -78,6 +78,8 @@ async fn test_get_organization_users_as_unauthorized_user() {
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -159,6 +161,8 @@ async fn test_remove_user_from_organization_unauthorized() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -210,4 +214,6 @@ async fn test_resend_confirmation_email_org_user_unauthorized() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }

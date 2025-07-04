@@ -1,4 +1,5 @@
-use actix_web::{web, get, post, put, delete, HttpResponse};
+use actix_web::{web, get, post, put, delete, HttpResponse, http::StatusCode, ResponseError};
+use crate::error::ApiError;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -204,7 +205,8 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
 #[get("/pipelines/{org_id}")]
 async fn list_pipelines(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
     if *path != user.org_id {
-        return HttpResponse::Unauthorized().finish();
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
     }
     match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE org_id=$1")
         .bind(*path)
@@ -212,7 +214,8 @@ async fn list_pipelines(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<P
         .await
     {
         Ok(list) => HttpResponse::Ok().json(list),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(_) => ApiError::new("Failed to list pipelines", StatusCode::INTERNAL_SERVER_ERROR)
+            .error_response(),
     }
 }
 
@@ -231,12 +234,19 @@ async fn update_pipeline(
         .await
     {
         Ok(p) => p,
-        Err(sqlx::Error::RowNotFound) => return HttpResponse::NotFound().finish(),
-        Err(_) => return HttpResponse::InternalServerError().finish(),
+        Err(sqlx::Error::RowNotFound) => {
+            return ApiError::new("Pipeline not found", StatusCode::NOT_FOUND)
+                .error_response();
+        }
+        Err(_) => {
+            return ApiError::new("Failed to fetch pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response();
+        }
     };
 
     if user.role != "admin" && existing.org_id != user.org_id {
-        return HttpResponse::Unauthorized().finish();
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
     }
 
     if data.org_id != existing.org_id {
@@ -252,7 +262,8 @@ async fn update_pipeline(
 
     match Pipeline::update(&pool, pipeline_id, &data.name, data.stages.clone()).await {
         Ok(p) => HttpResponse::Ok().json(p),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(_) => ApiError::new("Failed to update pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+            .error_response(),
     }
 }
 
@@ -266,17 +277,25 @@ async fn delete_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<
         .await
     {
         Ok(p) => p,
-        Err(sqlx::Error::RowNotFound) => return HttpResponse::NotFound().finish(),
-        Err(_) => return HttpResponse::InternalServerError().finish(),
+        Err(sqlx::Error::RowNotFound) => {
+            return ApiError::new("Pipeline not found", StatusCode::NOT_FOUND)
+                .error_response();
+        }
+        Err(_) => {
+            return ApiError::new("Failed to fetch pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response();
+        }
     };
 
     if user.role != "admin" && existing.org_id != user.org_id {
-        return HttpResponse::Unauthorized().finish();
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
     }
 
     match Pipeline::delete(&pool, pipeline_id).await {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(_) => ApiError::new("Failed to delete pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+            .error_response(),
     }
 }
 
