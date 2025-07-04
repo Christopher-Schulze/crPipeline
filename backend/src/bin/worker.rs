@@ -10,7 +10,7 @@ use backend::worker::{self, Stage};
 use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 use backend::config::WorkerConfig;
@@ -143,6 +143,22 @@ async fn run_stages(
         }
     }
     Ok(())
+}
+
+async fn remove_with_retry(path: &Path, job_id: Uuid, desc: &str) {
+    const ATTEMPTS: u8 = 2;
+    for attempt in 1..=ATTEMPTS {
+        match tokio::fs::remove_file(path).await {
+            Ok(_) => return,
+            Err(e) if attempt < ATTEMPTS => {
+                warn!(job_id=%job_id, path=?path, attempt, "Failed to remove {}: {:?}, retrying", desc, e);
+                sleep(Duration::from_millis(100 * attempt as u64)).await;
+            }
+            Err(e) => {
+                error!(job_id=%job_id, path=?path, "Failed to remove {}: {:?}", desc, e);
+            }
+        }
+    }
 }
 
 #[tokio::main]
@@ -288,12 +304,10 @@ async fn main() -> Result<()> {
         }
 
         if local.exists() {
-            if let Err(e) = tokio::fs::remove_file(&local).await {
-                warn!(job_id=%job.id, path=?local, "Failed to clean up input PDF: {:?}", e);
-            }
+            remove_with_retry(&local, job.id, "input PDF").await;
         }
         if txt_path.exists() {
-            let _ = tokio::fs::remove_file(&txt_path).await;
+            remove_with_retry(&txt_path, job.id, "text file").await;
         }
 
         if process_once || shutdown_during {

@@ -94,6 +94,10 @@ async fn ocr_error_marks_failed() {
     let _ = shutdown.send(());
 
     let job = AnalysisJob::find(&pool, job.id).await.unwrap();
+    let pdf_tmp = std::env::temp_dir().join(format!("{}-input.pdf", job.id));
+    let txt_tmp = pdf_tmp.with_extension("txt");
+    assert!(!pdf_tmp.exists());
+    assert!(!txt_tmp.exists());
     assert_eq!(job.status, "failed");
     let log_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_logs WHERE org_id=$1")
         .bind(org_id)
@@ -173,6 +177,10 @@ async fn ai_invalid_json_marks_failed() {
     let _ = shutdown.send(());
 
     let job = AnalysisJob::find(&pool, job.id).await.unwrap();
+    let pdf_tmp = std::env::temp_dir().join(format!("{}-input.pdf", job.id));
+    let txt_tmp = pdf_tmp.with_extension("txt");
+    assert!(!pdf_tmp.exists());
+    assert!(!txt_tmp.exists());
     assert_eq!(job.status, "failed");
     let log_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_logs WHERE org_id=$1")
         .bind(org_id)
