@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use crate::middleware::auth::AuthUser;
 use crate::models::User as UserModel;
-use crate::email::send_email;
+use crate::email::send_email_retry;
 
 #[derive(Deserialize, Debug)]
 pub struct AssignRolePayload {
@@ -312,7 +312,7 @@ Please confirm this new email address by clicking the link below:
 If you did not request this change, please contact support immediately."#,
                         trimmed_new_email, confirmation_link);
 
-                    if let Err(e) = send_email(trimmed_new_email, email_subject, &email_body).await {
+                    if let Err(e) = send_email_retry(&pool, current_admin_user.org_id, current_admin_user.user_id, trimmed_new_email, email_subject, &email_body, 3).await {
                         log::error!("Failed to send confirmation email to new address {}: {:?}", trimmed_new_email, e);
                         return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Profile email updated, but failed to send confirmation to new email. User must confirm via other means or contact support."}));
                     }
@@ -372,7 +372,7 @@ pub async fn resend_confirmation_email(
                 "Hello {},\n\nPlease confirm your email by clicking the link below:\n{}\n",
                 target_user.email, confirmation_link
             );
-            if let Err(e) = send_email(&target_user.email, subject, &body).await {
+            if let Err(e) = send_email_retry(&pool, admin.org_id, admin.user_id, &target_user.email, subject, &body, 3).await {
                 log::error!("Failed to send confirmation email to {}: {:?}", target_user.email, e);
                 HttpResponse::InternalServerError().json(serde_json::json!({"error": "Token updated but email failed."}))
             } else {

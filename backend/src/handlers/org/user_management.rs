@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use crate::middleware::auth::AuthUser;
 use crate::models::User as UserModel;
-use crate::email::send_email;
+use crate::email::send_email_retry;
 
 #[derive(Serialize, FromRow, Debug)]
 pub struct OrgUserView {
@@ -241,7 +241,7 @@ The crPipeline Team"#,
                         target_user.email, org_name, confirmation_link
                     );
 
-                    if let Err(e) = send_email(&target_user.email, &email_subject, &email_body).await {
+                    if let Err(e) = send_email_retry(&pool, org_admin.org_id, org_admin.user_id, &target_user.email, &email_subject, &email_body, 3).await {
                         log::error!("Failed to resend confirmation email to {} (user {}) by org_admin {}: {:?}", target_user.email, target_user_id, org_admin.user_id, e);
                         HttpResponse::InternalServerError().json(serde_json::json!({"error": "Confirmation token updated, but failed to send email."}))
                     } else {

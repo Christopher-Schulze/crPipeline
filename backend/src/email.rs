@@ -31,3 +31,36 @@ pub async fn send_email(to: &str, subject: &str, body: &str) -> anyhow::Result<(
     }
     Ok(())
 }
+
+use crate::utils::log_action;
+use sqlx::PgPool;
+use uuid::Uuid;
+use tokio::time::{sleep, Duration};
+
+/// Send an email with simple retry logic. If all attempts fail an audit log entry is created.
+pub async fn send_email_retry(
+    pool: &PgPool,
+    org_id: Uuid,
+    user_id: Uuid,
+    to: &str,
+    subject: &str,
+    body: &str,
+    max_retries: u32,
+) -> anyhow::Result<()> {
+    let mut attempt = 0;
+    loop {
+        match send_email(to, subject, body).await {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                attempt += 1;
+                log::warn!("Email send attempt {} failed for {}: {:?}", attempt, to, e);
+                if attempt >= max_retries {
+                    log::error!("Giving up sending email to {} after {} attempts", to, attempt);
+                    log_action(pool, org_id, user_id, &format!("email_failure:{}:{}", to, subject)).await;
+                    return Err(e);
+                }
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
