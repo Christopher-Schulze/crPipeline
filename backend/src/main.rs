@@ -9,7 +9,11 @@ use std::env;
 use backend::config::AppConfig;
 
 use backend::handlers;
-use backend::middleware::{jwt::init_jwt_secret, rate_limit::RateLimit};
+use backend::middleware::{
+    jwt::init_jwt_secret,
+    rate_limit::RateLimit,
+    csrf_check::{CsrfCheck, init_csrf_token},
+};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -22,6 +26,7 @@ async fn main() -> std::io::Result<()> {
     };
     std::env::set_var("JWT_SECRET", &config.jwt_secret);
     init_jwt_secret();
+    init_csrf_token();
     tracing_subscriber::fmt::init();
 
     let database_url = config.database_url;
@@ -52,6 +57,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(cors)
             .wrap(RateLimit)
+            .wrap(CsrfCheck)
             .wrap(prometheus.clone())
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(s3_client.clone()))
