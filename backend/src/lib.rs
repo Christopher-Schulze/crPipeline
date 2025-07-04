@@ -6,3 +6,4 @@ pub mod processing;
 pub mod email;
 pub mod worker;
 pub mod config;
+pub mod error;
