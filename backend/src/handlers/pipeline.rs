@@ -197,7 +197,8 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
         Ok(p) => HttpResponse::Ok().json(p),
         Err(e) => {
             log::error!("Failed to create pipeline for org_id {}: {:?}", data.org_id, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to create pipeline."}))
+            ApiError::new("Failed to create pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response()
         }
     }
 }
