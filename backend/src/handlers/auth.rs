@@ -1,4 +1,5 @@
 use actix_web::{post, get, web, HttpResponse};
+use crate::error::ApiError;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use crate::models::{User, NewUser};
@@ -86,24 +87,36 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
 pub struct LoginInput { pub email: String, pub password: String }
 
 #[post("/login")]
-pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn login(
+    data: web::Json<LoginInput>,
+    pool: web::Data<PgPool>,
+) -> Result<HttpResponse, ApiError> {
     match User::find_by_email(&pool, &data.email).await {
         Ok(user) => {
             if !user.is_active {
                 log::warn!("Login attempt for deactivated user: {}", data.email);
-                return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Your account has been deactivated. Please contact an administrator."}));
+                return Err(ApiError::new(
+                    "Your account has been deactivated. Please contact an administrator.",
+                    actix_web::http::StatusCode::UNAUTHORIZED,
+                ));
             }
             if user.verify_password(&data.password) {
                 if !user.confirmed {
                      log::warn!("Login attempt for unconfirmed user: {}", data.email);
-                     return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Account not confirmed. Please check your email or contact an administrator to resend confirmation."}));
+                     return Err(ApiError::new(
+                        "Account not confirmed. Please check your email or contact an administrator to resend confirmation.",
+                        actix_web::http::StatusCode::UNAUTHORIZED,
+                    ));
                 }
 
                 let token = match create_jwt(user.id, user.org_id, &user.role) {
                     Ok(t) => t,
                     Err(e) => {
                         log::error!("Failed to create JWT for {}: {:?}", user.email, e);
-                        return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Login failed"}));
+                        return Err(ApiError::new(
+                            "Login failed",
+                            actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        ));
                     }
                 }; // JWT has 24h expiry
 
@@ -124,19 +137,28 @@ pub async fn login(data: web::Json<LoginInput>, pool: web::Data<PgPool>) -> Http
                 let cookie = cookie_builder.finish();
 
                 log::info!("User {} logged in successfully. Secure cookie: {}", user.email, secure_cookie);
-                HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true })
+                return Ok(HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true }));
             } else {
                 log::warn!("Failed login attempt for user: {} (invalid password)", data.email);
-                HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid email or password."}))
+                return Err(ApiError::new(
+                    "Invalid email or password.",
+                    actix_web::http::StatusCode::UNAUTHORIZED,
+                ));
             }
         }
         Err(sqlx::Error::RowNotFound) => {
             log::warn!("Failed login attempt: User {} not found.", data.email);
-            HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid email or password."}))
+            Err(ApiError::new(
+                "Invalid email or password.",
+                actix_web::http::StatusCode::UNAUTHORIZED,
+            ))
         }
         Err(e) => {
             log::error!("Database error during login for user {}: {:?}", data.email, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Login failed due to a server error."}))
+            Err(ApiError::new(
+                "Login failed due to a server error.",
+                actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ))
         }
     }
 }
