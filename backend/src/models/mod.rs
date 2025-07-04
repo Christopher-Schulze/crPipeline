@@ -9,7 +9,7 @@ pub mod user; // Added new module
 
 pub use analysis_job::{AnalysisJob, JobWithNames, NewAnalysisJob};
 pub use audit_log::{AuditLog, NewAuditLog};
-pub use document::{Document, NewDocument};
+pub use document::{Document, NewDocument, DocumentError};
 pub use job_stage_output::{JobStageOutput, NewJobStageOutput};
 pub use organization::{NewOrganization, Organization};
 pub use pipeline::{NewPipeline, Pipeline};

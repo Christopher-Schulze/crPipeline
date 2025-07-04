@@ -6,7 +6,7 @@ use aws_sdk_s3::presigning::PresigningConfig;
 use redis::AsyncCommands;
 use uuid::Uuid;
 use lopdf::Document as PdfDoc;
-use crate::models::{Document, NewDocument, AnalysisJob, NewAnalysisJob, OrgSettings};
+use crate::models::{Document, NewDocument, AnalysisJob, NewAnalysisJob, OrgSettings, DocumentError};
 use crate::utils::log_action;
 use crate::middleware::auth::AuthUser;
 use sqlx::PgPool;
@@ -208,7 +208,12 @@ pub async fn upload(
 
     let created_document = match Document::create(&pool, doc_to_create).await {
         Ok(d) => d,
-        Err(e) => {
+        Err(DocumentError::SanitizationFailed) => {
+            log::warn!("Rejected unsafe filename during document creation: {}", s3_key_name);
+            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+            return HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid filename."}));
+        }
+        Err(DocumentError::Sqlx(e)) => {
             log::error!("Failed to create document record for S3 key {}: {:?}", s3_key_name, e);
             cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
             return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to save document information."}));
