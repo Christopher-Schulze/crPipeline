@@ -1,5 +1,6 @@
 use crate::middleware::auth::AuthUser;
 use crate::models::OrgSettings;
+
 use crate::error::ApiError;
 use actix_web::{get, post, web, HttpResponse, http::StatusCode, ResponseError};
 use sqlx::PgPool;

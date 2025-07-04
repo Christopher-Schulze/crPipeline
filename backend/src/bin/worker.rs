@@ -14,6 +14,7 @@ use std::{
 use backend::config::WorkerConfig;
 use tokio::process::Command;
 use tokio::time::sleep;
+use tokio::signal;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -162,12 +163,41 @@ async fn main() -> Result<()> {
     let process_once = cfg.process_one_job;
     spawn_metrics_server(cfg.metrics_port);
 
-    loop {
-        let (_queue, job_id_str): (String, String) = redis::cmd("BLPOP")
-            .arg("jobs")
-            .arg(0)
-            .query_async(&mut conn)
-            .await?;
+    let idle_duration = cfg.shutdown_after_idle.map(|m| Duration::from_secs(m * 60));
+    let mut last_activity = Instant::now();
+    let blpop_timeout = if idle_duration.is_some() { 60 } else { 0 };
+
+    let mut shutdown_signal = signal::ctrl_c();
+    tokio::pin!(shutdown_signal);
+
+    'outer: loop {
+        let mut cmd = redis::cmd("BLPOP");
+        cmd.arg("jobs").arg(blpop_timeout);
+        let job: Option<(String, String)> = tokio::select! {
+            _ = &mut shutdown_signal => {
+                info!("Shutdown signal received");
+                break 'outer;
+            }
+            res = cmd.query_async::<_, Option<(String, String)>>(&mut conn) => {
+                res?
+            }
+        };
+
+        let ( _queue, job_id_str) = match job {
+            Some(v) => {
+                last_activity = Instant::now();
+                v
+            },
+            None => {
+                if let Some(d) = idle_duration {
+                    if last_activity.elapsed() >= d {
+                        info!("Idle timeout reached, shutting down");
+                        break 'outer;
+                    }
+                }
+                continue;
+            }
+        };
         let job_id = match Uuid::parse_str(&job_id_str) {
             Ok(id) => id,
             Err(_) => continue,
@@ -213,7 +243,8 @@ async fn main() -> Result<()> {
         let mut txt_path = local.clone();
         txt_path.set_extension("txt");
 
-        let result = run_stages(
+        let mut shutdown_during = false;
+        let stage_future = run_stages(
             &pool,
             &s3_client,
             &job,
@@ -223,8 +254,16 @@ async fn main() -> Result<()> {
             &bucket,
             &local,
             &txt_path,
-        )
-        .await;
+        );
+        tokio::pin!(stage_future);
+        let result = tokio::select! {
+            _ = &mut shutdown_signal => {
+                info!("Shutdown signal received, waiting for current job to finish");
+                shutdown_during = true;
+                stage_future.await
+            }
+            res = &mut stage_future => res
+        };
 
         match result {
             Ok(_) => {
@@ -248,9 +287,10 @@ async fn main() -> Result<()> {
             let _ = tokio::fs::remove_file(&txt_path).await;
         }
 
-        if process_once {
+        if process_once || shutdown_during {
             break;
         }
     }
+    let _ = redis::cmd("QUIT").query_async::<_, ()>(&mut conn).await;
     Ok(())
 }

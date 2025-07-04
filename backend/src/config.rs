@@ -28,6 +28,7 @@ pub struct WorkerConfig {
     pub s3_bucket: String,
     pub process_one_job: bool,
     pub metrics_port: u16,
+    pub shutdown_after_idle: Option<u64>,
 }
 
 impl WorkerConfig {
@@ -38,7 +39,8 @@ impl WorkerConfig {
         let s3_bucket = env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
         let process_one_job = env::var("PROCESS_ONE_JOB").is_ok();
         let metrics_port = env::var("METRICS_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(9100);
-        Ok(Self { database_url, redis_url, s3_bucket, process_one_job, metrics_port })
+        let shutdown_after_idle = env::var("SHUTDOWN_AFTER_IDLE").ok().and_then(|v| v.parse().ok());
+        Ok(Self { database_url, redis_url, s3_bucket, process_one_job, metrics_port, shutdown_after_idle })
     }
 }
 
