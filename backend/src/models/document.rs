@@ -4,6 +4,21 @@ use uuid::Uuid;
 use chrono::DateTime;
 use chrono::Utc;
 
+/// Errors that can occur when creating a document.
+#[derive(Debug)]
+pub enum DocumentError {
+    /// The provided filename failed sanitization.
+    SanitizationFailed,
+    /// Underlying database error.
+    Sqlx(sqlx::Error),
+}
+
+impl From<sqlx::Error> for DocumentError {
+    fn from(e: sqlx::Error) -> Self {
+        DocumentError::Sqlx(e)
+    }
+}
+
 /// Stored PDF document belonging to an organization.
 /// `filename` is the sanitized S3 key and `display_name` keeps the original name.
 #[derive(Serialize, FromRow, Debug, Clone)]
@@ -35,12 +50,12 @@ pub struct NewDocument {
 
 impl Document {
     /// Insert a new document and return the created row.
-    pub async fn create(pool: &PgPool, new: NewDocument) -> sqlx::Result<Document> {
+    pub async fn create(pool: &PgPool, new: NewDocument) -> Result<Document, DocumentError> {
         let sanitized = sanitize_filename::sanitize(&new.filename);
         if sanitized != new.filename {
-            return Err(sqlx::Error::RowNotFound);
+            return Err(DocumentError::SanitizationFailed);
         }
-        sqlx::query_as::<_, Document>(
+        let doc = sqlx::query_as::<_, Document>(
             "INSERT INTO documents (id, org_id, owner_id, filename, pages, is_target, expires_at, display_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *"
         )
         .bind(Uuid::new_v4())
@@ -52,6 +67,7 @@ impl Document {
         .bind(new.expires_at)
         .bind(new.display_name) // Original user-provided filename
         .fetch_one(pool)
-        .await
+        .await?;
+        Ok(doc)
     }
 }
