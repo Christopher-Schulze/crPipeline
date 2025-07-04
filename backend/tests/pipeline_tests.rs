@@ -246,6 +246,50 @@ async fn test_reject_duplicate_stage_ids() {
     assert!(body.get("error").is_some());
 }
 
+#[actix_rt::test]
+async fn test_reject_invalid_command_type() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Cmd Org").await;
+    let user_id = create_user(&pool, org_id, "cmd@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let payload = json!({
+        "org_id": org_id,
+        "name": "CmdPipe",
+        "stages": [{"type": "ocr", "command": 123}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
+}
+
+#[actix_rt::test]
+async fn test_reject_external_ocr_without_endpoint() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Ocr Org").await;
+    let user_id = create_user(&pool, org_id, "ocr@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let payload = json!({
+        "org_id": org_id,
+        "name": "OcrPipe",
+        "stages": [{"type": "ocr", "ocr_engine": "external"}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
+}
+
 
 #[actix_rt::test]
 async fn test_post_api_pipelines() {
