@@ -3,7 +3,9 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
 use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
 use backend::processing;
-use backend::worker::metrics::{spawn_metrics_server, JOB_COUNTER, STAGE_HISTOGRAM};
+use backend::worker::metrics::{
+    spawn_metrics_server, JOB_COUNTER, OCR_HISTOGRAM, STAGE_HISTOGRAM,
+};
 use backend::worker::{self, Stage};
 use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -37,6 +39,8 @@ async fn run_stages(
         let mut break_after = false;
         let stage_result: Result<(), anyhow::Error> = match stage.stage_type.as_str() {
             "ocr" => {
+                let engine = stage.ocr_engine.as_deref().unwrap_or("local");
+                let ocr_start = Instant::now();
                 if worker::ocr::handle_ocr_stage(
                     pool,
                     s3_client,
@@ -47,9 +51,14 @@ async fn run_stages(
                     local,
                     txt_path,
                 )
-                .await? {
+                .await?
+                {
                     break_after = true;
                 }
+                let ocr_elapsed = ocr_start.elapsed().as_secs_f64();
+                OCR_HISTOGRAM
+                    .with_label_values(&[engine])
+                    .observe(ocr_elapsed);
                 Ok(())
             }
             "parse" => {

@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use aws_sdk_s3::Client as S3Client;
+use crate::worker::metrics::S3_ERROR_COUNTER;
 use printpdf::*;
 use regex::Regex; // For new parse stage
 use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
@@ -32,8 +33,20 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
         return Ok(());
     }
 
-    let obj = s3.get_object().bucket(bucket).key(key).send().await?;
-    let bytes = obj.body.collect().await?.into_bytes();
+    let obj = match s3.get_object().bucket(bucket).key(key).send().await {
+        Ok(o) => o,
+        Err(e) => {
+            S3_ERROR_COUNTER.with_label_values(&["download"]).inc();
+            return Err(e.into());
+        }
+    };
+    let bytes = match obj.body.collect().await {
+        Ok(b) => b.into_bytes(),
+        Err(e) => {
+            S3_ERROR_COUNTER.with_label_values(&["download"]).inc();
+            return Err(e.into());
+        }
+    };
     tokio::fs::write(path, bytes).await?;
     Ok(())
 }

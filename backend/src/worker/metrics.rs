@@ -21,6 +21,23 @@ pub static JOB_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
     counter
 });
 
+pub static S3_ERROR_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
+    let opts = prometheus::Opts::new("s3_errors_total", "Total number of S3 errors");
+    let counter = IntCounterVec::new(opts, &["operation"]).unwrap();
+    REGISTRY.register(Box::new(counter.clone())).unwrap();
+    counter
+});
+
+pub static OCR_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
+    let opts = prometheus::HistogramOpts::new(
+        "ocr_duration_seconds",
+        "Time spent performing OCR",
+    );
+    let hist = HistogramVec::new(opts, &["engine"]).unwrap();
+    REGISTRY.register(Box::new(hist.clone())).unwrap();
+    hist
+});
+
 async fn metrics() -> HttpResponse {
     let encoder = TextEncoder::new();
     let metric_families = REGISTRY.gather();
