@@ -60,8 +60,8 @@ async fn get_settings(
                 org_id_from_path,
                 e
             );
-            HttpResponse::InternalServerError()
-                .json(serde_json::json!({"error": "Failed to retrieve settings."}))
+            ApiError::new("Failed to retrieve settings", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response()
         }
     }
 }
@@ -110,7 +110,11 @@ async fn update_settings(
                 incoming_settings.org_id,
                 e
             );
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not retrieve current settings to safely update API keys."}));
+            return ApiError::new(
+                "Could not retrieve current settings to safely update API keys",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response();
         }
     };
 
@@ -174,8 +178,8 @@ async fn update_settings(
                 current_settings.org_id,
                 e
             );
-            HttpResponse::InternalServerError()
-                .json(serde_json::json!({"error": "Failed to update settings."}))
+            ApiError::new("Failed to update settings", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response()
         }
     }
 }
