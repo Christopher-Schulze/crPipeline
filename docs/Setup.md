@@ -47,3 +47,5 @@ After the first migration you can seed an admin user (role `admin`) with the fol
 cargo run --bin create_admin -- email@example.com password
 ```
 
+Run `scripts/seed_demo.sh` afterwards to insert example documents stored under `LOCAL_S3_DIR`. The script requires `psql` on your `PATH`.
+
