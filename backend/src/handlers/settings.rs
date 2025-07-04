@@ -1,7 +1,8 @@
 use crate::middleware::auth::AuthUser;
 use crate::models::OrgSettings;
-use actix_web::{get, post, web, HttpResponse, http::StatusCode, ResponseError};
+
 use crate::error::ApiError;
+use actix_web::{get, post, web, HttpResponse, http::StatusCode, ResponseError};
 use sqlx::PgPool;
 use url::Url;
 use uuid::Uuid;
