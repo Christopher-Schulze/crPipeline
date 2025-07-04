@@ -14,6 +14,144 @@ pub struct PipelineInput {
     pub stages: serde_json::Value,
 }
 
+fn validate_stages(stages: &serde_json::Value) -> Result<(), HttpResponse> {
+    if let Some(stages_array) = stages.as_array() {
+        if stages_array.is_empty() {
+            return Err(HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline must have at least one stage."})));
+        }
+        let mut seen_ids = HashSet::new();
+        for (index, stage_val) in stages_array.iter().enumerate() {
+            if let Some(stage_obj) = stage_val.as_object() {
+                if let Some(id_val) = stage_obj.get("id").and_then(|v| v.as_str()) {
+                    if !seen_ids.insert(id_val.to_string()) {
+                        return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                            "error": format!("Duplicate stage id '{}'", id_val)
+                        })));
+                    }
+                }
+                let stage_type_str: String;
+                if let Some(type_val) = stage_obj.get("type") {
+                    if let Some(s) = type_val.as_str() {
+                        if s.trim().is_empty() {
+                            return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                "error": format!("Stage {} 'type' cannot be empty.", index)
+                            })));
+                        }
+                        stage_type_str = s.trim().to_lowercase();
+                    } else {
+                        return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                            "error": format!("Stage {} 'type' must be a string.", index)
+                        })));
+                    }
+                } else {
+                    return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": format!("Stage {} must have a 'type' field.", index)
+                    })));
+                }
+
+                if let Some(command_val) = stage_obj.get("command") {
+                    if command_val.is_null() {
+                    } else if let Some(command_str) = command_val.as_str() {
+                        if command_str.trim().is_empty() {
+                            return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                "error": format!("Stage {} 'command', if present and not null, cannot be empty.", index)
+                            })));
+                        }
+                    } else {
+                        return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                            "error": format!("Stage {} 'command' must be a string or null.", index)
+                        })));
+                    }
+                }
+
+                match stage_type_str.as_str() {
+                    "ai" => {
+                        if let Some(prompt_name_val) = stage_obj.get("prompt_name") {
+                            if !prompt_name_val.is_string() && !prompt_name_val.is_null() {
+                                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                    "error": format!("Stage {} (AI): 'prompt_name' must be a string or null.", index)
+                                })));
+                            }
+                            if let Some(s) = prompt_name_val.as_str() {
+                                if s.trim().is_empty() {
+                                    return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                        "error": format!("Stage {} (AI): 'prompt_name', if a string, cannot be empty.", index)
+                                    })));
+                                }
+                            }
+                        }
+                    }
+                    "ocr" => {
+                        if let Some(engine_val) = stage_obj.get("ocr_engine") {
+                            if !engine_val.is_null() {
+                                if let Some(engine_str) = engine_val.as_str() {
+                                    if engine_str != "default" && engine_str != "external" {
+                                        return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                            "error": format!("Stage {} (OCR): 'ocr_engine' must be 'default', 'external', or null.", index)
+                                        })));
+                                    }
+                                    if engine_str == "external" {
+                                        if let Some(endpoint_val) = stage_obj.get("ocr_stage_endpoint") {
+                                            if let Some(endpoint_str) = endpoint_val.as_str() {
+                                                if endpoint_str.trim().is_empty() {
+                                                    return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                                        "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' must be a non-empty string when ocr_engine is 'external'.", index)
+                                                    })));
+                                                }
+                                            } else {
+                                                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                                    "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' must be a non-empty string when ocr_engine is 'external'.", index)
+                                                })));
+                                            }
+                                        } else {
+                                            return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                                "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' is required when ocr_engine is 'external'.", index)
+                                            })));
+                                        }
+                                        if let Some(key_val) = stage_obj.get("ocr_stage_key") {
+                                            if !key_val.is_string() && !key_val.is_null() {
+                                                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                                    "error": format!("Stage {} (OCR): 'ocr_stage_key' for external engine must be a string or null.", index)
+                                                })));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                        "error": format!("Stage {} (OCR): 'ocr_engine' must be a string or null.", index)
+                                    })));
+                                }
+                            }
+                        }
+                        if stage_obj.get("ocr_engine").as_ref().map_or(true, |v| v.as_str() != Some("external")) {
+                            if stage_obj.contains_key("ocr_stage_endpoint") || stage_obj.contains_key("ocr_stage_key") {
+                                if stage_obj.get("ocr_engine").is_none() || stage_obj.get("ocr_engine").and_then(|v| v.as_str()) == Some("default") {
+                                }
+                            }
+                        }
+                        if let Some(key_val) = stage_obj.get("ocr_stage_key") {
+                            if !key_val.is_string() && !key_val.is_null() {
+                                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                    "error": format!("Stage {} (OCR): 'ocr_stage_key' must be a string or null.", index)
+                                })));
+                            }
+                        }
+                    }
+                    "parse" | "report" => {}
+                    _ => {}
+                }
+            } else {
+                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": format!("Stage {} must be an object.", index)
+                })));
+            }
+        }
+    } else {
+        return Err(HttpResponse::BadRequest().json(serde_json::json!({"error": "'stages' must be an array."})));
+    }
+    Ok(())
+}
+
 #[post("/pipelines")]
 async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
     // Authorization: Global admin can create for any org_id specified in data.
@@ -30,160 +168,8 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
         return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
     }
 
-    // Validate stages
-    if let Some(stages_array) = data.stages.as_array() {
-        if stages_array.is_empty() {
-            return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline must have at least one stage."}));
-        }
-        let mut seen_ids = HashSet::new();
-        for (index, stage_val) in stages_array.iter().enumerate() {
-            if let Some(stage_obj) = stage_val.as_object() {
-                if let Some(id_val) = stage_obj.get("id").and_then(|v| v.as_str()) {
-                    if !seen_ids.insert(id_val.to_string()) {
-                        return HttpResponse::BadRequest().json(serde_json::json!({
-                            "error": format!("Duplicate stage id '{}'", id_val)
-                        }));
-                    }
-                }
-                // Check for 'type' field
-                let stage_type_str: String;
-                match stage_obj.get("type") {
-                    Some(type_val) => {
-                        if let Some(s) = type_val.as_str() {
-                            if s.trim().is_empty() {
-                                return HttpResponse::BadRequest().json(serde_json::json!({
-                                    "error": format!("Stage {} 'type' cannot be empty.", index)
-                                }));
-                            }
-                            stage_type_str = s.trim().to_lowercase();
-                        } else {
-                            return HttpResponse::BadRequest().json(serde_json::json!({
-                                "error": format!("Stage {} 'type' must be a string.", index)
-                            }));
-                        }
-                    }
-                    None => {
-                        return HttpResponse::BadRequest().json(serde_json::json!({
-                            "error": format!("Stage {} must have a 'type' field.", index)
-                        }));
-                    }
-                }
-
-                // Check for 'command' field (if present)
-                if let Some(command_val) = stage_obj.get("command") {
-                    if command_val.is_null() {
-                        // Explicit null is allowed for command (means use default behavior for stage type)
-                    } else if let Some(command_str) = command_val.as_str() {
-                        if command_str.trim().is_empty() {
-                            return HttpResponse::BadRequest().json(serde_json::json!({
-                                "error": format!("Stage {} 'command', if present and not null, cannot be empty.", index)
-                            }));
-                        }
-                    } else {
-                        // 'command' is present, not null, but not a string
-                        return HttpResponse::BadRequest().json(serde_json::json!({
-                            "error": format!("Stage {} 'command' must be a string or null.", index)
-                        }));
-                    }
-                }
-
-                // --- New Type-Specific Validations ---
-                match stage_type_str.as_str() {
-                    "ai" => {
-                        if let Some(prompt_name_val) = stage_obj.get("prompt_name") {
-                            if !prompt_name_val.is_string() && !prompt_name_val.is_null() {
-                                return HttpResponse::BadRequest().json(serde_json::json!({
-                                    "error": format!("Stage {} (AI): 'prompt_name' must be a string or null.", index)
-                                }));
-                            }
-                            if let Some(s) = prompt_name_val.as_str() {
-                                if s.trim().is_empty() {
-                                    return HttpResponse::BadRequest().json(serde_json::json!({
-                                         "error": format!("Stage {} (AI): 'prompt_name', if a string, cannot be empty.", index)
-                                    }));
-                                }
-                            }
-                        }
-                    }
-                    "ocr" => {
-                        if let Some(engine_val) = stage_obj.get("ocr_engine") {
-                            if !engine_val.is_null() {
-                                if let Some(engine_str) = engine_val.as_str() {
-                                    if engine_str != "default" && engine_str != "external" {
-                                        return HttpResponse::BadRequest().json(serde_json::json!({
-                                            "error": format!("Stage {} (OCR): 'ocr_engine' must be 'default', 'external', or null.", index)
-                                        }));
-                                    }
-                                    if engine_str == "external" {
-                                        match stage_obj.get("ocr_stage_endpoint") {
-                                            Some(endpoint_val) => {
-                                                if let Some(endpoint_str) = endpoint_val.as_str() {
-                                                    if endpoint_str.trim().is_empty() {
-                                                        return HttpResponse::BadRequest().json(serde_json::json!({
-                                                            "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' must be a non-empty string when ocr_engine is 'external'.", index)
-                                                        }));
-                                                    }
-                                                } else { // Not a string
-                                                    return HttpResponse::BadRequest().json(serde_json::json!({
-                                                        "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' must be a non-empty string when ocr_engine is 'external'.", index)
-                                                    }));
-                                                }
-                                            }
-                                            None => { // Not present
-                                                 return HttpResponse::BadRequest().json(serde_json::json!({
-                                                    "error": format!("Stage {} (OCR): 'ocr_stage_endpoint' is required when ocr_engine is 'external'.", index)
-                                                }));
-                                            }
-                                        }
-                                        // Validate ocr_stage_key if present
-                                        if let Some(key_val) = stage_obj.get("ocr_stage_key") {
-                                            if !key_val.is_string() && !key_val.is_null() {
-                                                return HttpResponse::BadRequest().json(serde_json::json!({
-                                                    "error": format!("Stage {} (OCR): 'ocr_stage_key' for external engine must be a string or null.", index)
-                                                }));
-                                            }
-                                        }
-                                    }
-                                } else { // ocr_engine is not a string (and not null)
-                                    return HttpResponse::BadRequest().json(serde_json::json!({
-                                        "error": format!("Stage {} (OCR): 'ocr_engine' must be a string or null.", index)
-                                    }));
-                                }
-                            }
-                        }
-                        // General check for ocr_stage_key if ocr_engine is not 'external' but key is provided
-                        // or if ocr_engine is not provided at all but key is.
-                        if stage_obj.get("ocr_engine").as_ref().map_or(true, |v| v.as_str() != Some("external")) {
-                             if stage_obj.contains_key("ocr_stage_endpoint") || stage_obj.contains_key("ocr_stage_key") {
-                                if stage_obj.get("ocr_engine").is_none() || stage_obj.get("ocr_engine").and_then(|v| v.as_str()) == Some("default") {
-                                     // Warn or error if endpoint/key are provided with default/missing engine?
-                                     // For now, let's be permissive: if engine isn't 'external', these fields are ignored by worker.
-                                     // However, if they are present and malformed, it's good to catch.
-                                }
-                             }
-                        }
-                         if let Some(key_val) = stage_obj.get("ocr_stage_key") {
-                            if !key_val.is_string() && !key_val.is_null() {
-                                 return HttpResponse::BadRequest().json(serde_json::json!({
-                                    "error": format!("Stage {} (OCR): 'ocr_stage_key' must be a string or null.", index)
-                                }));
-                            }
-                        }
-                    }
-                    "parse" | "report" => {
-                        // No specific fields to validate for these types yet beyond 'type' and 'command'
-                    }
-                    _ => { // Unknown stage types are currently permitted. Worker will ignore/fail.
-                    }
-                }
-            } else {
-                return HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": format!("Stage {} must be an object.", index)
-                }));
-            }
-        }
-    } else {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "'stages' must be an array."}));
+    if let Err(resp) = validate_stages(&data.stages) {
+        return resp;
     }
 
     // If validation passes, proceed to create the pipeline
@@ -257,8 +243,8 @@ async fn update_pipeline(
     if data.name.trim().is_empty() {
         return HttpResponse::BadRequest().json(serde_json::json!({"error": "Pipeline name cannot be empty."}));
     }
-    if !data.stages.is_array() {
-        return HttpResponse::BadRequest().json(serde_json::json!({"error": "'stages' must be an array."}));
+    if let Err(resp) = validate_stages(&data.stages) {
+        return resp;
     }
 
     match Pipeline::update(&pool, pipeline_id, &data.name, data.stages.clone()).await {
