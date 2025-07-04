@@ -111,6 +111,8 @@ async fn test_pdf_upload_bad_content_type() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE org_id=$1")
         .bind(org_id)
         .fetch_one(&pool)
@@ -155,6 +157,8 @@ async fn test_cleanup_on_failed_upload() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::INTERNAL_SERVER_ERROR);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
     assert_eq!(put_mock.received_requests().await.len(), 1);
     assert_eq!(delete_mock.received_requests().await.len(), 1);
 }

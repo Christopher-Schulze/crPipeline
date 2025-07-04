@@ -78,6 +78,8 @@ async fn test_update_settings_invalid_quota() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -103,6 +105,8 @@ async fn test_update_settings_invalid_ai_endpoint() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -128,4 +132,6 @@ async fn test_update_settings_invalid_ocr_endpoint() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }

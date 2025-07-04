@@ -43,6 +43,8 @@ async fn test_non_admin_cannot_assign_role() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -85,6 +87,8 @@ async fn test_assign_org_admin_with_invalid_org() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 // These tests require a PostgreSQL instance pointed to by `DATABASE_URL_TEST`.

@@ -1,6 +1,7 @@
 use crate::middleware::auth::AuthUser;
 use crate::models::{AnalysisJob, Document, JobStageOutput, Pipeline};
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, web, HttpResponse, http::StatusCode, ResponseError};
+use crate::error::ApiError;
 use actix_web_lab::sse::{self, ChannelStream, Sse};
 use aws_sdk_s3::presigning::PresigningConfig;
 use serde::Serialize;
@@ -34,7 +35,8 @@ struct JobDetailsResponse {
 async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
     match AnalysisJob::find_by_org(pool.as_ref(), *path).await {
         Ok(list) => HttpResponse::Ok().json(list),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(_) => ApiError::new("Failed to list jobs", StatusCode::INTERNAL_SERVER_ERROR)
+            .error_response(),
     }
 }
 

@@ -51,6 +51,8 @@ async fn test_admin_invite_invalid_email() {
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -71,6 +73,8 @@ async fn test_admin_invite_unauthorized() {
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }
 
 #[actix_rt::test]
@@ -93,4 +97,6 @@ async fn test_admin_invite_duplicate_email() {
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), actix_web::http::StatusCode::CONFLICT);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
 }

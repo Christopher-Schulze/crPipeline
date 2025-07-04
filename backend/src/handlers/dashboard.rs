@@ -1,4 +1,5 @@
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, web, HttpResponse, http::StatusCode, ResponseError};
+use crate::error::ApiError;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 use crate::middleware::auth::AuthUser;
@@ -20,11 +21,13 @@ struct RecentAnalysisJob {
 #[get("/dashboard/{org_id}")]
 async fn dashboard(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
     if *path != user.org_id {
-        return HttpResponse::Unauthorized().finish();
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
     }
     let settings = match OrgSettings::find(pool.as_ref(), *path).await {
         Ok(s) => s,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
+        Err(_) => return ApiError::new("Failed to fetch settings", StatusCode::INTERNAL_SERVER_ERROR)
+            .error_response(),
     };
     let (uploads,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM documents WHERE org_id=$1 AND is_target=true AND upload_date >= date_trunc('month', NOW())"
@@ -57,7 +60,8 @@ struct UsageItem {
 #[get("/dashboard/{org_id}/usage")]
 async fn usage(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
     if *path != user.org_id {
-        return HttpResponse::Unauthorized().finish();
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
     }
     let uploads_rows = sqlx::query(
         "SELECT to_char(date_trunc('month', upload_date), 'YYYY-MM') as month, COUNT(*) as count \
@@ -104,7 +108,8 @@ async fn get_recent_analyses(
     let org_id = *path;
     // Authorization check
     if org_id != user.org_id {
-        return HttpResponse::Unauthorized().finish();
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
     }
 
     let query = r#"
@@ -136,7 +141,8 @@ async fn get_recent_analyses(
         Ok(jobs) => HttpResponse::Ok().json(jobs),
         Err(e) => {
             log::error!("Failed to fetch recent analyses: {}", e);
-            HttpResponse::InternalServerError().finish()
+            ApiError::new("Failed to fetch recent analyses", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response()
         }
     }
 }
