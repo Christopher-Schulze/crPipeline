@@ -8,7 +8,10 @@ use wiremock::{MockServer, Mock, ResponseTemplate};
 use wiremock::matchers::method;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
-use backend::models::{NewDocument, Document};
+use backend::models::{NewDocument, Document, NewPipeline, Pipeline};
+use tokio::net::TcpListener;
+use tokio::sync::oneshot;
+use mini_redis::server;
 
 async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service<actix_http::Request, Response=actix_web::dev::ServiceResponse, Error=actix_web::Error>, PgPool) {
     dotenvy::dotenv().ok();
@@ -41,6 +44,14 @@ async fn setup_test_app(s3_server: &MockServer) -> (impl actix_web::dev::Service
             .configure(handlers::init)
     ).await;
     (app, pool)
+}
+
+async fn start_redis() -> (oneshot::Sender<()>, u16) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = oneshot::channel();
+    tokio::spawn(async move { let _ = server::run(listener, async { let _ = rx.await; }).await; });
+    (tx, port)
 }
 
 
@@ -181,4 +192,147 @@ async fn reject_dangerous_filename() {
     }).await;
 
     assert!(result.is_err());
+}
+
+#[actix_rt::test]
+async fn reject_when_upload_quota_exceeded() {
+    let s3_server = MockServer::start().await;
+    let put_mock = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount_as_scoped(&s3_server)
+        .await;
+
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Quota Org").await;
+    let user_id = create_user(&pool, org_id, "quota@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    sqlx::query("UPDATE org_settings SET monthly_upload_quota=1 WHERE org_id=$1")
+        .bind(org_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    Document::create(&pool, NewDocument {
+        org_id,
+        owner_id: user_id,
+        filename: "first.pdf".into(),
+        pages: 1,
+        is_target: true,
+        expires_at: None,
+        display_name: "first.pdf".into(),
+    }).await.unwrap();
+
+    let pdf = "%PDF-1.5\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF";
+    let boundary = "BOUNDARY";
+    let body = multipart_body(boundary, "exceed.pdf", "application/pdf", pdf);
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::TOO_MANY_REQUESTS);
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 1);
+    assert_eq!(put_mock.received_requests().await.len(), 0);
+}
+
+#[actix_rt::test]
+async fn reject_when_analysis_quota_exceeded() {
+    let (shutdown, port) = start_redis().await;
+    std::env::set_var("REDIS_URL", format!("redis://127.0.0.1:{}/", port));
+
+    let s3_server = MockServer::start().await;
+    let put_mock = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount_as_scoped(&s3_server)
+        .await;
+
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Anal Org").await;
+    let user_id = create_user(&pool, org_id, "anal@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    sqlx::query("UPDATE org_settings SET monthly_analysis_quota=0 WHERE org_id=$1")
+        .bind(org_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let stages = serde_json::json!([{"type":"ocr"}]);
+    let pipeline = Pipeline::create(&pool, NewPipeline { org_id, name: "P".into(), stages }).await.unwrap();
+
+    let pdf = "%PDF-1.5\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF";
+    let boundary = "BOUNDARY";
+    let body = multipart_body(boundary, "test.pdf", "application/pdf", pdf);
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/upload?org_id={}&pipeline_id={}&is_target=true", org_id, pipeline.id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::TOO_MANY_REQUESTS);
+
+    let docs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(docs.0, 1);
+    let jobs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM analysis_jobs WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(jobs.0, 0);
+
+    assert_eq!(put_mock.received_requests().await.len(), 1);
+    let _ = shutdown.send(());
+}
+
+#[actix_rt::test]
+async fn cleanup_on_s3_upload_failure() {
+    let s3_server = MockServer::start().await;
+    let put_mock = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount_as_scoped(&s3_server)
+        .await;
+    let delete_mock = Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(204))
+        .mount_as_scoped(&s3_server)
+        .await;
+
+    let (app, pool) = setup_test_app(&s3_server).await;
+    let org_id = create_org(&pool, "Fail Org").await;
+    let user_id = create_user(&pool, org_id, "fail@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+
+    let pdf = "%PDF-1.5\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF";
+    let boundary = "BOUNDARY";
+    let body = multipart_body(boundary, "test.pdf", "application/pdf", pdf);
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/upload?org_id={}&is_target=true", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .insert_header((header::CONTENT_TYPE, format!("multipart/form-data; boundary={}", boundary)))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::INTERNAL_SERVER_ERROR);
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 0);
+    assert_eq!(put_mock.received_requests().await.len(), 1);
+    assert_eq!(delete_mock.received_requests().await.len(), 0);
 }
