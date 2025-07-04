@@ -1,0 +1,515 @@
+openapi: 3.0.0
+info:
+  title: crPipeline API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8080/api
+paths:
+  /register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                org_id:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: User registered
+  /login:
+    post:
+      summary: Log in and receive authentication cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+  /me:
+    get:
+      summary: Get current user info
+      responses:
+        '200':
+          description: Current user
+  /confirm/{token}:
+    get:
+      summary: Confirm account by token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account confirmed
+  /request_reset:
+    post:
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Reset email sent
+  /reset_password:
+    post:
+      summary: Reset password using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Password changed
+  /orgs:
+    post:
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Organization created
+    get:
+      summary: List organizations visible to the user
+      responses:
+        '200':
+          description: List of organizations
+  /organizations/me/users:
+    get:
+      summary: List users in current organization
+      responses:
+        '200':
+          description: Organization users
+  /organizations/me/invite:
+    post:
+      summary: Invite a user to the organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Invitation sent
+  /organizations/me/users/{user_id}/remove:
+    post:
+      summary: Remove a user from organization
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User removed
+  /organizations/me/users/{user_id}/deactivate:
+    post:
+      summary: Deactivate a user in organization
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deactivated
+  /organizations/me/users/{user_id}/reactivate:
+    post:
+      summary: Reactivate a user in organization
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User reactivated
+  /organizations/me/users/{user_id}/resend_confirmation:
+    post:
+      summary: Resend confirmation email to user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email resent
+  /upload:
+    post:
+      summary: Upload document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Document uploaded
+  /pipelines:
+    post:
+      summary: Create a pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                org_id:
+                  type: string
+                name:
+                  type: string
+                stages:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Pipeline created
+  /pipelines/{org_id}:
+    get:
+      summary: List pipelines of an organization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of pipelines
+  /pipelines/{id}:
+    put:
+      summary: Update a pipeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                org_id:
+                  type: string
+                name:
+                  type: string
+                stages:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Pipeline updated
+    delete:
+      summary: Delete a pipeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pipeline deleted
+  /jobs/{org_id}:
+    get:
+      summary: List jobs for organization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job list
+  /jobs/{id}/events:
+    get:
+      summary: Stream job status events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event stream
+  /jobs/{job_id}/details:
+    get:
+      summary: Get job details
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details
+  /jobs/outputs/{output_id}/download_url:
+    get:
+      summary: Get presigned download URL for stage output
+      parameters:
+        - name: output_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Download URL
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /audit/{org_id}:
+    get:
+      summary: List audit logs for organization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Logs
+  /dashboard/{org_id}:
+    get:
+      summary: Get remaining quota info
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Quota info
+  /dashboard/{org_id}/usage:
+    get:
+      summary: Get usage metrics
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usage data
+  /dashboard/{org_id}/recent_analyses:
+    get:
+      summary: Get recent analysis jobs
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recent analyses
+  /settings/{org_id}:
+    get:
+      summary: Get organization settings
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Settings
+  /settings:
+    post:
+      summary: Update organization settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgSettings'
+      responses:
+        '200':
+          description: Updated settings
+  /admin/users:
+    get:
+      summary: List all users (admin only)
+      responses:
+        '200':
+          description: Users list
+  /admin/users/{user_id}/assign_role:
+    post:
+      summary: Assign role to user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                org_id:
+                  type: string
+      responses:
+        '200':
+          description: Role assigned
+  /admin/users/{user_id}/profile:
+    put:
+      summary: Update user profile
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Profile updated
+  /admin/users/{user_id}/resend_confirmation:
+    post:
+      summary: Resend confirmation email
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email resent
+  /admin/users/{user_id}/deactivate:
+    post:
+      summary: Deactivate user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deactivated
+  /admin/users/{user_id}/reactivate:
+    post:
+      summary: Reactivate user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User reactivated
+  /admin/invite:
+    post:
+      summary: Invite a new user as admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                org_id:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: Invitation sent
+components:
+  schemas:
+    OrgSettings:
+      type: object
+      properties:
+        org_id:
+          type: string
+        monthly_upload_quota:
+          type: integer
+        monthly_analysis_quota:
+          type: integer
+        ai_api_key:
+          type: string
+        ocr_api_key:
+          type: string
+        ai_api_endpoint:
+          type: string
+        ocr_api_endpoint:
+          type: string
