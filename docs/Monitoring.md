@@ -1,6 +1,6 @@
 # Monitoring
 
-The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard.
+The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard. In addition to job and stage metrics, the exporter collects S3 error counts (`s3_errors_total`) and OCR latency histograms (`ocr_duration_seconds`).
 
 ## docker-compose example
 
@@ -53,6 +53,16 @@ Create the dashboard JSON at `grafana/dashboards/metrics.json`:
       "type": "graph",
       "title": "Jobs Processed",
       "targets": [{ "expr": "jobs_total", "legendFormat": "{{status}}" }]
+    },
+    {
+      "type": "graph",
+      "title": "S3 Errors",
+      "targets": [{ "expr": "s3_errors_total", "legendFormat": "{{operation}}" }]
+    },
+    {
+      "type": "graph",
+      "title": "OCR Duration",
+      "targets": [{ "expr": "ocr_duration_seconds", "legendFormat": "{{engine}}" }]
     }
   ]
 }

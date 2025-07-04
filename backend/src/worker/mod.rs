@@ -26,6 +26,7 @@ pub mod report;
 
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
+use crate::worker::metrics::S3_ERROR_COUNTER;
 use std::env;
 use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
@@ -57,12 +58,16 @@ pub async fn upload_bytes(
                 .await
             {
                 Ok(_) => break Ok(()),
-                Err(_e) if attempts < 3 => {
+                Err(e) if attempts < 3 => {
+                    S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
                     attempts += 1;
                     sleep(Duration::from_millis(500 * attempts as u64)).await;
                     continue;
                 }
-                Err(e) => break Err(e.into()),
+                Err(e) => {
+                    S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
+                    break Err(e.into());
+                }
             }
         }
     }
