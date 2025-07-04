@@ -27,6 +27,12 @@ jobs:
         run: npm test --prefix frontend
       - name: Build frontend
         run: npm run build --prefix frontend
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+        working-directory: frontend
+      - name: Run e2e tests
+        run: npm run e2e
+        working-directory: frontend
       - name: Check backend (Clippy)
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
       - name: Run migrations
