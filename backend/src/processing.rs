@@ -307,8 +307,18 @@ pub async fn run_parse_stage(
 
             if let Some(h_idx) = header_index {
                 let regex_pattern = delimiter_regex.as_deref().unwrap_or(r"\s{2,}|\t|\s*\|\s*");
-                let delim_re = Regex::new(regex_pattern)
-                    .unwrap_or_else(|_| Regex::new(r"\s{2,}|\t|\s*\|\s*").unwrap());
+                let delim_re = match Regex::new(regex_pattern) {
+                    Ok(re) => re,
+                    Err(e) => {
+                        log::warn!(
+                            "Invalid delimiter regex '{}': {:?}. Using default delimiter.",
+                            regex_pattern,
+                            e
+                        );
+                        Regex::new(r"\s{2,}|\t|\s*\|\s*")
+                            .map_err(|err| anyhow!("Failed to compile fallback delimiter regex: {}", err))?
+                    }
+                };
                 let headers: Vec<String> = delim_re
                     .split(lines[h_idx].trim())
                     .filter(|s| !s.is_empty())
@@ -345,8 +355,20 @@ pub async fn run_parse_stage(
 
                 if numeric_summary {
                     if let (Some(h), Some(r)) = (result.get("headers"), result.get("rows")) {
-                        let headers_vec = h.as_array().unwrap();
-                        let rows_vec = r.as_array().unwrap();
+                        let headers_vec = match h.as_array() {
+                            Some(arr) => arr,
+                            None => {
+                                log::error!("Expected headers to be an array");
+                                return Ok(result);
+                            }
+                        };
+                        let rows_vec = match r.as_array() {
+                            Some(arr) => arr,
+                            None => {
+                                log::error!("Expected rows to be an array");
+                                return Ok(result);
+                            }
+                        };
                         let mut summary = serde_json::Map::new();
                         for (col_idx, header_val) in headers_vec.iter().enumerate() {
                             if let Some(header_str) = header_val.as_str() {
@@ -377,10 +399,12 @@ pub async fn run_parse_stage(
                             }
                         }
                         if !summary.is_empty() {
-                            result.as_object_mut().unwrap().insert(
-                                "numeric_summary".to_string(),
-                                serde_json::Value::Object(summary),
-                            );
+                            if let Some(obj) = result.as_object_mut() {
+                                obj.insert(
+                                    "numeric_summary".to_string(),
+                                    serde_json::Value::Object(summary),
+                                );
+                            }
                         }
                     }
                 }
@@ -407,11 +431,20 @@ pub async fn run_parse_stage(
 // Helper for basic placeholder replacement
 fn replace_placeholders(template: &str, data: &serde_json::Value) -> String {
     let mut result = template.to_string();
-    let placeholder_re = Regex::new(r"\{\{\s*([\w.-]+)\s*\}\}").unwrap(); // This unwrap is fine if regex is static & tested
+    let placeholder_re = match Regex::new(r"\{\{\s*([\w.-]+)\s*\}\}") {
+        Ok(re) => re,
+        Err(e) => {
+            log::error!("Failed to compile placeholder regex: {:?}", e);
+            return result;
+        }
+    };
 
     for cap in placeholder_re.captures_iter(template) {
-        let full_match = cap.get(0).unwrap().as_str();
-        let key_path = cap.get(1).unwrap().as_str();
+        let (Some(full_match), Some(key_match)) = (cap.get(0), cap.get(1)) else {
+            continue;
+        };
+        let full_match = full_match.as_str();
+        let key_path = key_match.as_str();
 
         let replacement_value = match key_path.split('.').collect::<Vec<&str>>().as_slice() {
             [key] => data
@@ -715,9 +748,11 @@ pub async fn run_ai(
 
     let mut attempts = 0;
     let response = loop {
-        match request_builder
-            .try_clone()
-            .unwrap()
+        let builder = match request_builder.try_clone() {
+            Some(b) => b,
+            None => return Err(anyhow!("Failed to clone request builder")),
+        };
+        match builder
             .json(input)
             .send()
             .await

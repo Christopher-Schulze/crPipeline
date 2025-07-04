@@ -47,3 +47,17 @@ async fn test_numeric_summary() {
     assert_eq!(summary["qty"]["sum"], 3.0);
     assert_eq!(summary["price"]["sum"], 6.0);
 }
+
+#[actix_rt::test]
+async fn test_invalid_delimiter_regex_does_not_panic() {
+    let text = "HEADER\nItem Qty\nApple 1";
+    let config = json!({
+        "strategy": "SimpleTableExtraction",
+        "parameters": {
+            "headerKeywords": ["item", "qty"],
+            "delimiterRegex": "(*invalid"
+        }
+    });
+    let res = run_parse_stage(text, Some(&config)).await;
+    assert!(res.is_ok());
+}
