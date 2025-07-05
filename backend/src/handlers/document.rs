@@ -54,7 +54,6 @@ pub struct UploadParams {
     pub is_target: Option<bool>,
 }
 
-const PDF_MAGIC_BYTES: &[u8] = b"%PDF-";
 
 async fn check_upload_quota(pool: &PgPool, org_id: Uuid) -> Result<(), HttpResponse> {
     match OrgSettings::find(pool, org_id).await {
@@ -133,102 +132,7 @@ async fn upload_to_s3(
     }
 }
 
-const MAX_FILE_SIZE: usize = 200 * 1024 * 1024; // 200MB
 
-async fn validate_document(
-    user_filename: &str,
-    file_content_type: &Option<String>,
-    bytes_data: &[u8],
-) -> Result<(String, i32), HttpResponse> {
-    let base_filename = if let Some(f_name) = std::path::Path::new(user_filename)
-        .file_name()
-        .and_then(|s| s.to_str())
-    {
-        f_name.to_string()
-    } else {
-        user_filename.to_string()
-    };
-
-    if base_filename.is_empty() {
-        return Err(HttpResponse::BadRequest()
-            .json(serde_json::json!({"error": "Filename not provided or invalid."})));
-    }
-    if bytes_data.is_empty() {
-        return Err(
-            HttpResponse::BadRequest().json(serde_json::json!({"error": "File content is empty."}))
-        );
-    }
-    if bytes_data.len() > MAX_FILE_SIZE {
-        return Err(HttpResponse::PayloadTooLarge()
-            .json(serde_json::json!({"error": "File size exceeds the 200MB limit."})));
-    }
-
-    let lower_filename = base_filename.to_lowercase();
-    let detected_file_type = if lower_filename.ends_with(".pdf") {
-        if let Some(ref ct) = file_content_type {
-            if ct != "application/pdf" {
-                if !ct.starts_with("application/octet-stream") {
-                    log::warn!(
-                        "PDF upload for '{}': Mismatch Content-Type: {:?}, expected application/pdf or application/octet-stream",
-                        user_filename,
-                        file_content_type
-                    );
-                    return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                        "error": "Invalid Content-Type for PDF file. Expected 'application/pdf'."
-                    })));
-                }
-            }
-        }
-        if !bytes_data.starts_with(PDF_MAGIC_BYTES) {
-            log::warn!("Invalid PDF magic bytes for file '{}'", user_filename);
-            return Err(HttpResponse::BadRequest().json(
-                serde_json::json!({"error": "Invalid PDF file format (magic bytes mismatch)."}),
-            ));
-        }
-        "pdf"
-    } else if lower_filename.ends_with(".md") {
-        if file_content_type.as_deref().map_or(false, |ct| {
-            ct != "text/markdown"
-                && ct != "text/plain"
-                && !ct.starts_with("application/octet-stream")
-        }) {
-            log::warn!(
-                "MD upload for '{}': Suspicious Content-Type: {:?}. Allowing.",
-                user_filename,
-                file_content_type
-            );
-        }
-        "md"
-    } else if lower_filename.ends_with(".txt") {
-        if file_content_type.as_deref().map_or(false, |ct| {
-            ct != "text/plain" && !ct.starts_with("application/octet-stream")
-        }) {
-            log::warn!(
-                "TXT upload for '{}': Suspicious Content-Type: {:?}. Allowing.",
-                user_filename,
-                file_content_type
-            );
-        }
-        "txt"
-    } else {
-        return Err(HttpResponse::BadRequest()
-            .json(serde_json::json!({"error": "Unsupported file type. Only .pdf, .md, .txt are allowed."})));
-    };
-
-    let pages = if detected_file_type == "pdf" {
-        match PdfDoc::load_mem(bytes_data).map(|d| d.get_pages().len() as i32) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse PDF pages for {}: {:?}", user_filename, e);
-                return Err(HttpResponse::BadRequest().json(serde_json::json!({"error": "Corrupt or invalid PDF file. Could not count pages."})));
-            }
-        }
-    } else {
-        0
-    };
-
-    Ok((base_filename, pages))
-}
 
 #[post("/upload")]
 pub async fn upload(
@@ -476,3 +380,30 @@ pub async fn download(
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(upload).service(download);
 }
+
+async fn validate_document(
+    user_filename: &str,
+    file_content_type: &Option<String>,
+    bytes_data: &[u8],
+) -> Result<(String, i32), HttpResponse> {
+    let (base_filename, file_type) = crate::utils::validate_filename_and_type(
+        user_filename,
+        file_content_type,
+        bytes_data,
+    )?;
+
+    let pages = if file_type == "pdf" {
+        match PdfDoc::load_mem(bytes_data).map(|d| d.get_pages().len() as i32) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse PDF pages for {}: {:?}", user_filename, e);
+                return Err(HttpResponse::BadRequest().json(serde_json::json!({"error": "Corrupt or invalid PDF file. Could not count pages."})));
+            }
+        }
+    } else {
+        0
+    };
+
+    Ok((base_filename, pages))
+}
+
