@@ -95,3 +95,12 @@ pub async fn create_unconfirmed_user(pool: &PgPool, org_id: Uuid, email: &str, r
         .unwrap();
     user_id
 }
+
+pub async fn clear_database(pool: &PgPool) {
+    sqlx::query(
+        "TRUNCATE TABLE job_stage_outputs, analysis_jobs, pipelines, documents, audit_logs, users, org_settings, organizations RESTART IDENTITY CASCADE"
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}

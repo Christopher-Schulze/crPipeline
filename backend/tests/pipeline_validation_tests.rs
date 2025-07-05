@@ -27,3 +27,35 @@ fn ocr_key_without_external_engine_rejected() {
     ]);
     assert!(validate_stages(&stages).is_err());
 }
+
+#[test]
+fn invalid_ocr_engine_rejected() {
+    let stages = json!([
+        {"type": "ocr", "command": "run", "ocr_engine": "foo"}
+    ]);
+    assert!(validate_stages(&stages).is_err());
+}
+
+#[test]
+fn external_ocr_without_endpoint_rejected() {
+    let stages = json!([
+        {"type": "ocr", "command": "run", "ocr_engine": "external"}
+    ]);
+    assert!(validate_stages(&stages).is_err());
+}
+
+#[test]
+fn external_ocr_with_empty_endpoint_rejected() {
+    let stages = json!([
+        {"type": "ocr", "command": "run", "ocr_engine": "external", "ocr_stage_endpoint": ""}
+    ]);
+    assert!(validate_stages(&stages).is_err());
+}
+
+#[test]
+fn external_ocr_with_non_string_key_rejected() {
+    let stages = json!([
+        {"type": "ocr", "command": "run", "ocr_engine": "external", "ocr_stage_endpoint": "http://ex", "ocr_stage_key": 5}
+    ]);
+    assert!(validate_stages(&stages).is_err());
+}
