@@ -3,6 +3,7 @@
   import GlassCard from './GlassCard.svelte';
   import Chart from 'chart.js/auto';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { errorStore } from '$lib/utils/errorStore';
   export let orgId: string;
 
   const viewJobDetails = getContext<(jobId: string) => void>('viewJobDetails'); // Get context
@@ -11,6 +12,10 @@
   let analysisRemaining = 0;
   let usageChart: Chart | null = null;
   let canvasEl: HTMLCanvasElement;
+
+  let quotaError: string | null = null;
+  let usageError: string | null = null;
+  let recentError: string | null = null;
 
   // --- Recent Analyses State ---
   interface RecentAnalysisJob {
@@ -31,8 +36,10 @@
       const data = await res.json();
       uploadRemaining = data.upload_remaining;
       analysisRemaining = data.analysis_remaining;
-    } catch (error) {
-      console.error(`Error loading quota data for org ${orgId}:`, error);
+      quotaError = null;
+    } catch (error: any) {
+      quotaError = error.message || 'Failed to load quota data';
+      errorStore.show(`Failed to load quota: ${quotaError}`);
     }
   }
 
@@ -62,8 +69,10 @@
             scales: { x: { stacked: false }, y: { beginAtZero: true } }
           }
         });
-    } catch (error) {
-      console.error(`Error loading usage data for org ${orgId}:`, error);
+        usageError = null;
+    } catch (error: any) {
+      usageError = error.message || 'Failed to load usage data';
+      errorStore.show(`Failed to load usage: ${usageError}`);
     }
   }
 
@@ -72,8 +81,10 @@
     try {
       const res = await apiFetch(`/api/dashboard/${orgId}/recent_analyses`);
       recentAnalyses = await res.json();
-    } catch (error) {
-      console.error(`Error loading recent analyses for org ${orgId}:`, error);
+      recentError = null;
+    } catch (error: any) {
+      recentError = error.message || 'Failed to load recent analyses';
+      errorStore.show(`Failed to load analyses: ${recentError}`);
     }
   }
 
@@ -118,9 +129,15 @@
     <span class="text-4xl font-semibold">{analysisRemaining}</span>
   </GlassCard>
 </div>
+{#if quotaError}
+  <p class="text-red-500 text-sm mt-2">{quotaError}</p>
+{/if}
 <GlassCard class="mt-8" padding="p-6">
   <canvas bind:this={canvasEl}></canvas>
 </GlassCard>
+{#if usageError}
+  <p class="text-red-500 text-sm mt-2">{usageError}</p>
+{/if}
 
 <!-- Recent Analyses Section -->
 <GlassCard title="Recent Analyses" customClass="mt-6" padding="p-6">
@@ -153,3 +170,6 @@
     </ul>
   {/if}
 </GlassCard>
+{#if recentError}
+  <p class="text-red-500 text-sm mt-2">{recentError}</p>
+{/if}
