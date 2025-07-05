@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: myorg/frontend:latest
+        image: "{{ .Values.frontendImage.repository }}:{{ .Values.frontendImage.tag | default \"latest\" }}"
         envFrom:
         - secretRef:
             name: frontend-env
