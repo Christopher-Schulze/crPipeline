@@ -1,7 +1,12 @@
+FROM node:20 AS deps
+WORKDIR /app
+COPY frontend/package.json ./
+COPY frontend/package-lock.json ./
+RUN npm ci
+
 FROM node:20 AS build
 WORKDIR /app
-COPY frontend/package*.json ./
-RUN npm install
+COPY --from=deps /app/node_modules ./node_modules
 COPY frontend .
 RUN npm run build
 
