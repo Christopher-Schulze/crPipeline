@@ -1,6 +1,8 @@
 use anyhow::Result;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
+use backend::config::WorkerConfig;
+use backend::handlers::document::cleanup_s3_object;
 use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
 use backend::processing;
 use backend::worker::metrics::{
@@ -13,10 +15,9 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use backend::config::WorkerConfig;
 use tokio::process::Command;
-use tokio::time::sleep;
 use tokio::signal;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -67,7 +68,8 @@ async fn run_stages(
                 } else {
                     let text_content = tokio::fs::read_to_string(txt_path).await?;
                     json_result =
-                        processing::parse::run_parse_stage(&text_content, stage.config.as_ref()).await?;
+                        processing::parse::run_parse_stage(&text_content, stage.config.as_ref())
+                            .await?;
                 }
                 if let Ok(b) = serde_json::to_vec_pretty(&json_result) {
                     let _ = worker::save_stage_output(
@@ -134,7 +136,8 @@ async fn run_stages(
                 info!(job_id=%job.id, stage=%stage.stage_type, duration=%elapsed, "stage finished");
             }
             Err(e) => {
-                error!(job_id=%job.id, stage=%stage.stage_type, duration=%elapsed, "stage failed: {:?}", e);
+                error!(job_id=%job.id, stage=%stage.stage_type, duration=%elapsed, error=?e, "stage failed");
+                cleanup_s3_object(s3_client, bucket, &doc.filename).await;
                 return Err(e);
             }
         }
@@ -208,11 +211,11 @@ async fn main() -> Result<()> {
             }
         };
 
-        let ( _queue, job_id_str) = match job {
+        let (_queue, job_id_str) = match job {
             Some(v) => {
                 last_activity = Instant::now();
                 v
-            },
+            }
             None => {
                 if let Some(d) = idle_duration {
                     if last_activity.elapsed() >= d {
@@ -301,8 +304,9 @@ async fn main() -> Result<()> {
                 info!(job_id=%job.id, "Job processing completed successfully.");
             }
             Err(e) => {
-                error!(job_id=%job.id, "Job processing failed: {:?}", e);
+                error!(job_id=%job.id, error=?e, "Job processing failed");
                 AnalysisJob::update_status(&pool, job.id, "failed").await?;
+                cleanup_s3_object(&s3_client, &bucket, &doc.filename).await;
                 JOB_COUNTER.with_label_values(&["failed"]).inc();
                 JOB_HISTOGRAM
                     .with_label_values(&["failed"])

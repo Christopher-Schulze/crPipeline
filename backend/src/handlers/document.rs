@@ -1,17 +1,19 @@
+use crate::middleware::auth::AuthUser;
+use crate::models::{
+    AnalysisJob, Document, DocumentError, NewAnalysisJob, NewDocument, OrgSettings,
+};
+use crate::utils::log_action;
 use actix_multipart::Multipart;
 use actix_web::{post, web, HttpResponse};
-use futures_util::StreamExt as _;
-use aws_sdk_s3::Client;
-use uuid::Uuid;
-use lopdf::Document as PdfDoc;
-use crate::models::{Document, NewDocument, AnalysisJob, NewAnalysisJob, OrgSettings, DocumentError};
-use crate::utils::log_action;
-use crate::middleware::auth::AuthUser;
-use sqlx::PgPool;
-use sanitize_filename; // Added for sanitizing filenames
 use anyhow::Error;
 use async_trait::async_trait;
+use aws_sdk_s3::Client;
+use futures_util::StreamExt as _;
+use lopdf::Document as PdfDoc;
 use redis::AsyncCommands;
+use sanitize_filename; // Added for sanitizing filenames
+use sqlx::PgPool;
+use uuid::Uuid;
 
 /// Abstraction over S3 deletion used for easier testing.
 #[async_trait]
@@ -34,7 +36,12 @@ impl S3Deleter for Client {
 
 pub async fn cleanup_s3_object<S: S3Deleter + Sync>(s3: &S, bucket: &str, key: &str) {
     if let Err(e) = s3.delete_object(bucket, key).await {
-        log::error!("Failed to delete {} from S3 bucket {} during cleanup: {:?}", key, bucket, e);
+        log::error!(
+            "Failed to delete {} from S3 bucket {} during cleanup: {:?}",
+            key,
+            bucket,
+            e
+        );
     }
 }
 
@@ -63,8 +70,14 @@ async fn check_upload_quota(pool: &PgPool, org_id: Uuid) -> Result<(), HttpRespo
             Ok(())
         }
         Err(e) => {
-            log::error!("Could not verify organization settings for quota (org_id {}): {:?}", org_id, e);
-            Err(HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not verify organization settings for quota."})))
+            log::error!(
+                "Could not verify organization settings for quota (org_id {}): {:?}",
+                org_id,
+                e
+            );
+            Err(HttpResponse::InternalServerError().json(
+                serde_json::json!({"error": "Could not verify organization settings for quota."}),
+            ))
         }
     }
 }
@@ -85,7 +98,11 @@ async fn check_analysis_quota(pool: &PgPool, org_id: Uuid) -> Result<(), HttpRes
             Ok(())
         }
         Err(e) => {
-            log::error!("Could not verify organization settings for analysis quota (org_id {}): {:?}", org_id, e);
+            log::error!(
+                "Could not verify organization settings for analysis quota (org_id {}): {:?}",
+                org_id,
+                e
+            );
             Err(HttpResponse::InternalServerError().json(serde_json::json!({"error": "Could not verify organization settings for analysis quota."})))
         }
     }
@@ -97,20 +114,20 @@ async fn upload_to_s3(
     key: &str,
     bytes: Vec<u8>,
 ) -> Result<(), HttpResponse> {
-    if s3
+    match s3
         .put_object()
         .bucket(bucket)
         .key(key)
         .body(bytes.into())
         .send()
         .await
-        .is_err()
     {
-        log::error!("Failed to upload {} to S3 bucket {}", key, bucket);
-        Err(HttpResponse::InternalServerError()
-            .json(serde_json::json!({"error": "File upload to storage failed."})))
-    } else {
-        Ok(())
+        Ok(_) => Ok(()),
+        Err(e) => {
+            log::error!("Failed to upload {} to S3 bucket {}: {:?}", key, bucket, e);
+            Err(HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "File upload to storage failed."})))
+        }
     }
 }
 
@@ -162,7 +179,9 @@ async fn validate_document(
         }
         if !bytes_data.starts_with(PDF_MAGIC_BYTES) {
             log::warn!("Invalid PDF magic bytes for file '{}'", user_filename);
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid PDF file format (magic bytes mismatch)."})));
+            return Err(HttpResponse::BadRequest().json(
+                serde_json::json!({"error": "Invalid PDF file format (magic bytes mismatch)."}),
+            ));
         }
         "pdf"
     } else if lower_filename.ends_with(".md") {
@@ -243,14 +262,11 @@ pub async fn upload(
     }
 
     // Validate file and get PDF page count
-    let (base_filename, pages) = match validate_document(
-        &user_provided_filename,
-        &file_content_type,
-        &bytes_data,
-    ).await {
-        Ok(v) => v,
-        Err(resp) => return resp,
-    };
+    let (base_filename, pages) =
+        match validate_document(&user_provided_filename, &file_content_type, &bytes_data).await {
+            Ok(v) => v,
+            Err(resp) => return resp,
+        };
 
     // Authz check
     if params.org_id != user.org_id && user.role != "admin" {
@@ -260,8 +276,9 @@ pub async fn upload(
             user.org_id,
             params.org_id
         );
-        return HttpResponse::Unauthorized()
-            .json(serde_json::json!({"error": "You are not authorized to upload to this organization."}));
+        return HttpResponse::Unauthorized().json(
+            serde_json::json!({"error": "You are not authorized to upload to this organization."}),
+        );
     }
 
     // Quota check (target docs)
@@ -292,19 +309,33 @@ pub async fn upload(
     let created_document = match Document::create(&pool, doc_to_create).await {
         Ok(d) => d,
         Err(DocumentError::SanitizationFailed) => {
-            log::warn!("Rejected unsafe filename during document creation: {}", s3_key_name);
+            log::warn!(
+                "Rejected unsafe filename during document creation: {}",
+                s3_key_name
+            );
             cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
-            return HttpResponse::BadRequest().json(serde_json::json!({"error": "Invalid filename."}));
+            return HttpResponse::BadRequest()
+                .json(serde_json::json!({"error": "Invalid filename."}));
         }
         Err(DocumentError::Sqlx(e)) => {
-            log::error!("Failed to create document record for S3 key {}: {:?}", s3_key_name, e);
+            log::error!(
+                "Failed to create document record for S3 key {}: {:?}",
+                s3_key_name,
+                e
+            );
             cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
             return HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error": "Failed to save document information."}));
         }
     };
 
-    log_action(&pool, user.org_id, user.user_id, &format!("upload:{}", created_document.id)).await;
+    log_action(
+        &pool,
+        user.org_id,
+        user.user_id,
+        &format!("upload:{}", created_document.id),
+    )
+    .await;
 
     // Optional: Queue for analysis
     if let Some(pipeline_id) = params.pipeline_id {
@@ -320,7 +351,13 @@ pub async fn upload(
         };
         match AnalysisJob::create(&pool, job_to_create).await {
             Ok(j) => {
-                log_action(&pool, user.org_id, user.user_id, &format!("job_created:{}", j.id)).await;
+                log_action(
+                    &pool,
+                    user.org_id,
+                    user.user_id,
+                    &format!("job_created:{}", j.id),
+                )
+                .await;
                 if let Ok(redis_url) = std::env::var("REDIS_URL") {
                     if let Ok(client) = redis::Client::open(redis_url) {
                         if let Ok(mut conn) = client.get_async_connection().await {
@@ -336,7 +373,11 @@ pub async fn upload(
                 }
             }
             Err(e) => {
-                log::error!("Failed to create analysis job for document {}: {:?}", created_document.id, e);
+                log::error!(
+                    "Failed to create analysis job for document {}: {:?}",
+                    created_document.id,
+                    e
+                );
                 cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
                 return HttpResponse::InternalServerError()
                     .json(serde_json::json!({"error": "Failed to queue analysis job."}));
