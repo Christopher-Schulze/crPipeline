@@ -1,0 +1,13 @@
+[Unit]
+Description=crPipeline Worker Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/crPipeline
+ExecStart=/opt/crPipeline/scripts/worker_service.sh
+Restart=always
+User=crpipeline
+
+[Install]
+WantedBy=multi-user.target
