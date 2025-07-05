@@ -100,3 +100,27 @@ async fn test_admin_invite_duplicate_email() {
     let body: serde_json::Value = test::read_body_json(resp).await;
     assert!(body.get("error").is_some());
 }
+
+#[actix_rt::test]
+async fn test_admin_invite_email_failure() {
+    let Ok((app, pool)) = setup_test_app().await else {
+        return;
+    };
+    std::env::set_var("MOCK_EMAIL_FAIL", "1");
+    let org_id = create_org(&pool, "Email Fail Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
+    let token = generate_jwt_token(admin_id, org_id, "admin");
+    let invite_email = format!("fail_email_user_{}@example.com", Uuid::new_v4());
+    let payload = json!({"email": invite_email, "org_id": org_id});
+    let req = test::TestRequest::post()
+        .uri("/api/admin/invite")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::ACCEPTED);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(body.get("success"), Some(&serde_json::Value::Bool(true)));
+    assert!(body.get("message").is_some());
+    std::env::remove_var("MOCK_EMAIL_FAIL");
+}
