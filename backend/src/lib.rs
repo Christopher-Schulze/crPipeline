@@ -8,3 +8,4 @@ pub mod worker;
 pub mod config;
 pub mod error;
 pub mod metrics;
+pub mod pipeline_validation;
