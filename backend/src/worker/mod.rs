@@ -26,7 +26,7 @@ pub mod report;
 
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
-use crate::worker::metrics::S3_ERROR_COUNTER;
+use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
 use std::env;
 use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
@@ -111,4 +111,10 @@ pub async fn save_stage_output(
     JobStageOutput::create(pool, rec).await?;
     tracing::info!(job_id=%job_id, stage=%stage_name, "stage output saved");
     Ok(())
+}
+
+/// Log that the worker shuts down after being idle and update metrics.
+pub fn log_idle_shutdown() {
+    tracing::info!("Idle timeout reached, shutting down");
+    WORKER_SHUTDOWN_COUNTER.inc();
 }

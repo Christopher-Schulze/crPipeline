@@ -1,6 +1,8 @@
 use actix_web::{web, App, HttpResponse, HttpServer};
 use once_cell::sync::Lazy;
-use prometheus::{Encoder, HistogramVec, IntCounterVec, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramVec, IntCounterVec, IntCounter, Registry, TextEncoder,
+};
 
 pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
 
@@ -54,6 +56,16 @@ pub static API_ERROR_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
         "Total failed AI or OCR API calls",
     );
     let counter = IntCounterVec::new(opts, &["service"]).unwrap();
+    REGISTRY.register(Box::new(counter.clone())).unwrap();
+    counter
+});
+
+pub static WORKER_SHUTDOWN_COUNTER: Lazy<IntCounter> = Lazy::new(|| {
+    let opts = prometheus::Opts::new(
+        "worker_shutdowns_total",
+        "Total number of worker shutdowns",
+    );
+    let counter = IntCounter::with_opts(opts).unwrap();
     REGISTRY.register(Box::new(counter.clone())).unwrap();
     counter
 });
