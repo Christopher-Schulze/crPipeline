@@ -6,6 +6,8 @@ use aws_sdk_s3::Client as S3Client;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 
+use backend::metrics;
+
 use backend::config::AppConfig;
 
 use backend::handlers;
@@ -44,6 +46,7 @@ async fn main() -> std::io::Result<()> {
         .endpoint("/metrics")
         .build()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("metrics init: {e}")))?;
+    metrics::register_metrics(&prometheus.registry);
     let allowed_origin = config.frontend_origin.clone();
 
     HttpServer::new(move || {

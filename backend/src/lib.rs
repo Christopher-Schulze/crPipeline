@@ -7,3 +7,4 @@ pub mod email;
 pub mod worker;
 pub mod config;
 pub mod error;
+pub mod metrics;
