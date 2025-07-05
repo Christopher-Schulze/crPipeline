@@ -8,7 +8,10 @@ The project ships with a GitHub Actions workflow that can build Docker images fo
 3. When every job succeeds, `release` builds container images using the provided Dockerfiles.
 4. If repository secrets `REGISTRY`, `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` are set, the job logs in and pushes the images to that registry.
 
-The resulting images are tagged as `backend:latest` and `frontend:latest`. Use a tag strategy that fits your deployment pipeline or add additional steps to push versioned tags.
+The resulting images are tagged as `backend:$IMAGE_TAG` and `frontend:$IMAGE_TAG`.
+By default `IMAGE_TAG` is set to `latest`. When starting the workflow manually
+you can pass a Git tag or any other value as the `IMAGE_TAG` input to publish
+versioned images.
 
 ## Kubernetes Manifests
 
