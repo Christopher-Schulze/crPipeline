@@ -1,12 +1,14 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { errorStore } from '$lib/utils/errorStore';
 
   export let orgId: string;
   export let userId: string;
   export let pipelineId: string | null = null; // This seems to be 'selectedPipeline' in the prompt, renamed for clarity.
 
   let isTarget: boolean = false; // Default to "Source" document
+  let errorMsg: string | null = null;
 
   const dispatch = createEventDispatcher();
 
@@ -36,9 +38,10 @@
       dispatch('uploaded');
       input.value = '';
       isTarget = false;
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Upload failed. See console for details.');
+      errorMsg = null;
+    } catch (error: any) {
+      errorMsg = error.message || 'Upload failed';
+      errorStore.show(`Upload failed: ${errorMsg}`);
     }
   }
 </script>
@@ -52,6 +55,9 @@
       on:change={handleUpload}
     />
     <p class="mt-1 text-xs text-gray-500">PDF, Markdown, or TXT files accepted.</p>
+    {#if errorMsg}
+      <p class="mt-1 text-xs text-red-600">{errorMsg}</p>
+    {/if}
   </div>
   <div class="mt-2">
     <label class="flex items-center space-x-2 cursor-pointer">
