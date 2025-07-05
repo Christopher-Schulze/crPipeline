@@ -218,7 +218,7 @@ async fn main() -> Result<()> {
             None => {
                 if let Some(d) = idle_duration {
                     if last_activity.elapsed() >= d {
-                        info!("Idle timeout reached, shutting down");
+                        worker::log_idle_shutdown();
                         break 'outer;
                     }
                 }
