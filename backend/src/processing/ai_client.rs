@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use std::time::Duration;
 use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 use serde::Deserialize;
 
@@ -8,15 +8,43 @@ struct CustomHeader {
     value: String,
 }
 
+#[derive(Debug)]
+pub enum AiClientError {
+    Request(reqwest::Error),
+    CloneError,
+    HttpError(reqwest::StatusCode, String),
+}
+
+impl std::fmt::Display for AiClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AiClientError::Request(e) => write!(f, "request error: {e}"),
+            AiClientError::CloneError => write!(f, "failed to clone request"),
+            AiClientError::HttpError(status, msg) => {
+                write!(f, "http error {status}: {msg}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for AiClientError {}
+
+const MAX_RETRIES: u32 = 3;
+const BASE_DELAY_MS: u64 = 500;
+
+fn exponential_backoff(attempt: u32) -> Duration {
+    Duration::from_millis(BASE_DELAY_MS * (1 << (attempt - 1)))
+}
+
 #[tracing::instrument(skip(input, custom_headers_json))]
 pub async fn run_ai(
     input: &serde_json::Value,
     api_endpoint: &str,
     api_key: &str,
     custom_headers_json: Option<&serde_json::Value>,
-) -> Result<serde_json::Value> {
+) -> Result<serde_json::Value, AiClientError> {
     let client = reqwest::Client::new();
-    let mut request_builder = client.post(api_endpoint);
+    let mut request_builder = client.post(api_endpoint).timeout(Duration::from_secs(10));
     if !api_key.is_empty() {
         request_builder = request_builder.bearer_auth(api_key);
     }
@@ -54,40 +82,42 @@ pub async fn run_ai(
     }
     request_builder = request_builder.header(CONTENT_TYPE, "application/json");
     let mut attempts = 0;
-    let response = loop {
-        let builder = match request_builder.try_clone() {
-            Some(b) => b,
-            None => return Err(anyhow!("Failed to clone request builder")),
-        };
-        match builder.json(input).send().await {
-            Ok(resp) => break resp,
-            Err(e) if attempts < 3 => {
-                attempts += 1;
-                log::warn!("AI request failed attempt {}: {:?}", attempts, e);
-                tokio::time::sleep(std::time::Duration::from_millis(500 * attempts as u64)).await;
-                continue;
+    loop {
+        let builder = request_builder
+            .try_clone()
+            .ok_or(AiClientError::CloneError)?
+            .json(input);
+        match builder.send().await {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    return resp.json().await.map_err(AiClientError::Request);
+                } else if attempts < MAX_RETRIES {
+                    attempts += 1;
+                    let status = resp.status();
+                    let msg = resp
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "unknown".into());
+                    log::warn!("AI request failed status {} attempt {}: {}", status, attempts, msg);
+                    tokio::time::sleep(exponential_backoff(attempts)).await;
+                } else {
+                    let status = resp.status();
+                    let msg = resp
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "unknown".into());
+                    return Err(AiClientError::HttpError(status, msg));
+                }
             }
-            Err(e) => return Err(e.into()),
+            Err(e) => {
+                if attempts < MAX_RETRIES {
+                    attempts += 1;
+                    log::warn!("AI request error attempt {}: {:?}", attempts, e);
+                    tokio::time::sleep(exponential_backoff(attempts)).await;
+                } else {
+                    return Err(AiClientError::Request(e));
+                }
+            }
         }
-    };
-    if response.status().is_success() {
-        Ok(response.json().await?)
-    } else {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error content".to_string());
-        log::error!(
-            "AI API request to {} failed with status {}: {}",
-            api_endpoint,
-            status,
-            error_text
-        );
-        Err(anyhow!(
-            "AI API request failed with status {}: {}",
-            status,
-            error_text
-        ))
     }
 }
