@@ -1,6 +1,7 @@
 use anyhow::Result;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
+use backend::config::WorkerConfig;
 use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
 use backend::processing;
 use backend::worker::metrics::{
@@ -11,12 +12,13 @@ use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, Instant},
 };
-use backend::config::WorkerConfig;
 use tokio::process::Command;
-use tokio::time::sleep;
 use tokio::signal;
+use tokio::task::JoinSet;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 use uuid::Uuid;
@@ -68,7 +70,8 @@ async fn run_stages(
                 } else {
                     let text_content = tokio::fs::read_to_string(txt_path).await?;
                     json_result =
-                        processing::parse::run_parse_stage(&text_content, stage.config.as_ref()).await?;
+                        processing::parse::run_parse_stage(&text_content, stage.config.as_ref())
+                            .await?;
                 }
                 if let Ok(b) = serde_json::to_vec_pretty(&json_result) {
                     let _ = worker::save_stage_output(
@@ -162,6 +165,67 @@ async fn remove_with_retry(path: &Path, job_id: Uuid, desc: &str) {
     }
 }
 
+async fn process_job(
+    pool: Arc<PgPool>,
+    s3_client: Arc<S3Client>,
+    job: AnalysisJob,
+    doc: Document,
+    stages: Vec<Stage>,
+    org_settings: Option<OrgSettings>,
+    bucket: String,
+) {
+    let mut local = std::env::temp_dir();
+    local.push(format!("{}-input.pdf", job.id));
+    if let Err(e) = processing::ocr::download_pdf(&s3_client, &bucket, &doc.filename, &local).await
+    {
+        error!(job_id=%job.id, "Failed to download PDF: {:?}", e);
+        let _ = AnalysisJob::update_status(&pool, job.id, "failed").await;
+        return;
+    }
+    let mut txt_path = local.clone();
+    txt_path.set_extension("txt");
+
+    let job_timer = Instant::now();
+    let res = run_stages(
+        &pool,
+        &s3_client,
+        &job,
+        &doc,
+        &stages,
+        org_settings.as_ref(),
+        &bucket,
+        &local,
+        &txt_path,
+    )
+    .await;
+
+    match res {
+        Ok(_) => {
+            let _ = AnalysisJob::update_status(&pool, job.id, "completed").await;
+            JOB_COUNTER.with_label_values(&["success"]).inc();
+            JOB_HISTOGRAM
+                .with_label_values(&["success"])
+                .observe(job_timer.elapsed().as_secs_f64());
+            info!(job_id=%job.id, "Job processing completed successfully.");
+        }
+        Err(e) => {
+            error!(job_id=%job.id, "Job processing failed: {:?}", e);
+            let _ = AnalysisJob::update_status(&pool, job.id, "failed").await;
+            JOB_COUNTER.with_label_values(&["failed"]).inc();
+            JOB_HISTOGRAM
+                .with_label_values(&["failed"])
+                .observe(job_timer.elapsed().as_secs_f64());
+        }
+    }
+
+    if local.exists() {
+        remove_with_retry(&local, job.id, "input PDF").await;
+    }
+    if txt_path.exists() {
+        remove_with_retry(&txt_path, job.id, "text file").await;
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cfg = match WorkerConfig::from_env() {
@@ -197,7 +261,25 @@ async fn main() -> Result<()> {
     let mut shutdown_signal = signal::ctrl_c();
     tokio::pin!(shutdown_signal);
 
+    let pool = Arc::new(pool);
+    let s3_client = Arc::new(s3_client);
+    let concurrency = cfg.worker_concurrency.max(1);
+    let mut tasks: JoinSet<()> = JoinSet::new();
+
     'outer: loop {
+        if tasks.len() >= concurrency {
+            tokio::select! {
+                _ = &mut shutdown_signal => {
+                    info!("Shutdown signal received");
+                    break 'outer;
+                }
+                res = tasks.join_next() => {
+                    if let Some(Err(e)) = res { error!("task failed: {:?}", e); }
+                }
+            }
+            continue;
+        }
+
         let mut cmd = redis::cmd("BLPOP");
         cmd.arg("jobs").arg(blpop_timeout);
         let job: Option<(String, String)> = tokio::select! {
@@ -210,21 +292,21 @@ async fn main() -> Result<()> {
             }
         };
 
-        let ( _queue, job_id_str) = match job {
-            Some(v) => {
-                last_activity = Instant::now();
-                v
-            },
-            None => {
-                if let Some(d) = idle_duration {
-                    if last_activity.elapsed() >= d {
-                        worker::log_idle_shutdown();
-                        break 'outer;
-                    }
+        let Some((_, job_id_str)) = job else {
+            if let Some(d) = idle_duration {
+                if last_activity.elapsed() >= d && tasks.is_empty() {
+                    worker::log_idle_shutdown();
+                    break 'outer;
                 }
-                continue;
             }
+            if let Some(res) = tasks.join_next().await {
+                if let Err(e) = res {
+                    error!("task failed: {:?}", e);
+                }
+            }
+            continue;
         };
+        last_activity = Instant::now();
         let job_id = match Uuid::parse_str(&job_id_str) {
             Ok(id) => id,
             Err(_) => continue,
@@ -259,68 +341,23 @@ async fn main() -> Result<()> {
 
         let pipeline: Pipeline = sqlx::query_as("SELECT * FROM pipelines WHERE id=$1")
             .bind(job.pipeline_id)
-            .fetch_one(&pool)
+            .fetch_one(&*pool)
             .await?;
         let stages: Vec<Stage> = serde_json::from_value(pipeline.stages)?;
-
         let bucket = cfg.s3_bucket.clone();
-        let mut local = std::env::temp_dir();
-        local.push(format!("{}-input.pdf", job.id));
-        processing::ocr::download_pdf(&s3_client, &bucket, &doc.filename, &local).await?;
-        let mut txt_path = local.clone();
-        txt_path.set_extension("txt");
+        let pool_clone = Arc::clone(&pool);
+        let s3_clone = Arc::clone(&s3_client);
+        tasks.spawn(async move {
+            process_job(pool_clone, s3_clone, job, doc, stages, org_settings, bucket).await;
+        });
 
-        let job_timer = Instant::now();
-        let mut shutdown_during = false;
-        let stage_future = run_stages(
-            &pool,
-            &s3_client,
-            &job,
-            &doc,
-            &stages,
-            org_settings.as_ref(),
-            &bucket,
-            &local,
-            &txt_path,
-        );
-        tokio::pin!(stage_future);
-        let result = tokio::select! {
-            _ = &mut shutdown_signal => {
-                info!("Shutdown signal received, waiting for current job to finish");
-                shutdown_during = true;
-                stage_future.await
-            }
-            res = &mut stage_future => res
-        };
-
-        match result {
-            Ok(_) => {
-                AnalysisJob::update_status(&pool, job.id, "completed").await?;
-                JOB_COUNTER.with_label_values(&["success"]).inc();
-                JOB_HISTOGRAM
-                    .with_label_values(&["success"])
-                    .observe(job_timer.elapsed().as_secs_f64());
-                info!(job_id=%job.id, "Job processing completed successfully.");
-            }
-            Err(e) => {
-                error!(job_id=%job.id, "Job processing failed: {:?}", e);
-                AnalysisJob::update_status(&pool, job.id, "failed").await?;
-                JOB_COUNTER.with_label_values(&["failed"]).inc();
-                JOB_HISTOGRAM
-                    .with_label_values(&["failed"])
-                    .observe(job_timer.elapsed().as_secs_f64());
-            }
-        }
-
-        if local.exists() {
-            remove_with_retry(&local, job.id, "input PDF").await;
-        }
-        if txt_path.exists() {
-            remove_with_retry(&txt_path, job.id, "text file").await;
-        }
-
-        if process_once || shutdown_during {
+        if process_once {
             break;
+        }
+    }
+    while let Some(res) = tasks.join_next().await {
+        if let Err(e) = res {
+            error!("task failed: {:?}", e);
         }
     }
     let _ = redis::cmd("QUIT").query_async::<_, ()>(&mut conn).await;

@@ -43,6 +43,7 @@ pub struct WorkerConfig {
     pub redis_url: String,
     pub s3_bucket: String,
     pub process_one_job: bool,
+    pub worker_concurrency: usize,
     pub metrics_port: u16,
     pub shutdown_after_idle: Option<u64>,
 }
@@ -55,6 +56,10 @@ impl WorkerConfig {
         let redis_url = env::var("REDIS_URL").map_err(|_| "REDIS_URL not set".to_string())?;
         let s3_bucket = env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
         let process_one_job = env::var("PROCESS_ONE_JOB").is_ok();
+        let worker_concurrency = env::var("WORKER_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1);
         let metrics_port = env::var("METRICS_PORT")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -67,6 +72,7 @@ impl WorkerConfig {
             redis_url,
             s3_bucket,
             process_one_job,
+            worker_concurrency,
             metrics_port,
             shutdown_after_idle,
         })
