@@ -19,6 +19,9 @@ pub async fn handle_ocr_stage(
     txt_path: &Path,
 ) -> Result<bool> {
     info!(job_id=%job.id, stage=%stage.stage_type, "start ocr stage");
+    let timer = crate::worker::metrics::STAGE_HISTOGRAM
+        .with_label_values(&[stage.stage_type.as_str()])
+        .start_timer();
     // Check if this stage should use an external OCR engine
     let use_external = stage.ocr_engine.as_deref() == Some("external");
 
@@ -39,6 +42,7 @@ pub async fn handle_ocr_stage(
             Err(e) => {
                 error!(job_id=%job.id, "Failed to read input PDF for external OCR: {:?}", e);
                 API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
+                timer.observe_duration();
                 return Ok(true);
             }
         };
@@ -59,6 +63,7 @@ pub async fn handle_ocr_stage(
             Err(e) => {
                 error!(job_id=%job.id, "External OCR failed: {:?}", e);
                 API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
+                timer.observe_duration();
                 return Ok(true);
             }
         }
@@ -66,6 +71,7 @@ pub async fn handle_ocr_stage(
         if let Err(e) = processing::ocr::run_ocr(local, txt_path).await {
             error!(job_id=%job.id, "OCR failed: {:?}", e);
             API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
+            timer.observe_duration();
             return Ok(true);
         }
         match tokio::fs::read_to_string(txt_path).await {
@@ -73,6 +79,7 @@ pub async fn handle_ocr_stage(
             Err(e) => {
                 error!(job_id=%job.id, "Failed to read OCR output: {:?}", e);
                 API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
+                timer.observe_duration();
                 return Ok(true);
             }
         }
@@ -94,6 +101,7 @@ pub async fn handle_ocr_stage(
     .await;
     let _ = tokio::fs::remove_file(txt_path).await;
     info!(job_id=%job.id, stage=%stage.stage_type, "finished ocr stage");
+    timer.observe_duration();
     Ok(false)
 }
 

@@ -27,6 +27,9 @@ pub async fn handle_report_stage(
     local_pdf: &Path,
 ) -> Result<()> {
     info!(job_id=%job.id, stage=%stage.stage_type, "start report stage");
+    let timer = crate::worker::metrics::STAGE_HISTOGRAM
+        .with_label_values(&[stage.stage_type.as_str()])
+        .start_timer();
     let mut data_for_templating = json_result.clone();
     if let serde_json::Value::Object(ref mut map) = data_for_templating {
         map.insert(
@@ -86,6 +89,7 @@ pub async fn handle_report_stage(
 
     let _ = local_pdf; // suppress unused
     info!(job_id=%job.id, stage=%stage.stage_type, "finished report stage");
+    timer.observe_duration();
     Ok(())
 }
 
