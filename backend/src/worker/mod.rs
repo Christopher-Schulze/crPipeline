@@ -24,6 +24,24 @@ pub mod metrics;
 pub mod ocr;
 pub mod report;
 
+/// Runtime configuration for the worker.
+#[derive(Debug, Clone)]
+pub struct WorkerRuntimeConfig {
+    /// Number of jobs to process concurrently.
+    pub concurrency: usize,
+}
+
+impl WorkerRuntimeConfig {
+    /// Load configuration from environment variables.
+    pub fn from_env() -> Self {
+        let concurrency = std::env::var("WORKER_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1);
+        Self { concurrency }
+    }
+}
+
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
 use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
