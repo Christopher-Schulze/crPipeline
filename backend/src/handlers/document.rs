@@ -5,7 +5,7 @@ use crate::models::{
 use crate::utils::log_action;
 use crate::error::ApiError;
 use actix_multipart::Multipart;
-use actix_web::{get, post, web, HttpResponse, ResponseError};
+use actix_web::{get, post, delete, web, HttpResponse, ResponseError};
 use anyhow::Error;
 use async_trait::async_trait;
 use aws_sdk_s3::{presigning::PresigningConfig, Client};
@@ -360,9 +360,49 @@ pub async fn download(
     }
 }
 
+#[delete("/documents/{id}")]
+pub async fn delete_document(
+    path: web::Path<Uuid>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+    s3: web::Data<Client>,
+) -> HttpResponse {
+    let doc_id = path.into_inner();
+    let doc = match sqlx::query_as::<_, Document>("SELECT * FROM documents WHERE id=$1")
+        .bind(doc_id)
+        .fetch_optional(pool.as_ref())
+        .await
+    {
+        Ok(Some(d)) => d,
+        Ok(None) => return HttpResponse::NotFound().finish(),
+        Err(e) => return ApiError::from_db("Failed to fetch document.", e).error_response(),
+    };
+
+    if doc.org_id != user.org_id && user.role != "admin" {
+        log::warn!(
+            "Unauthorized delete attempt {} by user {} (org {})",
+            doc_id,
+            user.user_id,
+            user.org_id
+        );
+        return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"}));
+    }
+
+    let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
+    cleanup_s3_object(s3.get_ref(), &bucket, &doc.filename).await;
+
+    match Document::delete(&pool, doc_id).await {
+        Ok(_) => {
+            log_action(&pool, user.org_id, user.user_id, &format!("delete_document:{}", doc_id)).await;
+            HttpResponse::Ok().finish()
+        },
+        Err(e) => ApiError::from_db("Failed to delete document", e).error_response(),
+    }
+}
+
 /// Configure Actix routes for document-related endpoints.
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(upload).service(download);
+    cfg.service(upload).service(download).service(delete_document);
 }
 
 async fn validate_document(
