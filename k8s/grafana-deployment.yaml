@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:9.5.2
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          value: admin
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: admin
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: provisioning
+          mountPath: /etc/grafana/provisioning
+        - name: dashboards
+          mountPath: /var/lib/grafana/dashboards
+      volumes:
+      - name: provisioning
+        configMap:
+          name: grafana-provisioning
+      - name: dashboards
+        configMap:
+          name: grafana-dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        folder: ''
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+data:
+  metrics.json: |
+    {
+      "title": "crPipeline Metrics",
+      "schemaVersion": 37,
+      "version": 1,
+      "refresh": "5s",
+      "panels": [
+        { "type": "graph", "title": "Stage Duration", "targets": [{ "expr": "stage_duration_seconds", "legendFormat": "{{stage}}" }] },
+        { "type": "graph", "title": "Job Duration", "targets": [{ "expr": "job_duration_seconds", "legendFormat": "{{status}}" }] },
+        { "type": "graph", "title": "Jobs Processed", "targets": [{ "expr": "jobs_total", "legendFormat": "{{status}}" }] },
+        { "type": "graph", "title": "S3 Errors", "targets": [{ "expr": "s3_errors_total", "legendFormat": "{{operation}}" }] },
+        { "type": "graph", "title": "OCR Duration", "targets": [{ "expr": "ocr_duration_seconds", "legendFormat": "{{engine}}" }] },
+        { "type": "graph", "title": "AI/OCR Failures", "targets": [{ "expr": "ai_ocr_errors_total", "legendFormat": "{{service}}" }] },
+        { "type": "graph", "title": "Login Failures", "targets": [{ "expr": "login_failures_total", "legendFormat": "{{reason}}" }] }
+      ]
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000

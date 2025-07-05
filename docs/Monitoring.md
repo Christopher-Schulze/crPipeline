@@ -11,6 +11,7 @@ services:
     image: prom/prometheus:latest
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alert-rules.yml:/etc/prometheus/alert-rules.yml
     ports:
       - "9090:9090"
 
@@ -24,6 +25,42 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     ports:
       - "3000:3000"
+```
+
+Create `prometheus.yml` next to the compose file:
+
+```yaml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'crPipeline'
+    static_configs:
+      - targets: ['backend:9100']
+rule_files:
+  - alert-rules.yml
+```
+
+Define alerts in `alert-rules.yml`:
+
+```yaml
+groups:
+  - name: example
+    rules:
+      - alert: HighLoginFailures
+        expr: increase(login_failures_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          description: Too many failed login attempts
+      - alert: ManyS3Errors
+        expr: increase(s3_errors_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          description: S3 errors detected
 ```
 
 Place the following provisioning file at `grafana/provisioning/dashboards/dashboard.yaml`:
@@ -43,6 +80,9 @@ Create the dashboard JSON at `grafana/dashboards/metrics.json`:
 ```json
 {
   "title": "crPipeline Metrics",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "5s",
   "panels": [
     {
       "type": "graph",
@@ -84,6 +124,7 @@ Create the dashboard JSON at `grafana/dashboards/metrics.json`:
 ```
 
 Grafana loads the dashboard on startup. Navigate to `http://localhost:3000` to view the charts.
+Kubernetes manifests for deploying Prometheus and Grafana are available under `k8s/`.
 
 ## Alerting
 
