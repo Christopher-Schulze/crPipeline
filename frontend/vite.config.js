@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [svelte({ preprocess: vitePreprocess() })],
   resolve: {
     alias: {
-      $lib: resolve('./src/lib')
+      $lib: resolve('./src/lib'),
+      $app: resolve('./src/$app')
     }
   },
   server: {
