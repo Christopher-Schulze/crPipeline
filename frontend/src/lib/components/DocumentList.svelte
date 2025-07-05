@@ -262,5 +262,4 @@ async function downloadDocument(id: string) {
       />
     </div>
   </DataTable>
-{/if}
 </div>
