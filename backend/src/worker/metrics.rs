@@ -21,6 +21,16 @@ pub static JOB_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
     counter
 });
 
+pub static JOB_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
+    let opts = prometheus::HistogramOpts::new(
+        "job_duration_seconds",
+        "Total time spent processing a job",
+    );
+    let hist = HistogramVec::new(opts, &["status"]).unwrap();
+    REGISTRY.register(Box::new(hist.clone())).unwrap();
+    hist
+});
+
 pub static S3_ERROR_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
     let opts = prometheus::Opts::new("s3_errors_total", "Total number of S3 errors");
     let counter = IntCounterVec::new(opts, &["operation"]).unwrap();

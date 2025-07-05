@@ -76,3 +76,22 @@ pub async fn create_user(pool: &PgPool, org_id: Uuid, email: &str, role: &str) -
         .unwrap();
     user_id
 }
+
+pub async fn create_unconfirmed_user(pool: &PgPool, org_id: Uuid, email: &str, role: &str) -> Uuid {
+    let user_id = Uuid::new_v4();
+    let salt = SaltString::generate(&mut rand::thread_rng());
+    let password_hash = Argon2::default()
+        .hash_password(b"password", &salt)
+        .unwrap()
+        .to_string();
+    sqlx::query("INSERT INTO users (id, org_id, email, password_hash, role, confirmed) VALUES ($1,$2,$3,$4,$5,false)")
+        .bind(user_id)
+        .bind(org_id)
+        .bind(email)
+        .bind(password_hash)
+        .bind(role)
+        .execute(pool)
+        .await
+        .unwrap();
+    user_id
+}
