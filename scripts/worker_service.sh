@@ -15,4 +15,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# Default to 1 if not set
+: "${WORKER_CONCURRENCY:=1}"
+export WORKER_CONCURRENCY
+
 exec ./target/release/worker
