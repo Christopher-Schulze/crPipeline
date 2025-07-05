@@ -40,7 +40,6 @@ async fn deliver_email(to: &str, subject: &str, body: &str) -> anyhow::Result<()
             .send()
             .await?;
         return Ok(());
-´
     }
     if let Some(mailer) = MAILER.as_ref() {
         let from = env::var("SMTP_FROM").unwrap_or_else(|_| "noreply@example.com".into());

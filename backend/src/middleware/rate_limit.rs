@@ -11,6 +11,7 @@ use crate::middleware::jwt::verify_jwt; // Assuming Claims is pub
 use redis::{AsyncCommands, Client as RedisClient};
 use actix_web::http::header::{AUTHORIZATION, HeaderName};
 use log::{error, warn}; // For logging
+use crate::metrics::RATE_LIMIT_FALLBACK_COUNTER;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use std::time::{Duration, Instant};
@@ -154,9 +155,13 @@ where
                 if redis_failure {
                     match fallback_mode().as_str() {
                         "deny" => {
+                            RATE_LIMIT_FALLBACK_COUNTER.inc();
+                            warn!("Redis unavailable, denying requests");
                             return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
                         }
                         "memory" => {
+                            RATE_LIMIT_FALLBACK_COUNTER.inc();
+                            warn!("Redis unavailable, using in-memory rate limiter");
                             if !check_memory_limit(&key) {
                                 return Err(actix_web::error::ErrorTooManyRequests("Too many requests"));
                             }
