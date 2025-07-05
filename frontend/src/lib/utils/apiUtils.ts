@@ -1,17 +1,19 @@
 // frontend/src/lib/utils/apiUtils.ts
 import { loadingStore } from './loadingStore';
 import { sessionStore } from './sessionStore';
+import { errorStore } from './errorStore';
 import { get } from 'svelte/store';
 
 export interface FetchOptions extends RequestInit {
   isFormData?: boolean;
   fetchFn?: typeof fetch;
+  timeoutMs?: number;
 }
 
 const CSRF_HEADER = 'X-CSRF-Token';
 
 export async function apiFetch(url: string, options: FetchOptions = {}): Promise<Response> {
-  const { isFormData, fetchFn = fetch, ...init } = options;
+  const { isFormData, fetchFn = fetch, timeoutMs = 10000, ...init } = options;
   const headers = new Headers(init.headers || {});
 
   if (!isFormData && init.body && typeof init.body === 'string' && !headers.has('Content-Type')) {
@@ -33,6 +35,10 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
 
   init.headers = headers;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  init.signal = controller.signal;
+
   loadingStore.start();
   try {
     const res = await fetchFn(url, init);
@@ -40,10 +46,10 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
       let message = `HTTP ${res.status}`;
       try {
         const data = await res.json();
-        message = data.error || message;
+        message = (data as any).error || message;
       } catch {
         try {
-          message = await res.text() || message;
+          message = (await res.text()) || message;
         } catch {
           /* ignore */
         }
@@ -51,7 +57,42 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
       throw new Error(message);
     }
     return res;
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      err = new Error('Request timed out');
+    }
+    errorStore.show(err.message || 'Request failed');
+    throw err;
   } finally {
+    clearTimeout(timer);
     loadingStore.end();
   }
+}
+
+export async function getJSON<T>(url: string, options: FetchOptions = {}): Promise<T> {
+  const res = await apiFetch(url, { ...options, method: 'GET' });
+  return res.json();
+}
+
+export async function postJSON<T>(url: string, body: any, options: FetchOptions = {}): Promise<T> {
+  const res = await apiFetch(url, {
+    ...options,
+    method: 'POST',
+    body: options.isFormData ? body : JSON.stringify(body)
+  });
+  return res.json();
+}
+
+export async function putJSON<T>(url: string, body: any, options: FetchOptions = {}): Promise<T> {
+  const res = await apiFetch(url, {
+    ...options,
+    method: 'PUT',
+    body: options.isFormData ? body : JSON.stringify(body)
+  });
+  return res.json();
+}
+
+export async function deleteJSON<T>(url: string, options: FetchOptions = {}): Promise<T> {
+  const res = await apiFetch(url, { ...options, method: 'DELETE' });
+  return res.json();
 }
