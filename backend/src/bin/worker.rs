@@ -4,7 +4,7 @@ use aws_sdk_s3::Client as S3Client;
 use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
 use backend::processing;
 use backend::worker::metrics::{
-    spawn_metrics_server, JOB_COUNTER, OCR_HISTOGRAM, STAGE_HISTOGRAM,
+    spawn_metrics_server, JOB_COUNTER, JOB_HISTOGRAM, OCR_HISTOGRAM, STAGE_HISTOGRAM,
 };
 use backend::worker::{self, Stage};
 use serde_json::{self, Value};
@@ -268,6 +268,7 @@ async fn main() -> Result<()> {
         let mut txt_path = local.clone();
         txt_path.set_extension("txt");
 
+        let job_timer = Instant::now();
         let mut shutdown_during = false;
         let stage_future = run_stages(
             &pool,
@@ -294,12 +295,18 @@ async fn main() -> Result<()> {
             Ok(_) => {
                 AnalysisJob::update_status(&pool, job.id, "completed").await?;
                 JOB_COUNTER.with_label_values(&["success"]).inc();
+                JOB_HISTOGRAM
+                    .with_label_values(&["success"])
+                    .observe(job_timer.elapsed().as_secs_f64());
                 info!(job_id=%job.id, "Job processing completed successfully.");
             }
             Err(e) => {
                 error!(job_id=%job.id, "Job processing failed: {:?}", e);
                 AnalysisJob::update_status(&pool, job.id, "failed").await?;
                 JOB_COUNTER.with_label_values(&["failed"]).inc();
+                JOB_HISTOGRAM
+                    .with_label_values(&["failed"])
+                    .observe(job_timer.elapsed().as_secs_f64());
             }
         }
 

@@ -1,6 +1,12 @@
 // frontend/src/lib/utils/apiUtils.ts
 import { loadingStore } from './loadingStore';
 
+const CSRF_HEADER = 'X-CSRF-Token';
+const csrfToken =
+  typeof window !== 'undefined'
+    ? (window as any).CSRF_TOKEN || import.meta.env.VITE_CSRF_TOKEN
+    : import.meta.env.VITE_CSRF_TOKEN;
+
 // Function to get a cookie by name
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') {
@@ -38,6 +44,10 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
 
   // Ensure credentials (cookies) are sent for same-origin and cross-origin requests if CORS allows
   options.credentials = 'include';
+
+  if (csrfToken && !headers.has(CSRF_HEADER)) {
+    headers.set(CSRF_HEADER, csrfToken as string);
+  }
 
   options.headers = headers;
 

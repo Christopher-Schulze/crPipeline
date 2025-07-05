@@ -3,6 +3,7 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import Button from '$lib/components/Button.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { sessionStore } from '$lib/utils/sessionStore';
 
   let email = '';
   let password = '';
@@ -16,6 +17,18 @@
         body: JSON.stringify({ email, password })
       });
       if (res.ok) {
+        const me = await apiFetch('/api/me');
+        if (me.ok) {
+          const data = await me.json();
+          sessionStore.setSession({
+            loggedIn: true,
+            userId: data.user_id,
+            org: data.org_id,
+            role: data.role
+          });
+        } else {
+          sessionStore.setSession({ loggedIn: true, userId: null, org: null, role: null });
+        }
         goto('/dashboard');
       } else {
         const data = await res.json().catch(() => ({ error: 'Login failed' }));

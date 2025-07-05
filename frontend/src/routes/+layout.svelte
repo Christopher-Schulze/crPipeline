@@ -12,6 +12,7 @@
   import AnalysisJobDetail from '$lib/components/AnalysisJobDetail.svelte';
   import Button from '$lib/components/Button.svelte'; // For Dev Toggles
   import GlobalLoadingIndicator from '$lib/components/GlobalLoadingIndicator.svelte';
+  import { sessionStore } from '$lib/utils/sessionStore';
 
   // Type Imports or Definitions
   export interface NavItem {
@@ -37,6 +38,9 @@
   $: org = data?.session?.org || null;
   $: userId = data?.session?.userId || null;
   $: role = data?.session?.role || null;
+  $: if (data?.session) {
+    sessionStore.setSession(data.session);
+  }
   // Accent color would also ideally come from `data` if loaded in +layout.ts
   // onMount(() => { if (data?.session?.accentColor) document.documentElement.style.setProperty('--color-accent', data.session.accentColor); });
   // For now, accent color setting is deferred from this layout, SettingsForm still handles its own update.

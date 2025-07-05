@@ -24,3 +24,8 @@ cargo check --all-targets
 This should produce no warnings. The build was also confirmed with
 `cargo test --no-run` and `cargo check --tests --all-targets`.
 
+Integration tests cover common authentication flows. New tests verify that
+login succeeds for confirmed users and fails for unconfirmed accounts. Start the
+database services via `docker compose up -d db redis minio` and run `cargo test`
+to execute the full suite.
+

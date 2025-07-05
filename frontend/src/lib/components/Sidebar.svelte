@@ -16,6 +16,20 @@
   // function navigate(path: string) { // No longer needed
   //   dispatch('navigate', { path });
   // }
+
+  import { goto } from '$app/navigation';
+  import { apiFetch } from '$lib/utils/apiUtils';
+  import { sessionStore } from '$lib/utils/sessionStore';
+
+  async function logout() {
+    try {
+      await apiFetch('/api/logout', { method: 'POST' });
+    } catch (e) {
+      // ignore network errors
+    }
+    sessionStore.clear();
+    goto('/login');
+  }
 </script>
 
 <aside class="w-60 h-screen bg-neutral-800/70 backdrop-blur-xl border-r border-neutral-700/50 p-3 space-y-1 flex flex-col shadow-2xl dark:bg-neutral-800/80 dark:border-neutral-700"> {/* Added dark mode consistency */}
@@ -68,9 +82,17 @@
   </nav>
   <div class="mt-auto pt-3 border-t border-neutral-700/50">
     <!-- Placeholder for user profile / logout -->
-    <div class="p-2 text-center">
-      <span class="text-xs font-light text-gray-500">© crPipeline</span>
-      <!-- User Actions Placeholder could go here -->
+    <div class="p-2 text-center space-y-2">
+      <span class="block text-xs font-light text-gray-500">© crPipeline</span>
+      {#if $sessionStore.loggedIn}
+        <button
+          type="button"
+          class="text-xs text-accent hover:underline"
+          on:click={logout}
+        >
+          Logout
+        </button>
+      {/if}
     </div>
   </div>
 </aside>
