@@ -1,6 +1,6 @@
 # Monitoring
 
-The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard. In addition to job and stage metrics, the exporter collects S3 error counts (`s3_errors_total`), job duration histograms (`job_duration_seconds`), OCR latency histograms (`ocr_duration_seconds`), failed AI/OCR calls (`ai_ocr_errors_total`), login failure counts (`login_failures_total`), rate limit fallback events (`rate_limit_fallback_total`), and worker shutdown counts (`worker_shutdowns_total`).
+The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard. In addition to job and stage metrics, the exporter collects S3 error counts (`s3_errors_total`), stage duration histograms (`stage_duration_seconds`), job duration histograms (`job_duration_seconds`), OCR latency histograms (`ocr_duration_seconds`), failed AI/OCR calls (`ai_ocr_errors_total`), login failure counts (`login_failures_total`), rate limit fallback events (`rate_limit_fallback_total`), and worker shutdown counts (`worker_shutdowns_total`).
 
 ## docker-compose example
 
@@ -129,6 +129,7 @@ Create the dashboard JSON at `grafana/dashboards/metrics.json`:
 ```
 
 Grafana loads the dashboard on startup. Navigate to `http://localhost:3000` to view the charts.
+Panels for *Stage Duration* and *Job Duration* visualize the histogram metrics so you can spot slow stages and long jobs.
 Kubernetes manifests for deploying Prometheus and Grafana are available under `k8s/`.
 
 ## Alerting

@@ -20,6 +20,9 @@ pub async fn handle_ai_stage(
     local_pdf: &std::path::Path,
 ) -> Result<serde_json::Value> {
     info!(job_id=%job.id, stage=%stage.stage_type, "start ai stage");
+    let timer = crate::worker::metrics::STAGE_HISTOGRAM
+        .with_label_values(&[stage.stage_type.as_str()])
+        .start_timer();
     let (endpoint, key) = if let Some(settings) = org_settings {
         let ep = settings
             .ai_api_endpoint
@@ -39,6 +42,7 @@ pub async fn handle_ai_stage(
 
     if endpoint.is_empty() {
         error!(job_id=%job.id, "AI endpoint missing");
+        timer.observe_duration();
         return Err(anyhow::anyhow!("AI endpoint missing"));
     }
 
@@ -62,6 +66,7 @@ pub async fn handle_ai_stage(
         Ok(r) => r,
         Err(e) => {
             API_ERROR_COUNTER.with_label_values(&["ai"]).inc();
+            timer.observe_duration();
             return Err(e.into());
         }
     };
@@ -90,5 +95,6 @@ pub async fn handle_ai_stage(
     }
 
     info!(job_id=%job.id, stage=%stage.stage_type, "finished ai stage");
+    timer.observe_duration();
     Ok(result)
 }

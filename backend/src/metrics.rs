@@ -1,5 +1,7 @@
 use once_cell::sync::Lazy;
-use prometheus::{IntCounter, IntCounterVec, Opts, Registry};
+use prometheus::{
+    HistogramOpts, HistogramVec, IntCounter, IntCounterVec, Opts, Registry,
+};
 
 pub static AUTH_FAILURE_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
     let opts = Opts::new("login_failures_total", "Total failed login attempts");
@@ -14,11 +16,33 @@ pub static RATE_LIMIT_FALLBACK_COUNTER: Lazy<IntCounter> = Lazy::new(|| {
     IntCounter::with_opts(opts).unwrap()
 });
 
+pub static STAGE_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
+    let opts = HistogramOpts::new(
+        "stage_duration_seconds",
+        "Time spent processing each stage",
+    );
+    HistogramVec::new(opts, &["stage"]).unwrap()
+});
+
+pub static JOB_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
+    let opts = HistogramOpts::new(
+        "job_duration_seconds",
+        "Total time spent processing a job",
+    );
+    HistogramVec::new(opts, &["status"]).unwrap()
+});
+
 pub fn register_metrics(registry: &Registry) {
     registry
         .register(Box::new(AUTH_FAILURE_COUNTER.clone()))
         .unwrap();
     registry
         .register(Box::new(RATE_LIMIT_FALLBACK_COUNTER.clone()))
+        .unwrap();
+    registry
+        .register(Box::new(STAGE_HISTOGRAM.clone()))
+        .unwrap();
+    registry
+        .register(Box::new(JOB_HISTOGRAM.clone()))
         .unwrap();
 }
