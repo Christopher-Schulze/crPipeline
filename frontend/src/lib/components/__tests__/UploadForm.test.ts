@@ -2,8 +2,9 @@ import { render, fireEvent } from '@testing-library/svelte';
 import { vi, expect, test } from 'vitest';
 import { tick } from 'svelte';
 import UploadForm from '../UploadForm.svelte';
+import * as apiUtils from '$lib/utils/apiUtils';
 
-vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true })) as any);
+vi.spyOn(apiUtils, 'apiFetch').mockResolvedValue({ ok: true } as any);
 
 test('emits uploaded event after successful fetch', async () => {
   const { container, component } = render(UploadForm, { props: { orgId: '1', userId: 'u1', pipelineId: 'p1' } });
@@ -15,6 +16,6 @@ test('emits uploaded event after successful fetch', async () => {
   });
   await fireEvent.change(input);
   await tick();
-  expect(fetch).toHaveBeenCalled();
+  expect(apiUtils.apiFetch).toHaveBeenCalled();
   expect(handler).toHaveBeenCalled();
 });

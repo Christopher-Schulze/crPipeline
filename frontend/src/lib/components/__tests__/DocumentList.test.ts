@@ -30,6 +30,7 @@ const fetchMock = vi.fn((url: string, options?: any) => {
 }) as any;
 
 vi.stubGlobal('fetch', fetchMock);
+vi.stubGlobal('confirm', vi.fn(() => true));
 
 test('renders documents from api', async () => {
   const { getByText } = render(DocumentList, { props: { orgId: 'org1' } });
