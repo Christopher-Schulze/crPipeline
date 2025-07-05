@@ -37,28 +37,38 @@ pub fn validate_stages(stages: &serde_json::Value) -> Result<(), HttpResponse> {
                     })));
                 }
 
-                if let Some(command_val) = stage_obj.get("command") {
-                    if command_val.is_null() {
-                    } else if let Some(command_str) = command_val.as_str() {
-                        if command_str.trim().is_empty() {
+                let command_value_opt = stage_obj.get("command");
+                let command_missing = match command_value_opt {
+                    None => true,
+                    Some(v) if v.is_null() => true,
+                    Some(v) => {
+                        if let Some(command_str) = v.as_str() {
+                            if command_str.trim().is_empty() {
+                                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                    "error": format!("Stage {} 'command', if present and not null, cannot be empty.", index)
+                                })));
+                            }
+                            false
+                        } else {
                             return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                                "error": format!("Stage {} 'command', if present and not null, cannot be empty.", index)
+                                "error": format!("Stage {} 'command' must be a string or null.", index)
                             })));
                         }
-                    } else {
-                        return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                            "error": format!("Stage {} 'command' must be a string or null.", index)
-                        })));
                     }
-                }
+                };
 
                 match stage_type_str.as_str() {
                     "ai" => {
+                        if command_missing {
+                            return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                "error": format!("Stage {} (AI): 'command' is required.", index)
+                            })));
+                        }
                         if let Some(prompt_name_val) = stage_obj.get("prompt_name") {
                             if !prompt_name_val.is_string() && !prompt_name_val.is_null() {
                                 return Err(HttpResponse::BadRequest().json(serde_json::json!({
                                     "error": format!("Stage {} (AI): 'prompt_name' must be a string or null.", index)
-                                })));
+                                }))); 
                             }
                             if let Some(s) = prompt_name_val.as_str() {
                                 if s.trim().is_empty() {
@@ -70,6 +80,11 @@ pub fn validate_stages(stages: &serde_json::Value) -> Result<(), HttpResponse> {
                         }
                     }
                     "ocr" => {
+                        if command_missing {
+                            return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                "error": format!("Stage {} (OCR): 'command' is required.", index)
+                            })));
+                        }
                         if let Some(engine_val) = stage_obj.get("ocr_engine") {
                             if !engine_val.is_null() {
                                 if let Some(engine_str) = engine_val.as_str() {
@@ -102,14 +117,14 @@ pub fn validate_stages(stages: &serde_json::Value) -> Result<(), HttpResponse> {
                                             if !key_val.is_string() && !key_val.is_null() {
                                                 return Err(HttpResponse::BadRequest().json(serde_json::json!({
                                                     "error": format!("Stage {} (OCR): 'ocr_stage_key' for external engine must be a string or null.", index)
-                                                })));
+                                                }))); 
                                             }
                                         }
                                     }
                                 } else {
                                     return Err(HttpResponse::BadRequest().json(serde_json::json!({
                                         "error": format!("Stage {} (OCR): 'ocr_engine' must be a string or null.", index)
-                                    })));
+                                    }))); 
                                 }
                             }
                         }
@@ -130,14 +145,30 @@ pub fn validate_stages(stages: &serde_json::Value) -> Result<(), HttpResponse> {
                             }
                         }
                         if let Some(key_val) = stage_obj.get("ocr_stage_key") {
+                            if stage_obj
+                                .get("ocr_engine")
+                                .and_then(|v| v.as_str())
+                                != Some("external")
+                                && !key_val.is_null()
+                            {
+                                return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                    "error": format!("Stage {} (OCR): 'ocr_stage_key' can only be set when ocr_engine is 'external'.", index)
+                                }))); 
+                            }
                             if !key_val.is_string() && !key_val.is_null() {
                                 return Err(HttpResponse::BadRequest().json(serde_json::json!({
                                     "error": format!("Stage {} (OCR): 'ocr_stage_key' must be a string or null.", index)
-                                })));
+                                }))); 
                             }
                         }
                     }
-                    "parse" | "report" => {}
+                    "parse" | "report" => {
+                        if command_missing {
+                            return Err(HttpResponse::BadRequest().json(serde_json::json!({
+                                "error": format!("Stage {} ({}): 'command' is required.", index, stage_type_str)
+                            })));
+                        }
+                    }
                     _ => {}
                 }
             } else {
@@ -161,8 +192,8 @@ mod tests {
     #[test]
     fn missing_stage_id_is_ok() {
         let stages = json!([
-            {"type": "ocr"},
-            {"id": "b", "type": "ai"}
+            {"type": "ocr", "command": "run"},
+            {"id": "b", "type": "ai", "command": "run"}
         ]);
         assert!(validate_stages(&stages).is_ok());
     }
@@ -170,7 +201,7 @@ mod tests {
     #[test]
     fn invalid_ocr_engine_rejected() {
         let stages = json!([
-            {"type": "ocr", "ocr_engine": "foo"}
+            {"type": "ocr", "ocr_engine": "foo", "command": "run"}
         ]);
         assert!(validate_stages(&stages).is_err());
     }
@@ -178,7 +209,7 @@ mod tests {
     #[test]
     fn external_ocr_without_endpoint_rejected() {
         let stages = json!([
-            {"type": "ocr", "ocr_engine": "external"}
+            {"type": "ocr", "ocr_engine": "external", "command": "run"}
         ]);
         assert!(validate_stages(&stages).is_err());
     }
