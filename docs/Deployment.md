@@ -31,9 +31,16 @@ kubectl create secret generic backend-env \
   --from-literal=DATABASE_URL=postgres://user:pass@db/production \
   --from-literal=JWT_SECRET=$(openssl rand -hex 32) \
   --from-literal=S3_BUCKET=uploads
-
 kubectl create secret generic frontend-env \
   --from-literal=PUBLIC_BACKEND_URL=https://example.com
+```
+
+Equivalent manifest files `k8s/backend-secret.yaml` and
+`k8s/frontend-secret.yaml` are provided for declarative deployments:
+
+```bash
+kubectl apply -f k8s/backend-secret.yaml
+kubectl apply -f k8s/frontend-secret.yaml
 ```
 
 Set the `REGISTRY` secret in your CI settings so images are pushed to your container registry.
@@ -68,6 +75,8 @@ spec:
             port:
               number: 80
 ```
+
+This manifest is also available as `k8s/backend-ingress.yaml`.
 
 ### Example Traefik ingress
 
