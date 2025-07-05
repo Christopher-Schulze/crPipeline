@@ -8,7 +8,7 @@ FROM node:20 AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend .
-RUN npm run build
+RUN npm run build:prod
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html

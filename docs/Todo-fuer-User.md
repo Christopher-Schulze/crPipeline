@@ -51,3 +51,16 @@ sudo chmod +x /opt/crPipeline/scripts/worker_service.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now worker.service
 ```
+
+## Statische Assets ausliefern
+
+Um die gebaute Weboberfläche im Produktivbetrieb bereitzustellen, sollten die Dateien aus
+`frontend/dist` von einem Webserver wie nginx ausgeliefert werden. Baue das
+Frontend zuvor mit dem DaisyUI-Schritt:
+
+```bash
+npm run build:prod --prefix frontend
+```
+
+Kopiere danach den Inhalt von `frontend/dist` an den Ort, den dein Webserver
+als Dokumentenwurzel nutzt oder binde das Verzeichnis als Volume ein.
