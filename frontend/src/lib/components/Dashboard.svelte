@@ -2,6 +2,7 @@
   import { onMount, onDestroy, getContext } from 'svelte'; // Added getContext
   import GlassCard from './GlassCard.svelte';
   import Chart from 'chart.js/auto';
+  import { apiFetch } from '$lib/utils/apiUtils';
   export let orgId: string;
 
   const viewJobDetails = getContext<(jobId: string) => void>('viewJobDetails'); // Get context
@@ -26,14 +27,10 @@
   async function loadQuota() {
     if (!orgId) return;
     try {
-      const res = await fetch(`/api/dashboard/${orgId}`);
-      if (res.ok) {
-        const data = await res.json();
-        uploadRemaining = data.upload_remaining;
-        analysisRemaining = data.analysis_remaining;
-      } else {
-        console.error(`Failed to load quota data for org ${orgId}:`, await res.text());
-      }
+      const res = await apiFetch(`/api/dashboard/${orgId}`);
+      const data = await res.json();
+      uploadRemaining = data.upload_remaining;
+      analysisRemaining = data.analysis_remaining;
     } catch (error) {
       console.error(`Error loading quota data for org ${orgId}:`, error);
     }
@@ -42,9 +39,8 @@
   async function loadUsage() {
     if (!orgId || !canvasEl) return; // Ensure canvasEl is available
     try {
-      const usageRes = await fetch(`/api/dashboard/${orgId}/usage`);
-      if (usageRes.ok) {
-        const usage = await usageRes.json();
+      const usageRes = await apiFetch(`/api/dashboard/${orgId}/usage`);
+      const usage = await usageRes.json();
         const labels = usage.map((u: any) => u.month);
         const uploads = usage.map((u: any) => u.uploads);
         const analyses = usage.map((u: any) => u.analyses);
@@ -66,9 +62,6 @@
             scales: { x: { stacked: false }, y: { beginAtZero: true } }
           }
         });
-      } else {
-        console.error(`Failed to load usage data for org ${orgId}:`, await usageRes.text());
-      }
     } catch (error) {
       console.error(`Error loading usage data for org ${orgId}:`, error);
     }
@@ -77,12 +70,8 @@
   async function loadRecentAnalyses() {
     if (!orgId) return;
     try {
-      const res = await fetch(`/api/dashboard/${orgId}/recent_analyses`);
-      if (res.ok) {
-        recentAnalyses = await res.json();
-      } else {
-        console.error(`Failed to load recent analyses for org ${orgId}:`, await res.text());
-      }
+      const res = await apiFetch(`/api/dashboard/${orgId}/recent_analyses`);
+      recentAnalyses = await res.json();
     } catch (error) {
       console.error(`Error loading recent analyses for org ${orgId}:`, error);
     }

@@ -1,5 +1,6 @@
 import type { LayoutLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
+import { apiFetch } from '$lib/utils/apiUtils';
 
 export const load: LayoutLoad = async ({ fetch, url }) => {
   // If executed in browser and session is already populated by a previous run (e.g. from server on initial load),
@@ -12,13 +13,14 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
   // console.log('Root +layout.ts load function executing. Browser:', browser);
 
   try {
-    const res = await fetch('/api/me');
+    const res = await apiFetch('/api/me', { fetchFn: fetch });
 
     let session = {
       loggedIn: false,
       userId: null as string | null,
       org: null as string | null,
-      role: null as string | null
+      role: null as string | null,
+      csrfToken: import.meta.env.VITE_CSRF_TOKEN ?? null
     };
 
     if (res.ok) {
@@ -27,7 +29,8 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
         loggedIn: true,
         userId: userData.user_id,
         org: userData.org_id,
-        role: userData.role
+        role: userData.role,
+        csrfToken: import.meta.env.VITE_CSRF_TOKEN ?? null
       };
     }
 
@@ -53,7 +56,8 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
         loggedIn: false,
         userId: null,
         org: null,
-        role: null
+        role: null,
+        csrfToken: import.meta.env.VITE_CSRF_TOKEN ?? null
       }
     };
   }

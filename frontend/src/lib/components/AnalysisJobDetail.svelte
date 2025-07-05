@@ -4,6 +4,7 @@
   import Button from './Button.svelte';
   import Modal from './Modal.svelte';
   import * as Diff from 'diff'; // Import the diff library
+  import { apiFetch } from '$lib/utils/apiUtils';
 
   export let jobId: string;
 
@@ -98,14 +99,7 @@
     isLoading = true;
     error = null;
     try {
-      const response = await fetch(`/api/jobs/${id}/details`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Job with ID ${id} not found.`);
-        }
-        const errorData = await response.json().catch(() => ({ error: `HTTP error ${response.status} - ${response.statusText}` }));
-        throw new Error(errorData.error || `Failed to fetch job details: ${response.statusText}`);
-      }
+      const response = await apiFetch(`/api/jobs/${id}/details`);
       const data: JobDetails = await response.json();
       jobDetails = data;
 
@@ -219,7 +213,7 @@
             console.info(`Using pre-loaded OCR text for comparison: ${ocrOutputToDisplay.stage_name}`);
         } else if (ocrOutputToDisplay) { // Ensure metadata exists before fetching
             console.info(`Fetching OCR text for comparison: ${ocrOutputToDisplay.stage_name}`);
-            const presignedUrlResponse = await fetch(`/api/jobs/outputs/${ocrOutputToDisplay.id}/download_url`);
+            const presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${ocrOutputToDisplay.id}/download_url`);
             if (!presignedUrlResponse.ok) { success = false; throw new Error(`OCR Text (Compare): ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`); }
             const presignedUrlData = await presignedUrlResponse.json();
             if (!presignedUrlData.url) { success = false; throw new Error("OCR Text URL (Compare) not found."); }
@@ -235,7 +229,7 @@
             console.info(`Using pre-loaded Parse JSON for comparison: ${parseOutputToDisplay.stage_name}`);
         } else if (parseOutputToDisplay) { // Ensure metadata exists before fetching
             console.info(`Fetching Parse JSON for comparison: ${parseOutputToDisplay.stage_name}`);
-            const presignedUrlResponse = await fetch(`/api/jobs/outputs/${parseOutputToDisplay.id}/download_url`);
+            const presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${parseOutputToDisplay.id}/download_url`);
             if (!presignedUrlResponse.ok) { success = false; throw new Error(`Parse JSON (Compare): ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`); }
             const presignedUrlData = await presignedUrlResponse.json();
             if (!presignedUrlData.url) { success = false; throw new Error("Parse JSON URL (Compare) not found."); }
@@ -300,7 +294,7 @@
 
     try {
       // Fetch AI Input
-      let presignedUrlResponse = await fetch(`/api/jobs/outputs/${aiInputStageOutputMetadata.id}/download_url`);
+      let presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${aiInputStageOutputMetadata.id}/download_url`);
       if (!presignedUrlResponse.ok) throw new Error(`AI Input: ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`);
       let presignedUrlData = await presignedUrlResponse.json();
       if (!presignedUrlData.url) throw new Error("AI Input URL not found.");
@@ -316,7 +310,7 @@
       aiInputJsonForDiff = tempAiInputJson; // Store for copy button
 
       // Fetch AI Output
-      presignedUrlResponse = await fetch(`/api/jobs/outputs/${aiOutputStageOutputMetadata.id}/download_url`);
+      presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${aiOutputStageOutputMetadata.id}/download_url`);
       if (!presignedUrlResponse.ok) throw new Error(`AI Output: ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`);
       presignedUrlData = await presignedUrlResponse.json();
       if (!presignedUrlData.url) throw new Error("AI Output URL not found.");
@@ -384,7 +378,7 @@
     setOutputToDisplay(output);
 
     try {
-      const presignedUrlResponse = await fetch(`/api/jobs/outputs/${output.id}/download_url`);
+      const presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${output.id}/download_url`);
       if (!presignedUrlResponse.ok) {
         const errorData = await presignedUrlResponse.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to get JSON URL (${output.stage_name}): ${presignedUrlResponse.statusText}`);
@@ -444,7 +438,7 @@
     ocrOutputToDisplay = output;
 
     try {
-      const presignedUrlResponse = await fetch(`/api/jobs/outputs/${output.id}/download_url`);
+      const presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${output.id}/download_url`);
       if (!presignedUrlResponse.ok) {
         const errorData = await presignedUrlResponse.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to get OCR text URL: ${presignedUrlResponse.statusText}`);
@@ -479,7 +473,7 @@
     viewingOutputTitle = `Output: ${output.stage_name} (${output.output_type})`;
 
     try {
-      const presignedUrlResponse = await fetch(`/api/jobs/outputs/${output.id}/download_url`);
+      const presignedUrlResponse = await apiFetch(`/api/jobs/outputs/${output.id}/download_url`);
       if (!presignedUrlResponse.ok) {
         const errorData = await presignedUrlResponse.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to get view URL: ${presignedUrlResponse.statusText}`);
@@ -533,7 +527,7 @@
 
   async function downloadStageOutput(outputId: string, filenameSuggestion?: string) {
     try {
-      const response = await fetch(`/api/jobs/outputs/${outputId}/download_url`);
+      const response = await apiFetch(`/api/jobs/outputs/${outputId}/download_url`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({})); // Try to get error message
         let message = errorData.error || errorData.detail || `Failed to get download URL: ${response.statusText}`;

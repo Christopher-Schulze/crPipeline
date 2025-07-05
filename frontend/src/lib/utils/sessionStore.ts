@@ -5,13 +5,15 @@ export interface SessionData {
   userId: string | null;
   org: string | null;
   role: string | null;
+  csrfToken: string | null;
 }
 
 const initial: SessionData = {
   loggedIn: false,
   userId: null,
   org: null,
-  role: null
+  role: null,
+  csrfToken: null
 };
 
 function createSessionStore() {

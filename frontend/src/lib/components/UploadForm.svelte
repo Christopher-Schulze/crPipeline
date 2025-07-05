@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { apiFetch } from '$lib/utils/apiUtils';
 
   export let orgId: string;
   export let userId: string;
@@ -27,18 +28,14 @@
     }
 
     try {
-      const res = await fetch(`/api/upload?${params.toString()}`, {
+      await apiFetch(`/api/upload?${params.toString()}`, {
         method: 'POST',
         body: formData,
+        isFormData: true
       });
-      if (res.ok) {
-        dispatch('uploaded');
-        // Reset file input for next upload (optional, but good UX)
-        input.value = '';
-        isTarget = false; // Reset checkbox
-      } else {
-        alert('Upload failed: ' + (await res.text()));
-      }
+      dispatch('uploaded');
+      input.value = '';
+      isTarget = false;
     } catch (error) {
       console.error('Upload error:', error);
       alert('Upload failed. See console for details.');

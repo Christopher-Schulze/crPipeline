@@ -12,28 +12,21 @@
   async function submit() {
     error = null;
     try {
-      const res = await apiFetch('/api/login', {
+      await apiFetch('/api/login', {
         method: 'POST',
         body: JSON.stringify({ email, password })
       });
-      if (res.ok) {
-        const me = await apiFetch('/api/me');
-        if (me.ok) {
-          const data = await me.json();
-          sessionStore.setSession({
-            loggedIn: true,
-            userId: data.user_id,
-            org: data.org_id,
-            role: data.role
-          });
-        } else {
-          sessionStore.setSession({ loggedIn: true, userId: null, org: null, role: null });
-        }
-        goto('/dashboard');
-      } else {
-        const data = await res.json().catch(() => ({ error: 'Login failed' }));
-        error = data.error || 'Login failed';
-      }
+
+      const me = await apiFetch('/api/me');
+      const data = await me.json();
+      sessionStore.setSession({
+        loggedIn: true,
+        userId: data.user_id,
+        org: data.org_id,
+        role: data.role,
+        csrfToken: import.meta.env.VITE_CSRF_TOKEN ?? null
+      });
+      goto('/dashboard');
     } catch (e: any) {
       error = e.message || 'Login failed';
     }
