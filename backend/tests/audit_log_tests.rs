@@ -5,7 +5,6 @@ use test_utils::{create_org, create_user, generate_jwt_token};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use wiremock::{MockServer, Mock, ResponseTemplate};
 use wiremock::matchers::method;
-use uuid::Uuid;
 
 async fn setup_app(s3: &MockServer) -> (impl actix_web::dev::Service<actix_http::Request, Response = actix_web::dev::ServiceResponse, Error = actix_web::Error>, PgPool) {
     dotenvy::dotenv().ok();
@@ -25,7 +24,10 @@ async fn setup_app(s3: &MockServer) -> (impl actix_web::dev::Service<actix_http:
 #[actix_rt::test]
 async fn upload_creates_audit_log() {
     let s3_server = MockServer::start().await;
-    Mock::given(method("PUT")).respond_with(ResponseTemplate::new(200)).mount_as_scoped(&s3_server).await;
+    let _mock_guard = Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount_as_scoped(&s3_server)
+        .await;
 
     let (app, pool) = setup_app(&s3_server).await;
     let org_id = create_org(&pool, "Audit Org").await;

@@ -8,7 +8,6 @@ use mini_redis::server;
 mod test_utils;
 use test_utils::{setup_test_app, create_org, create_user};
 use backend::models::{Pipeline, NewPipeline, Document, NewDocument, NewAnalysisJob, AnalysisJob};
-use uuid::Uuid;
 
 async fn start_redis() -> (oneshot::Sender<()>, u16) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

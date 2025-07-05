@@ -137,7 +137,6 @@ pub async fn assign_user_role(
             .json(serde_json::json!({"error": "Invalid role specified. Allowed roles are 'user' or 'org_admin'."}));
     }
 
-    let mut target_org_id_for_update: Option<Uuid> = None;
     if new_role == "org_admin" {
         match payload.org_id {
             Some(org_uuid) => {
@@ -146,8 +145,8 @@ pub async fn assign_user_role(
                     .fetch_one(pool.as_ref())
                     .await
                 {
-                    Ok(exists) if exists => target_org_id_for_update = Some(org_uuid),
-                    Ok(_) => {
+                    Ok(true) => {}
+                    Ok(false) => {
                         return HttpResponse::BadRequest()
                             .json(serde_json::json!({"error": format!("Organization with ID {} not found.", org_uuid)}));
                     }
