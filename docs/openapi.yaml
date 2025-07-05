@@ -195,6 +195,18 @@ paths:
       responses:
         '200':
           description: Document uploaded
+  /download/{document_id}:
+    get:
+      summary: Download a document
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document content or presigned URL
   /pipelines:
     post:
       summary: Create a pipeline
