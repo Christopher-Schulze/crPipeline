@@ -1,6 +1,6 @@
 # Monitoring
 
-The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard. In addition to job and stage metrics, the exporter collects S3 error counts (`s3_errors_total`) and OCR latency histograms (`ocr_duration_seconds`).
+The backend exposes Prometheus metrics at `http://localhost:9100/metrics`. To visualize these metrics, run Grafana with a preconfigured dashboard. In addition to job and stage metrics, the exporter collects S3 error counts (`s3_errors_total`), OCR latency histograms (`ocr_duration_seconds`), and login failure counts (`login_failures_total`).
 
 ## docker-compose example
 
@@ -63,9 +63,18 @@ Create the dashboard JSON at `grafana/dashboards/metrics.json`:
       "type": "graph",
       "title": "OCR Duration",
       "targets": [{ "expr": "ocr_duration_seconds", "legendFormat": "{{engine}}" }]
+    },
+    {
+      "type": "graph",
+      "title": "Login Failures",
+      "targets": [{ "expr": "login_failures_total", "legendFormat": "{{reason}}" }]
     }
   ]
 }
 ```
 
 Grafana loads the dashboard on startup. Navigate to `http://localhost:3000` to view the charts.
+
+## Alerting
+
+Grafana supports alert rules on any Prometheus query. To be notified when many login attempts fail, open the *Login Failures* panel and create an alert with `increase(login_failures_total[5m]) > 5`. Configure a notification channel such as email or Slack to receive alerts.

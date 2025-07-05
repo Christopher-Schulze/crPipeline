@@ -14,6 +14,7 @@ use actix_web::cookie::SameSite; // For cookie SameSite attribute
 use actix_web::cookie::time::Duration as ActixDuration; // For cookie Max-Age
 use chrono::Utc;
 use uuid::Uuid;
+use crate::metrics::AUTH_FAILURE_COUNTER;
 
 #[derive(Deserialize)]
 pub struct RegisterInput {
@@ -94,6 +95,9 @@ pub async fn login(
     match User::find_by_email(&pool, &data.email).await {
         Ok(user) => {
             if !user.is_active {
+                AUTH_FAILURE_COUNTER
+                    .with_label_values(&["inactive"])
+                    .inc();
                 log::warn!("Login attempt for deactivated user: {}", data.email);
                 return Err(ApiError::new(
                     "Your account has been deactivated. Please contact an administrator.",
@@ -102,8 +106,11 @@ pub async fn login(
             }
             if user.verify_password(&data.password) {
                 if !user.confirmed {
-                     log::warn!("Login attempt for unconfirmed user: {}", data.email);
-                     return Err(ApiError::new(
+                    AUTH_FAILURE_COUNTER
+                        .with_label_values(&["unconfirmed"])
+                        .inc();
+                    log::warn!("Login attempt for unconfirmed user: {}", data.email);
+                    return Err(ApiError::new(
                         "Account not confirmed. Please check your email or contact an administrator to resend confirmation.",
                         actix_web::http::StatusCode::UNAUTHORIZED,
                     ));
@@ -139,6 +146,9 @@ pub async fn login(
                 log::info!("User {} logged in successfully. Secure cookie: {}", user.email, secure_cookie);
                 return Ok(HttpResponse::Ok().cookie(cookie).json(AuthResponse { success: true }));
             } else {
+                AUTH_FAILURE_COUNTER
+                    .with_label_values(&["invalid_password"])
+                    .inc();
                 log::warn!("Failed login attempt for user: {} (invalid password)", data.email);
                 return Err(ApiError::new(
                     "Invalid email or password.",
@@ -147,6 +157,9 @@ pub async fn login(
             }
         }
         Err(sqlx::Error::RowNotFound) => {
+            AUTH_FAILURE_COUNTER
+                .with_label_values(&["user_not_found"])
+                .inc();
             log::warn!("Failed login attempt: User {} not found.", data.email);
             Err(ApiError::new(
                 "Invalid email or password.",
@@ -154,6 +167,9 @@ pub async fn login(
             ))
         }
         Err(e) => {
+            AUTH_FAILURE_COUNTER
+                .with_label_values(&["db_error"])
+                .inc();
             log::error!("Database error during login for user {}: {:?}", data.email, e);
             Err(ApiError::new(
                 "Login failed due to a server error.",
