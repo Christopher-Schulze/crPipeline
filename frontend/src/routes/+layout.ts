@@ -1,7 +1,7 @@
 import type { LayoutLoad } from './$types';
-import { browser } from '$app/environment';
+import { redirect } from '@sveltejs/kit';
 
-export const load: LayoutLoad = async ({ fetch, data: parentData }) => {
+export const load: LayoutLoad = async ({ fetch, url }) => {
   // If executed in browser and session is already populated by a previous run (e.g. from server on initial load),
   // we might not need to fetch /api/me again unless we want to re-validate.
   // SvelteKit's fetch is isomorphic.
@@ -12,43 +12,48 @@ export const load: LayoutLoad = async ({ fetch, data: parentData }) => {
   // console.log('Root +layout.ts load function executing. Browser:', browser);
 
   try {
-    // Use SvelteKit's fetch for universal loading (works on server and client)
-    // It automatically handles credentials (cookies) for same-origin requests.
     const res = await fetch('/api/me');
+
+    let session = {
+      loggedIn: false,
+      userId: null as string | null,
+      org: null as string | null,
+      role: null as string | null
+    };
 
     if (res.ok) {
       const userData = await res.json();
-      // console.log('Root +layout.ts: /api/me success', userData);
-      return {
-        session: {
-          loggedIn: true,
-          userId: userData.user_id,
-          org: userData.org_id,
-          role: userData.role,
-          // You could also fetch initial accent_color here if OrgSettings are available via /api/me or another call
-        }
-      };
-    } else {
-      // console.log('Root +layout.ts: /api/me returned not ok', res.status);
-      // This means user is not authenticated or session expired
-      return {
-        session: {
-          loggedIn: false,
-          userId: null,
-          org: null,
-          role: null,
-        }
+      session = {
+        loggedIn: true,
+        userId: userData.user_id,
+        org: userData.org_id,
+        role: userData.role
       };
     }
+
+    const path = url.pathname;
+    const publicPaths = ['/', '/login', '/register'];
+
+    if (!session.loggedIn && !publicPaths.includes(path)) {
+      throw redirect(302, '/login');
+    }
+
+    if (path.startsWith('/admin') && session.role !== 'admin') {
+      throw redirect(302, '/dashboard');
+    }
+
+    if (path.startsWith('/organization') && session.role !== 'org_admin' && session.role !== 'admin') {
+      throw redirect(302, '/dashboard');
+    }
+
+    return { session };
   } catch (e) {
-    // console.error("Root +layout.ts: Failed to fetch session for root layout:", e);
-    // Network error or other issue
     return {
       session: {
         loggedIn: false,
         userId: null,
         org: null,
-        role: null,
+        role: null
       }
     };
   }

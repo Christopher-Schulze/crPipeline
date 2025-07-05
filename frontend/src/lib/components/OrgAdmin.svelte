@@ -261,8 +261,8 @@
 
 </script>
 
-<GlassCard padding="p-0" customClass="overflow-hidden"> {/* Changed padding to p-0, internal divs will handle it */}
-  <div class="p-4 sm:p-6 border-b border-neutral-700/50"> {/* Header for title and create org button */}
+<GlassCard padding="p-0" customClass="overflow-hidden"> <!-- Changed padding to p-0, internal divs will handle it -->
+  <div class="p-4 sm:p-6 border-b border-neutral-700/50"> <!-- Header for title and create org button -->
     <div class="flex justify-between items-center">
       <h2 class="text-xl font-semibold text-gray-100">Admin Panel</h2>
       {#if currentAdminView === 'organizations'}
@@ -289,9 +289,9 @@
     </button>
   </div>
 
-  <div class="p-4 sm:p-6 space-y-6"> {/* Main content area for tabs, increased space-y-4 to space-y-6 */}
+  <div class="p-4 sm:p-6 space-y-6"> <!-- Main content area for tabs, increased space-y-4 to space-y-6 -->
     {#if currentAdminView === 'organizations'}
-      <h3 class="text-lg font-semibold text-gray-200">Manage Organizations</h3> {/* Removed mb-3, parent space-y-6 will handle */}
+      <h3 class="text-lg font-semibold text-gray-200">Manage Organizations</h3> <!-- Removed mb-3, parent space-y-6 will handle -->
       <!-- Orgs Table -->
       <DataTable
         headers={orgTableHeaders}
@@ -310,7 +310,7 @@
       </DataTable>
 
     {:else if currentAdminView === 'users'}
-      <h3 class="text-lg font-semibold text-gray-200">Manage System Users</h3> {/* Removed mb-3, parent space-y-6 will handle */}
+      <h3 class="text-lg font-semibold text-gray-200">Manage System Users</h3> <!-- Removed mb-3, parent space-y-6 will handle -->
       {#if isLoadingUsers}
         <p class="text-gray-400 text-center py-5">Loading users...</p>
       {:else if usersError}
