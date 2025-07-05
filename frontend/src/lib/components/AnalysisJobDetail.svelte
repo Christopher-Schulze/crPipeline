@@ -217,7 +217,7 @@
             if (!presignedUrlResponse.ok) { success = false; throw new Error(`OCR Text (Compare): ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`); }
             const presignedUrlData = await presignedUrlResponse.json();
             if (!presignedUrlData.url) { success = false; throw new Error("OCR Text URL (Compare) not found."); }
-            const contentResponse = await fetch(presignedUrlData.url);
+            const contentResponse = await apiFetch(presignedUrlData.url);
             if (!contentResponse.ok) { success = false; throw new Error(`OCR Text Fetch (Compare): ${contentResponse.statusText}`); }
             tempOcrText = await contentResponse.text();
         } else { // Should have been caught by the initial check but safeguard
@@ -233,7 +233,7 @@
             if (!presignedUrlResponse.ok) { success = false; throw new Error(`Parse JSON (Compare): ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`); }
             const presignedUrlData = await presignedUrlResponse.json();
             if (!presignedUrlData.url) { success = false; throw new Error("Parse JSON URL (Compare) not found."); }
-            const contentResponse = await fetch(presignedUrlData.url);
+            const contentResponse = await apiFetch(presignedUrlData.url);
             if (!contentResponse.ok) { success = false; throw new Error(`Parse JSON Fetch (Compare): ${contentResponse.statusText}`); }
             const rawJson = await contentResponse.text();
             try {
@@ -298,7 +298,7 @@
       if (!presignedUrlResponse.ok) throw new Error(`AI Input: ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`);
       let presignedUrlData = await presignedUrlResponse.json();
       if (!presignedUrlData.url) throw new Error("AI Input URL not found.");
-      let contentResponse = await fetch(presignedUrlData.url);
+      let contentResponse = await apiFetch(presignedUrlData.url);
       if (!contentResponse.ok) throw new Error(`AI Input Fetch: ${contentResponse.statusText}`);
       const rawInput = await contentResponse.text();
       try {
@@ -314,7 +314,7 @@
       if (!presignedUrlResponse.ok) throw new Error(`AI Output: ${ (await presignedUrlResponse.json().catch(() => ({}))).error || presignedUrlResponse.statusText }`);
       presignedUrlData = await presignedUrlResponse.json();
       if (!presignedUrlData.url) throw new Error("AI Output URL not found.");
-      contentResponse = await fetch(presignedUrlData.url);
+      contentResponse = await apiFetch(presignedUrlData.url);
       if (!contentResponse.ok) throw new Error(`AI Output Fetch: ${contentResponse.statusText}`);
       const rawOutput = await contentResponse.text();
       try {
@@ -388,7 +388,7 @@
         throw new Error(`JSON URL not found for ${output.stage_name}.`);
       }
 
-      const contentResponse = await fetch(presignedUrlData.url);
+      const contentResponse = await apiFetch(presignedUrlData.url);
       if (!contentResponse.ok) {
         throw new Error(`Failed to fetch JSON content from S3 (${output.stage_name}): ${contentResponse.statusText}`);
       }
@@ -448,7 +448,7 @@
         throw new Error("OCR text URL not found in server response.");
       }
 
-      const contentResponse = await fetch(presignedUrlData.url);
+      const contentResponse = await apiFetch(presignedUrlData.url);
       if (!contentResponse.ok) {
         throw new Error(`Failed to fetch OCR text content from S3: ${contentResponse.statusText}`);
       }
@@ -483,7 +483,7 @@
         throw new Error("View URL not found in server response.");
       }
 
-      const contentResponse = await fetch(presignedUrlData.url);
+      const contentResponse = await apiFetch(presignedUrlData.url);
       if (!contentResponse.ok) {
         throw new Error(`Failed to fetch content from S3: ${contentResponse.statusText}`);
       }
