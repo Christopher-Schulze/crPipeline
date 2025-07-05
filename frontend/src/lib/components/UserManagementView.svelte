@@ -5,6 +5,7 @@
   import Button from '$lib/components/Button.svelte';
   import InviteUserModal from '$lib/components/InviteUserModal.svelte';
   import ConfirmationModal from '$lib/components/ConfirmationModal.svelte'; // Import ConfirmationModal
+  import PaginationControls from '$lib/components/PaginationControls.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
   import { page } from '$app/stores'; // To get current user ID for self-action prevention
 
@@ -33,6 +34,14 @@
   let generalError: string | null = null; // For general action errors
   let generalSuccess: string | null = null; // For general action success messages
 
+  // Search & Pagination state
+  let emailFilter: string = '';
+  let currentPage = 1;
+  let usersPerPage = 10;
+  let totalUsers = 0;
+  let totalPages = 0;
+  let filterDebounce: number;
+
 
   let showInviteUserModal = false;
   let currentOrgForInvite: Organization;
@@ -51,7 +60,7 @@
   const currentUserId = $page.data.session?.userId;
 
 
-  async function loadUsersInOrg() {
+  async function loadUsersInOrg(pageToLoad = 1) {
     if (!orgId) {
       errorLoadingUsers = "Organization ID is not available.";
       return;
@@ -60,17 +69,37 @@
     errorLoadingUsers = null;
     generalError = null; // Clear general errors on reload
     generalSuccess = null; // Clear success messages
+    currentPage = pageToLoad;
     try {
-      const response = await apiFetch(`/api/organizations/me/users`);
+      let url = `/api/organizations/me/users?page=${pageToLoad}&limit=${usersPerPage}`;
+      if (emailFilter.trim() !== '') {
+        url += `&email_ilike=${encodeURIComponent(emailFilter.trim())}`;
+      }
+      const response = await apiFetch(url);
       if (!response.ok) {
         const errText = await response.text();
         const errData = JSON.parse(errText || "{}");
         throw new Error(errData.error || `Failed to fetch users: ${response.statusText} - ${errText}`);
       }
-      usersInOrg = await response.json();
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        usersInOrg = data;
+        totalUsers = data.length;
+        usersPerPage = data.length;
+        totalPages = 1;
+        currentPage = 1;
+      } else {
+        usersInOrg = data.items;
+        totalUsers = data.total_items;
+        usersPerPage = data.per_page;
+        totalPages = data.total_pages;
+        currentPage = data.page;
+      }
     } catch (e: any) {
       errorLoadingUsers = e.message;
       usersInOrg = [];
+      totalUsers = 0;
+      totalPages = 0;
       console.error("Error loading users in org:", e);
     } finally {
       isLoadingUsers = false;
@@ -78,7 +107,7 @@
   }
 
   onMount(() => {
-    loadUsersInOrg();
+    loadUsersInOrg(1);
   });
 
   const userTableHeaders: TableHeader[] = [
@@ -165,6 +194,19 @@
     }
   }
 
+  function onEmailFilterInput() {
+    clearTimeout(filterDebounce);
+    filterDebounce = window.setTimeout(() => {
+      loadUsersInOrg(1);
+    }, 400);
+  }
+
+  function handlePageChange(event: CustomEvent<{ page: number }>) {
+    if (event.detail.page !== currentPage) {
+      loadUsersInOrg(event.detail.page);
+    }
+  }
+
 </script>
 
 <div class="space-y-6">
@@ -176,6 +218,15 @@
       </svg>
       Invite New User
     </Button>
+  </div>
+  <div class="mt-2">
+    <input
+      type="text"
+      bind:value={emailFilter}
+      on:input={onEmailFilterInput}
+      placeholder="Search by email..."
+      class="glass-input w-full sm:max-w-xs !text-sm"
+    />
   </div>
 
   {#if generalError}
@@ -207,6 +258,10 @@
       items={usersInOrg}
       keyField="id"
       tableSortable={true}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      totalItems={totalUsers}
+      itemsPerPage={usersPerPage}
       emptyStateMessage="No users found in this organization."
       emptyStateIconPath="M15 19.128a9.38 9.38 0 002.625.372M7.5 0A4.5 4.5 0 003 4.5v.75A.75.75 0 004.5 6h4.5a.75.75 0 00.75-.75v-.75A4.5 4.5 0 007.5 0zm0 9a4.5 4.5 0 00-4.5 4.5v.75a.75.75 0 00.75.75h7.5a.75.75 0 00.75-.75v-.75A4.5 4.5 0 007.5 9zm-2.625 5.628a9.37 9.37 0 01-2.625.372m16.5 0a9.37 9.37 0 01-2.625-.372M12 21a9.375 9.375 0 01-3-1.372A9.375 9.375 0 013 21m18 0a9.375 9.375 0 01-3 1.372A9.375 9.375 0 0121 21m-9-1.628c.394.06.794.1.9.1.106 0 .506-.04.9-.1M12 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a3 3 0 11-6 0 3 3 0 016 0z"
       tableContainerClass="bg-neutral-800/40 backdrop-blur-sm shadow-lg rounded-xl border border-neutral-700/50 overflow-hidden"
@@ -252,6 +307,13 @@
           <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-red-500 hover:!text-red-400" on:click={() => requestRemoveUser(item)} title="Remove User from Organization">Remove</Button>
         {/if}
       </div>
+      <div slot="paginationControls" let:currentPageProps let:totalPagesProps>
+        <PaginationControls
+          currentPage={currentPageProps}
+          totalPages={totalPagesProps}
+          on:pageChange={handlePageChange}
+        />
+      </div>
     </DataTable>
   {/if}
 </div>
@@ -283,4 +345,3 @@
     on:close={() => { showConfirmationModal = false; selectedUserForAction = null; }}
   />
 {/if}
-</html>
