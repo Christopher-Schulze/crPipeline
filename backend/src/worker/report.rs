@@ -51,7 +51,7 @@ pub async fn handle_report_stage(
 
     if let Some(conf) = cfg {
         info!("Report stage using template");
-        if let Err(e) = processing::generate_report_from_template(
+        if let Err(e) = processing::report::generate_report_from_template(
             &conf.template,
             &data_for_templating,
             &pdf_out,
@@ -59,10 +59,10 @@ pub async fn handle_report_stage(
         .await
         {
             error!(job_id=%job.id, "Custom report failed: {:?}", e);
-            processing::generate_report(&data_for_templating, &pdf_out)?;
+            processing::report::generate_report(&data_for_templating, &pdf_out)?;
         }
     } else {
-        processing::generate_report(&data_for_templating, &pdf_out)?;
+        processing::report::generate_report(&data_for_templating, &pdf_out)?;
     }
 
     if pdf_out.exists() {
