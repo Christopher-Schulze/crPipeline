@@ -125,3 +125,22 @@ Kustomize users can achieve the same by applying an `image` patch that sets the
 tag for each deployment.
 
 Refer to [Setup](Setup.md) for local development. For metrics and dashboards see [Monitoring](Monitoring.md).
+
+## Produktivbetrieb
+
+### Docker-Images bauen
+Die Images werden normalerweise durch den CI-Workflow erstellt. Bei Bedarf können sie auch lokal gebaut werden:
+```bash
+docker build -t myorg/backend:latest backend
+docker build -t myorg/frontend:latest frontend
+```
+
+### Kubernetes-Manifeste nutzen
+Alle notwendigen Ressourcen befinden sich im Verzeichnis `k8s/`. Mit
+`kubectl apply -f k8s/` werden Deployments, Services und Ingress-Regeln im Cluster angelegt.
+
+### TLS/Ingress und Secrets
+Die Applikation erwartet TLS-Beendigung durch einen Ingress oder Proxy. Legen Sie die benötigten Secrets vor dem Deployment an und verweisen Sie im Ingress auf ein gültiges Zertifikat.
+
+### Lokale Tests
+Zum Testen ohne Kubernetes steht die Datei [`docker-compose.yml`](../docker-compose.yml) bereit.
