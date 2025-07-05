@@ -70,4 +70,13 @@ impl Document {
         .await?;
         Ok(doc)
     }
+
+    /// Delete a document by id
+    pub async fn delete(pool: &PgPool, id: Uuid) -> sqlx::Result<u64> {
+        let res = sqlx::query("DELETE FROM documents WHERE id=$1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        Ok(res.rows_affected())
+    }
 }

@@ -178,6 +178,20 @@ async function downloadDocument(id: string) {
     alert('Error getting download link. See console.');
   }
 }
+
+async function deleteDocument(id: string) {
+  if (!confirm('Delete this document?')) return;
+  try {
+    const res = await apiFetch(`/api/documents/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await loadDocuments(currentPage);
+    } else {
+      alert('Failed to delete document: ' + (await res.text()));
+    }
+  } catch (e: any) {
+    alert(`Error deleting document: ${e.message}`);
+  }
+}
 </script>
 
 <div class="space-y-4">
@@ -245,6 +259,9 @@ async function downloadDocument(id: string) {
       {/if}
       <Button variant="ghost" customClass="!px-2 !py-1 text-xs" on:click={() => downloadDocument(item.id)}>
         Download
+      </Button>
+      <Button variant="ghost" customClass="!px-2 !py-1 text-xs text-red-400 hover:text-red-300" on:click={() => deleteDocument(item.id)}>
+        Delete
       </Button>
     </div>
     <div slot="paginationControls" let:currentPageProps let:totalPagesProps> <!-- Renamed slot props to avoid conflict -->
