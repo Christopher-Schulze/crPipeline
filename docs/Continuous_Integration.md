@@ -10,6 +10,7 @@ A GitHub Actions workflow is provided at `.github/workflows/ci.yml`. On every pu
   - `npm run lint --prefix frontend`: Executes `svelte-check` (using the configuration in `frontend/tsconfig.json`) for type checking and other Svelte-specific diagnostics.
   - `npm test --prefix frontend`: Runs the frontend unit and component test suite using Vitest. Ensure `npm install --prefix frontend` has been run first so all dev dependencies are available.
   - `npm run build --prefix frontend`: Compiles the Svelte application to ensure the build process is successful.
+  - `./scripts/run_tests_docker.sh`: Starts PostgreSQL, Redis and MinIO using Docker Compose and then executes the backend and frontend tests. In the workflow this appears as the **E2E Tests** step.
 
 This CI pipeline helps maintain code quality and catch issues early in both the backend and frontend parts of the project.
 
