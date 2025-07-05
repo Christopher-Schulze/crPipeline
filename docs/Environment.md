@@ -5,7 +5,7 @@ The file `backend/.env` defines required settings:
 ```
 DATABASE_URL=postgres://postgres:postgres@localhost/db
 JWT_SECRET=changeme
-# Must be at least 32 characters in production
+# Replace with a value of at least 32 characters before starting
 AWS_ENDPOINT=http://localhost:9000
 AWS_ACCESS_KEY=minioadmin
 AWS_SECRET_KEY=minioadmin
