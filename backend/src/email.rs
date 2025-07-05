@@ -2,6 +2,7 @@ use lettre::message::{header, Mailbox, Message};
 use lettre::{AsyncSmtpTransport, Tokio1Executor, transport::smtp::authentication::Credentials, AsyncTransport};
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Serialize, Deserialize};
+
 use std::env;
 use tokio::sync::mpsc::{self, Sender};
 use crate::config::AppConfig;
@@ -39,6 +40,7 @@ async fn deliver_email(to: &str, subject: &str, body: &str) -> anyhow::Result<()
             .send()
             .await?;
         return Ok(());
+´
     }
     if let Some(mailer) = MAILER.as_ref() {
         let from = env::var("SMTP_FROM").unwrap_or_else(|_| "noreply@example.com".into());

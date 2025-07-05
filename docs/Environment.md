@@ -48,3 +48,19 @@ Only `VITE_PUBLIC_BACKEND_URL` is used currently to point the Svelte app at the 
 VITE_PUBLIC_BACKEND_URL=http://localhost:8080
 ```
 Provide these variables when running `npm run build` or via Kubernetes secrets referenced by `frontend-env`.
+
+### Logging
+Set `RUST_LOG` to control verbosity of both the API and worker. Logs are emitted in JSON format.
+
+Examples:
+
+```bash
+RUST_LOG=info cargo run --manifest-path backend/Cargo.toml
+RUST_LOG=debug cargo test --manifest-path backend/Cargo.toml
+```
+
+A typical log line:
+
+```json
+{"timestamp":"2024-01-01T12:00:00Z","level":"INFO","target":"backend","message":"Server started"}
+```

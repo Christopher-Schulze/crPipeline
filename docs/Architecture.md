@@ -43,6 +43,8 @@ List and download documents:
 GET /api/documents/{org_id}
 GET /api/download/{document_id}
 ```
+The download endpoint streams the PDF when `LOCAL_S3_DIR` is configured and
+otherwise returns a JSON object containing a presigned URL.
 
 ### Settings
 Organizations store quotas, AI/OCR configuration and prompt templates.
