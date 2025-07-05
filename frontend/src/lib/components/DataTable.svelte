@@ -46,14 +46,11 @@
   export let tableSortable: boolean = true; // New: Global toggle for table sortability
 
   // Styling props with defaults for a glassy table appearance
-  export let tableContainerClass: string =
-    "overflow-auto max-h-[75vh] shadow-md rounded-lg border border-neutral-700/50 bg-neutral-800/40 backdrop-blur-md";
-  export let tableClass: string = "min-w-full divide-y divide-neutral-700/30";
-  export let thClass: string =
-    "px-4 py-2.5 text-left text-xs font-light text-gray-200 dark:text-gray-300 uppercase tracking-wider "+
-    "bg-neutral-700/85 dark:bg-neutral-800/90 backdrop-blur-sm shadow-sm";
-  export let trClass: string = "hover:bg-neutral-700/40 transition-colors duration-150 group";
-  export let tdClass: string = "px-4 py-3 whitespace-nowrap text-sm text-gray-300";
+  export let tableContainerClass: string = "overflow-x-auto";
+  export let tableClass: string = "table table-zebra w-full";
+  export let thClass: string = "px-4 py-2 text-left";
+  export let trClass: string = "hover";
+  export let tdClass: string = "px-4 py-2";
   // export let noDataMessage: string = "No data available."; // Removed old prop
   export let emptyStateMessage: string = "No data available.";
   export let emptyStateIconPath: string | null = null; // SVG path data

@@ -34,9 +34,9 @@
   <GlassCard padding="p-6" customClass="w-full max-w-md text-center space-y-4">
     <h1 class="text-2xl font-semibold mb-2">Register</h1>
     <form class="space-y-4" on:submit|preventDefault={submit}>
-      <input class="glass-input w-full" type="text" bind:value={orgId} placeholder="Organization ID" required />
-      <input class="glass-input w-full" type="email" bind:value={email} placeholder="Email" required />
-      <input class="glass-input w-full" type="password" bind:value={password} placeholder="Password" required />
+      <input class="input input-bordered w-full" type="text" bind:value={orgId} placeholder="Organization ID" required />
+      <input class="input input-bordered w-full" type="email" bind:value={email} placeholder="Email" required />
+      <input class="input input-bordered w-full" type="password" bind:value={password} placeholder="Password" required />
       {#if error}
         <p class="text-red-500 text-sm">{error}</p>
       {/if}
