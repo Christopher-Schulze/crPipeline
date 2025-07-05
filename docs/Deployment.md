@@ -34,3 +34,7 @@ kubectl create secret generic frontend-env \
 ```
 
 Set the `REGISTRY` secret in your CI settings so images are pushed to your container registry.
+
+## TLS / HTTPS
+
+The backend itself does not terminate TLS. In production deploy it behind a reverse proxy or Kubernetes ingress that provides HTTPS. Configure `BASE_URL` and `FRONTEND_ORIGIN` with `https://` URLs so that login cookies receive the `Secure` flag and browsers enforce encrypted connections. Any ingress controller such as Nginx or Traefik can handle the certificates and forward traffic to the pod on port `8080`.
