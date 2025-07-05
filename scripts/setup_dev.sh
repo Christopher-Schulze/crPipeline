@@ -6,6 +6,12 @@ if [ ! -f backend/.env ]; then
   cp backend/.env.example backend/.env
 fi
 
+# Ensure test environment file exists for integration tests
+if [ ! -f backend/.env.test ]; then
+  echo "Copying backend/.env.test"
+  cp backend/.env.test.example backend/.env.test
+fi
+
 ./scripts/bootstrap_deps.sh
 
 echo "Running migrations..."
