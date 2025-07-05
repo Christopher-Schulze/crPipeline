@@ -5,9 +5,10 @@ use backend::config::WorkerConfig;
 use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
 use backend::processing;
 use backend::worker::metrics::{
-    spawn_metrics_server, JOB_COUNTER, JOB_HISTOGRAM, OCR_HISTOGRAM, STAGE_HISTOGRAM,
+    spawn_metrics_server, JOB_COUNTER, JOB_HISTOGRAM, OCR_HISTOGRAM,
+    RUNNING_JOBS_GAUGE, STAGE_HISTOGRAM,
 };
-use backend::worker::{self, Stage};
+use backend::worker::{self, Stage, WorkerRuntimeConfig};
 use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
@@ -174,6 +175,7 @@ async fn process_job(
     org_settings: Option<OrgSettings>,
     bucket: String,
 ) {
+    RUNNING_JOBS_GAUGE.inc();
     let mut local = std::env::temp_dir();
     local.push(format!("{}-input.pdf", job.id));
     if let Err(e) = processing::ocr::download_pdf(&s3_client, &bucket, &doc.filename, &local).await
@@ -224,6 +226,7 @@ async fn process_job(
     if txt_path.exists() {
         remove_with_retry(&txt_path, job.id, "text file").await;
     }
+    RUNNING_JOBS_GAUGE.dec();
 }
 
 #[tokio::main]
@@ -263,7 +266,8 @@ async fn main() -> Result<()> {
 
     let pool = Arc::new(pool);
     let s3_client = Arc::new(s3_client);
-    let concurrency = cfg.worker_concurrency.max(1);
+    let runtime_cfg = WorkerRuntimeConfig::from_env();
+    let concurrency = runtime_cfg.concurrency.max(1);
     let mut tasks: JoinSet<()> = JoinSet::new();
 
     'outer: loop {

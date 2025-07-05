@@ -1,7 +1,8 @@
 use actix_web::{web, App, HttpResponse, HttpServer};
 use once_cell::sync::Lazy;
 use prometheus::{
-    Encoder, HistogramVec, IntCounterVec, IntCounter, Registry, TextEncoder,
+    Encoder, HistogramVec, IntCounterVec, IntCounter, IntGauge, Registry,
+    TextEncoder,
 };
 
 pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
@@ -68,6 +69,16 @@ pub static WORKER_SHUTDOWN_COUNTER: Lazy<IntCounter> = Lazy::new(|| {
     let counter = IntCounter::with_opts(opts).unwrap();
     REGISTRY.register(Box::new(counter.clone())).unwrap();
     counter
+});
+
+pub static RUNNING_JOBS_GAUGE: Lazy<IntGauge> = Lazy::new(|| {
+    let opts = prometheus::Opts::new(
+        "running_jobs",
+        "Number of jobs currently being processed",
+    );
+    let gauge = IntGauge::with_opts(opts).unwrap();
+    REGISTRY.register(Box::new(gauge.clone())).unwrap();
+    gauge
 });
 
 async fn metrics() -> HttpResponse {
