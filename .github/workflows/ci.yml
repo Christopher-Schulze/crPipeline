@@ -38,6 +38,8 @@ jobs:
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
       - name: Run migrations
         run: cargo run --manifest-path backend/Cargo.toml --bin migrate
+      - name: E2E Tests
+        run: ./scripts/run_tests_docker.sh
 
   frontend-coverage:
     needs: build
