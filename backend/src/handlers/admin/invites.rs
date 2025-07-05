@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use crate::middleware::auth::AuthUser;
 use crate::models::{User as UserModel, NewUser};
-use crate::email::send_email;
+use crate::email::enqueue_email;
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
 use rand::Rng;
@@ -77,7 +77,7 @@ pub async fn invite_user(
                 "Hello,\n\nYou have been invited to join crPipeline. Click the link below to confirm your account:\n{}\n",
                 confirmation_link
             );
-            if let Err(e) = send_email(&email, email_subject, &email_body).await {
+            if let Err(e) = enqueue_email(&email, email_subject, &email_body).await {
                 log::error!("Failed to send invite email to {}: {:?}", email, e);
                 HttpResponse::Accepted().json(serde_json::json!({
                     "success": true,

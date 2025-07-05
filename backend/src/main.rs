@@ -8,6 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 use backend::metrics;
 
 use backend::config::AppConfig;
+use backend::email;
 
 use backend::handlers;
 use backend::middleware::{
@@ -31,6 +32,8 @@ async fn main() -> std::io::Result<()> {
     init_csrf_token();
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     fmt().with_env_filter(filter).json().init();
+
+    email::start_email_worker(&config);
 
     let database_url = config.database_url;
     let pool = PgPoolOptions::new()

@@ -3,7 +3,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use crate::models::{User as UserModel, NewUser};
 use crate::middleware::auth::AuthUser;
-use crate::email::send_email;
+use crate::email::enqueue_email;
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
 use rand::Rng;
@@ -99,7 +99,7 @@ The crPipeline Team"#,
                 target_email, org_name, confirmation_link
             );
 
-            if let Err(e) = send_email(&target_email, &email_subject, &email_body).await {
+            if let Err(e) = enqueue_email(&target_email, &email_subject, &email_body).await {
                 log::error!("User {} created by org_admin {}, but failed to send confirmation email to {}: {:?}", created_user.id, current_org_admin.user_id, target_email, e);
                 return HttpResponse::Accepted().json(serde_json::json!({
                     "success": true,

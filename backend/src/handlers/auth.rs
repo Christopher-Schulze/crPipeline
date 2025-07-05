@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use crate::models::{User, NewUser};
 use crate::middleware::jwt::create_jwt; // Keep for login, not for register response
 use crate::middleware::auth::AuthUser; // Keep for 'me' handler
-use crate::email::send_email;
+use crate::email::enqueue_email;
 use argon2::{Argon2, PasswordHasher};
 // log_action removed from here, as it's not suitable for public registration without an actor AuthUser
 // For admin actions, log_action would be used in those specific admin handlers.
@@ -64,7 +64,7 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
             // u.confirmation_token should always be Some due to User::create logic
             let link = format!("{}/api/confirm/{}", base, u.confirmation_token.unwrap_or_else(Uuid::new_v4));
 
-            if let Err(e) = send_email(&u.email, "Confirm your account", &link).await {
+            if let Err(e) = enqueue_email(&u.email, "Confirm your account", &link).await {
                 log::warn!("Failed to send confirmation email to {}: {:?}", u.email, e);
                 // Still return Ok for registration, email is auxiliary. User can request another confirmation.
             }
@@ -196,7 +196,7 @@ async fn request_reset(data: web::Json<ResetRequest>, pool: web::Data<PgPool>) -
         if User::set_reset_token(&pool, user.id, token, expires).await.is_ok() {
             let base = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into());
             let link = format!("{}/reset?token={}", base, token);
-            let _ = send_email(&user.email, "Password reset", &link).await;
+            let _ = enqueue_email(&user.email, "Password reset", &link).await;
             return HttpResponse::Ok().finish();
         }
     }
