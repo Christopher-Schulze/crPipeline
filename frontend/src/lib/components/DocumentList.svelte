@@ -4,6 +4,7 @@ import DataTable from './DataTable.svelte';
 import type { TableHeader } from './DataTable.svelte';
 import PaginationControls from './PaginationControls.svelte';
 import { onMount } from 'svelte';
+import { apiFetch } from '$lib/utils/apiUtils';
 import type { Document as APIDocument } from '$lib/types/api';
 
 // Base Document interface matching backend model
@@ -84,11 +85,7 @@ async function loadDocuments(pageToLoad = 1, newSortBy?: string | null, newSortO
     }
     // If filterType is 'all', is_target param is omitted.
 
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      const errorText = await response.text(); // Or response.json().error if backend sends structured error
-      throw new Error(`Failed to load documents: ${response.status} ${errorText}`);
-    }
+    const response = await apiFetch(apiUrl);
     const data = await response.json();
 
     internalDocs = data.items.map((doc: Document): AppDocument => ({
@@ -173,13 +170,9 @@ function handleSortChange(event: CustomEvent<{ sortKey: string | null, sortDirec
 
 async function downloadDocument(id: string) {
   try {
-    const res = await fetch(`/api/download/${id}`, { credentials: 'include' });
-    if (res.ok) {
-      const { url } = await res.json();
-      window.open(url, '_blank');
-    } else {
-      alert('Failed to get download link: ' + await res.text());
-    }
+    const res = await apiFetch(`/api/download/${id}`);
+    const { url } = await res.json();
+    window.open(url, '_blank');
   } catch (error) {
     console.error("Download error:", error);
     alert('Error getting download link. See console.');

@@ -9,6 +9,7 @@
   import Button from './lib/components/Button.svelte';
   import OrgAdmin from './lib/components/OrgAdmin.svelte';
   import { onMount } from 'svelte';
+  import { apiFetch } from '$lib/utils/apiUtils';
 
   let loggedIn = false;
   let org: string | null = null;
@@ -105,37 +106,31 @@
   setContext('viewJobDetails', viewJobDetails);
   
   async function checkAuth() {
-    const res = await fetch('/api/me');
-    if (res.ok) {
+    try {
+      const res = await apiFetch('/api/me');
       const data = await res.json();
       org = data.org_id;
       userId = data.user_id;
       role = data.role;
       loggedIn = true;
-    } else {
+    } catch {
       loggedIn = false;
     }
   }
 
   async function loadData() {
     if (!org) return;
-    const res = await fetch(`/api/documents/${org}`);
-    if (res.ok) {
-      docs = await res.json();
-    }
-    const jobRes = await fetch(`/api/jobs/${org}`);
-    if (jobRes.ok) {
-      jobs = await jobRes.json();
-    }
+    const res = await apiFetch(`/api/documents/${org}`);
+    docs = await res.json();
+    const jobRes = await apiFetch(`/api/jobs/${org}`);
+    jobs = await jobRes.json();
   }
 
   async function loadSettings() {
     if (!org) return;
-    const res = await fetch(`/api/settings/${org}`);
-    if (res.ok) {
-      const data = await res.json();
-      document.documentElement.style.setProperty('--color-accent', data.accent_color);
-    }
+    const res = await apiFetch(`/api/settings/${org}`);
+    const data = await res.json();
+    document.documentElement.style.setProperty('--color-accent', data.accent_color);
   }
 
   onMount(async () => {
