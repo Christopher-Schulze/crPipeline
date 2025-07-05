@@ -1,6 +1,6 @@
 use crate::models::{AnalysisJob, OrgSettings};
 use crate::processing;
-use crate::worker::{save_stage_output, Stage};
+use crate::worker::{metrics::API_ERROR_COUNTER, save_stage_output, Stage};
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use sqlx::PgPool;
@@ -38,6 +38,7 @@ pub async fn handle_ocr_stage(
             Ok(b) => b,
             Err(e) => {
                 error!(job_id=%job.id, "Failed to read input PDF for external OCR: {:?}", e);
+                API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
                 return Ok(true);
             }
         };
@@ -57,18 +58,21 @@ pub async fn handle_ocr_stage(
             Ok(text) => text,
             Err(e) => {
                 error!(job_id=%job.id, "External OCR failed: {:?}", e);
+                API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
                 return Ok(true);
             }
         }
     } else {
         if let Err(e) = processing::run_ocr(local, txt_path).await {
             error!(job_id=%job.id, "OCR failed: {:?}", e);
+            API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
             return Ok(true);
         }
         match tokio::fs::read_to_string(txt_path).await {
             Ok(t) => t,
             Err(e) => {
                 error!(job_id=%job.id, "Failed to read OCR output: {:?}", e);
+                API_ERROR_COUNTER.with_label_values(&["ocr"]).inc();
                 return Ok(true);
             }
         }

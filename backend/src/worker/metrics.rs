@@ -38,6 +38,16 @@ pub static OCR_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
     hist
 });
 
+pub static API_ERROR_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
+    let opts = prometheus::Opts::new(
+        "ai_ocr_errors_total",
+        "Total failed AI or OCR API calls",
+    );
+    let counter = IntCounterVec::new(opts, &["service"]).unwrap();
+    REGISTRY.register(Box::new(counter.clone())).unwrap();
+    counter
+});
+
 async fn metrics() -> HttpResponse {
     let encoder = TextEncoder::new();
     let metric_families = REGISTRY.gather();

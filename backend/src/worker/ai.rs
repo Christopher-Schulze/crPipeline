@@ -1,6 +1,6 @@
 use crate::models::{AnalysisJob, OrgSettings};
 use crate::processing;
-use crate::worker::{save_stage_output, Stage};
+use crate::worker::{metrics::API_ERROR_COUNTER, save_stage_output, Stage};
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use sqlx::PgPool;
@@ -57,7 +57,13 @@ pub async fn handle_ai_stage(
 
     let headers = org_settings.and_then(|s| s.ai_custom_headers.as_ref());
 
-    let result = processing::run_ai(&input_json, &endpoint, &key, headers).await?;
+    let result = match processing::run_ai(&input_json, &endpoint, &key, headers).await {
+        Ok(r) => r,
+        Err(e) => {
+            API_ERROR_COUNTER.with_label_values(&["ai"]).inc();
+            return Err(e);
+        }
+    };
 
     // Save AI output
     if let Ok(bytes) = serde_json::to_vec_pretty(&result) {
