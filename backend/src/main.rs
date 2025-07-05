@@ -4,7 +4,6 @@ use actix_web_prom::PrometheusMetricsBuilder;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::Client as S3Client;
 use sqlx::postgres::PgPoolOptions;
-use std::env;
 
 use backend::metrics;
 

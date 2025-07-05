@@ -1,10 +1,9 @@
-use actix_web::{http::header, test};
+use actix_web::test;
 use serde_json::json;
 
 mod test_utils;
 use backend::models::{AnalysisJob, Document, NewAnalysisJob, NewDocument, NewPipeline, Pipeline};
 use test_utils::{create_org, create_user, generate_jwt_token, setup_test_app};
-use uuid::Uuid;
 
 #[actix_rt::test]
 async fn list_jobs_includes_names() {

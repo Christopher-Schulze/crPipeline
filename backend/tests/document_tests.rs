@@ -177,7 +177,7 @@ async fn test_cleanup_on_failed_upload() {
 #[actix_rt::test]
 async fn reject_dangerous_filename() {
     let s3_server = MockServer::start().await;
-    let (app, pool) = setup_test_app(&s3_server).await;
+    let (_app, pool) = setup_test_app(&s3_server).await;
     let org_id = create_org(&pool, "Sanitize Org").await;
     let user_id = create_user(&pool, org_id, "san@example.com", "org_admin").await;
 

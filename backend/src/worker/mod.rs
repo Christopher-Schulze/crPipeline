@@ -58,7 +58,7 @@ pub async fn upload_bytes(
                 .await
             {
                 Ok(_) => break Ok(()),
-                Err(e) if attempts < 3 => {
+                Err(_e) if attempts < 3 => {
                     S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
                     attempts += 1;
                     sleep(Duration::from_millis(500 * attempts as u64)).await;

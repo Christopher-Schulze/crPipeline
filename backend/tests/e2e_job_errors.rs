@@ -37,7 +37,7 @@ async fn ocr_error_marks_failed() {
     let tempdir = tempfile::tempdir().unwrap();
 
     let ocr_server = MockServer::start().await;
-    Mock::given(method("POST")).and(path("/ocr"))
+    let _ocr_mock = Mock::given(method("POST")).and(path("/ocr"))
         .respond_with(ResponseTemplate::new(500))
         .mount_as_scoped(&ocr_server)
         .await;
@@ -123,7 +123,7 @@ async fn ai_invalid_json_marks_failed() {
     let tempdir = tempfile::tempdir().unwrap();
 
     let ai_server = MockServer::start().await;
-    Mock::given(method("POST")).and(path("/ai"))
+    let _ai_mock = Mock::given(method("POST")).and(path("/ai"))
         .respond_with(ResponseTemplate::new(200).set_body_string("not-json"))
         .mount_as_scoped(&ai_server)
         .await;
