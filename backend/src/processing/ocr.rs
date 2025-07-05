@@ -1,11 +1,35 @@
-use anyhow::{anyhow, Context, Result};
+use std::time::Duration;
+use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use crate::worker::metrics::S3_ERROR_COUNTER;
 use reqwest::header::{HeaderValue, AUTHORIZATION};
 use reqwest::multipart;
 use std::path::Path;
 use tokio::process::Command;
-use tokio::time::Duration;
+
+#[derive(Debug)]
+pub enum OcrError {
+    Request(reqwest::Error),
+    HttpError(reqwest::StatusCode, String),
+}
+
+impl std::fmt::Display for OcrError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OcrError::Request(e) => write!(f, "request error: {e}"),
+            OcrError::HttpError(status, msg) => write!(f, "http error {status}: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for OcrError {}
+
+const MAX_RETRIES: u32 = 3;
+const BASE_DELAY_MS: u64 = 500;
+
+fn backoff(attempt: u32) -> Duration {
+    Duration::from_millis(BASE_DELAY_MS * (1 << (attempt - 1)))
+}
 
 /// Download a PDF from S3 (or from `LOCAL_S3_DIR` when set) and write it to `path`.
 ///
@@ -45,15 +69,17 @@ pub async fn run_external_ocr(
     api_key: Option<&str>,
     file_bytes: Vec<u8>,
     original_filename: &str,
-) -> Result<String> {
+) -> Result<String, OcrError> {
     let client = reqwest::Client::new();
     let mut attempts = 0;
-    let response = loop {
+    loop {
         let file_part = multipart::Part::bytes(file_bytes.clone())
             .file_name(original_filename.to_string())
-            .mime_str("application/pdf")?;
+            .mime_str("application/pdf")
+            .map_err(OcrError::Request)?;
         let mut request_builder = client
             .post(api_endpoint)
+            .timeout(Duration::from_secs(10))
             .multipart(multipart::Form::new().part("file", file_part));
         if let Some(key_str) = api_key.filter(|k| !k.trim().is_empty()) {
             if key_str.to_lowercase().starts_with("bearer ") {
@@ -68,32 +94,37 @@ pub async fn run_external_ocr(
             }
         }
         match request_builder.send().await {
-            Ok(resp) => break resp,
-            Err(e) if attempts < 3 => {
-                attempts += 1;
-                log::warn!("OCR request failed attempt {}: {:?}", attempts, e);
-                tokio::time::sleep(Duration::from_millis(500 * attempts as u64)).await;
-                continue;
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    return resp.text().await.map_err(OcrError::Request);
+                } else if attempts < MAX_RETRIES {
+                    attempts += 1;
+                    let status = resp.status();
+                    let msg = resp
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "unknown".into());
+                    log::warn!("OCR request failed status {} attempt {}: {}", status, attempts, msg);
+                    tokio::time::sleep(backoff(attempts)).await;
+                } else {
+                    let status = resp.status();
+                    let msg = resp
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "unknown".into());
+                    return Err(OcrError::HttpError(status, msg));
+                }
             }
-            Err(e) => return Err(anyhow!(e).context("External OCR API request failed")),
+            Err(e) => {
+                if attempts < MAX_RETRIES {
+                    attempts += 1;
+                    log::warn!("OCR request error attempt {}: {:?}", attempts, e);
+                    tokio::time::sleep(backoff(attempts)).await;
+                } else {
+                    return Err(OcrError::Request(e));
+                }
+            }
         }
-    };
-    if response.status().is_success() {
-        Ok(response
-            .text()
-            .await
-            .context("Failed to read text response from external OCR API")?)
-    } else {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error content from OCR API".to_string());
-        Err(anyhow!(
-            "External OCR API request failed with status {}: {}",
-            status,
-            error_text
-        ))
     }
 }
 

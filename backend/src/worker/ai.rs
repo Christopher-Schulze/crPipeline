@@ -62,7 +62,7 @@ pub async fn handle_ai_stage(
         Ok(r) => r,
         Err(e) => {
             API_ERROR_COUNTER.with_label_values(&["ai"]).inc();
-            return Err(e);
+            return Err(e.into());
         }
     };
 
