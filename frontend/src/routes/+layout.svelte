@@ -111,9 +111,14 @@
   }
 
   // Global loading indicator state
-  let globalLoading = false;
-  const unsubscribeNavigating = navigating.subscribe(value => {
-    globalLoading = !!value; // true if navigating, false otherwise
+  import { loadingStore } from '$lib/utils/loadingStore';
+
+  const unsubscribeNavigating = navigating.subscribe((value) => {
+    if (value) {
+      loadingStore.start();
+    } else {
+      loadingStore.end();
+    }
   });
 
   onDestroy(() => {
@@ -157,7 +162,7 @@
 
 </script>
 
-<GlobalLoadingIndicator loading={globalLoading} />
+<GlobalLoadingIndicator />
 
 <main class="min-h-screen flex bg-base text-gray-900 dark:bg-neutral-900 dark:text-gray-100">
   {#if loggedIn && org}

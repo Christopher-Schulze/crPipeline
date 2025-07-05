@@ -1,4 +1,5 @@
 // frontend/src/lib/utils/apiUtils.ts
+import { loadingStore } from './loadingStore';
 
 // Function to get a cookie by name
 function getCookie(name: string): string | null {
@@ -40,5 +41,10 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
 
   options.headers = headers;
 
-  return fetch(url, options);
+  loadingStore.start();
+  try {
+    return await fetch(url, options);
+  } finally {
+    loadingStore.end();
+  }
 }
