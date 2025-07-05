@@ -269,6 +269,50 @@ async fn test_reject_invalid_command_type() {
 }
 
 #[actix_rt::test]
+async fn test_reject_empty_stage_type() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "EmptyTypeOrg").await;
+    let user_id = create_user(&pool, org_id, "etype@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let payload = json!({
+        "org_id": org_id,
+        "name": "PipeTypeEmpty",
+        "stages": [{"type": "", "command": "echo hi"}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
+}
+
+#[actix_rt::test]
+async fn test_reject_empty_command_field() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "EmptyCmdOrg").await;
+    let user_id = create_user(&pool, org_id, "ecmd@example.com", "org_admin").await;
+    let token = generate_jwt_token(user_id, org_id, "org_admin");
+    let payload = json!({
+        "org_id": org_id,
+        "name": "PipeCmdEmpty",
+        "stages": [{"type": "ocr", "command": ""}]
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/pipelines")
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert!(body.get("error").is_some());
+}
+
+#[actix_rt::test]
 async fn test_reject_external_ocr_without_endpoint() {
     let Ok((app, pool)) = setup_test_app().await else { return; };
     let org_id = create_org(&pool, "Ocr Org").await;
