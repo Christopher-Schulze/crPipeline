@@ -136,3 +136,5 @@ Kubernetes manifests for deploying Prometheus and Grafana are available under `k
 Grafana supports alert rules on any Prometheus query. To be notified when many login attempts fail, open the *Login Failures* panel and create an alert with `increase(login_failures_total[5m]) > 5`. Configure a notification channel such as email or Slack to receive alerts.
 Similarly, monitor S3 problems with `increase(s3_errors_total[5m]) > 10` and detect failing jobs using `increase(jobs_total{status="failed"}[5m]) > 1`.
 Detect long-running jobs with `histogram_quantile(0.9, rate(job_duration_seconds_sum[5m]) / rate(job_duration_seconds_count[5m])) > 30`.
+
+See [Setup](Setup.md) to run the stack locally and [Deployment](Deployment.md) for production manifests.

@@ -123,3 +123,5 @@ image: "{{ .Values.backendImage.repository }}:{{ .Values.backendImage.tag }}"
 
 Kustomize users can achieve the same by applying an `image` patch that sets the
 tag for each deployment.
+
+Refer to [Setup](Setup.md) for local development. For metrics and dashboards see [Monitoring](Monitoring.md).

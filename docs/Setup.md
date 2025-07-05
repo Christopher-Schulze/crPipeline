@@ -49,3 +49,5 @@ cargo run --bin create_admin -- email@example.com password
 
 Run `scripts/seed_demo.sh` afterwards to insert example documents stored under `LOCAL_S3_DIR`. The script requires `psql` on your `PATH`.
 
+For production instructions see [Deployment](Deployment.md). To expose metrics and dashboards consult [Monitoring](Monitoring.md).
+
