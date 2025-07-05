@@ -13,6 +13,18 @@ impl ApiError {
     pub fn new<M: Into<String>>(message: M, status: StatusCode) -> Self {
         Self { message: message.into(), status }
     }
+
+    /// Helper for wrapping database related errors.
+    pub fn from_db<E: std::fmt::Debug>(msg: &str, err: E) -> Self {
+        log::error!("Database error: {:?}", err);
+        Self::new(msg, StatusCode::INTERNAL_SERVER_ERROR)
+    }
+
+    /// Helper for wrapping S3/storage related errors.
+    pub fn from_s3<E: std::fmt::Debug>(msg: &str, err: E) -> Self {
+        log::error!("S3 error: {:?}", err);
+        Self::new(msg, StatusCode::INTERNAL_SERVER_ERROR)
+    }
 }
 
 impl fmt::Display for ApiError {

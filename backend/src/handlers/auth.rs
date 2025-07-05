@@ -42,7 +42,11 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
         Ok(ph) => ph.to_string(),
         Err(e) => {
             log::error!("Password hash error: {:?}", e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to register user."}));
+            return ApiError::new(
+                "Failed to register user.",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response();
         }
     };
     let new_user_role = data.role.clone().unwrap_or_else(|| "user".to_string());
@@ -79,7 +83,7 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
                     return HttpResponse::Conflict().json(serde_json::json!({"error": "Email address already in use."}));
                 }
             }
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to register user."}))
+            ApiError::from_db("Failed to register user.", e).error_response()
         }
     }
 }
