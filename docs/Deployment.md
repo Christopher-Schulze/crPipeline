@@ -41,3 +41,55 @@ Set the `REGISTRY` secret in your CI settings so images are pushed to your conta
 ## TLS / HTTPS
 
 The backend itself does not terminate TLS. In production deploy it behind a reverse proxy or Kubernetes ingress that provides HTTPS. Configure `BASE_URL` and `FRONTEND_ORIGIN` with `https://` URLs so that login cookies receive the `Secure` flag and browsers enforce encrypted connections. Any ingress controller such as Nginx or Traefik can handle the certificates and forward traffic to the pod on port `8080`.
+
+Example Nginx ingress:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - example.com
+    secretName: tls-secret
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 80
+```
+
+The same concept applies for Traefik using `IngressRoute` objects to route
+HTTPS traffic to the backend service.
+
+## Versioned images with Helm
+
+An example `values.yaml` could look like:
+
+```yaml
+backendImage:
+  repository: myorg/backend
+  tag: v1.0.0
+frontendImage:
+  repository: myorg/frontend
+  tag: v1.0.0
+```
+
+These values are referenced in the deployment manifest as:
+
+```yaml
+image: "{{ .Values.backendImage.repository }}:{{ .Values.backendImage.tag }}"
+```
+
+Kustomize users can achieve the same by applying an `image` patch that sets the
+tag for each deployment.

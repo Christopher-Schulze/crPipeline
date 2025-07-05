@@ -10,7 +10,7 @@ spec:
         spec:
           containers:
           - name: cleanup
-            image: myorg/backend:latest
+            image: "{{ .Values.backendImage.repository }}:{{ .Values.backendImage.tag | default \"latest\" }}"
             command: ["/usr/local/bin/cleanup"]
             envFrom:
             - secretRef:
