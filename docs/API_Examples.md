@@ -57,6 +57,21 @@ Status: `200 OK`
 - `429 Too Many Requests` – monthly quota exceeded.
 - `500 Internal Server Error` – failure while uploading or saving metadata.
 
+## Document Download
+
+### Request
+```http
+GET /api/download/<document_uuid>
+Authorization: Bearer <token>
+```
+
+### Success Response
+If `LOCAL_S3_DIR` is set, the PDF bytes are streamed directly with status `200 OK`.
+Otherwise the response contains a JSON object with a presigned URL:
+```json
+{"url": "https://s3.example.com/..."}
+```
+
 ## Pipeline Editor
 
 ### Create Pipeline
