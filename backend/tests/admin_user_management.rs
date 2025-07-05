@@ -90,3 +90,88 @@ async fn test_admin_update_user_profile_email_change_logs() {
     assert!(!row.1);
     assert!(logs_contain("email body"));
 }
+
+
+#[actix_rt::test]
+async fn test_admin_assign_user_role_success() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Role Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
+    let user_id = create_user(&pool, org_id, "member@example.com", "user").await;
+    let token = generate_jwt_token(admin_id, org_id, "admin");
+    let payload = json!({"role": "org_admin", "org_id": org_id});
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/admin/users/{}/assign_role", user_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let row: (String, Uuid) = sqlx::query_as("SELECT role, org_id FROM users WHERE id=$1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(row.0, "org_admin");
+    assert_eq!(row.1, org_id);
+}
+
+#[actix_rt::test]
+async fn test_admin_deactivate_then_reactivate_user_success() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Deactivate Org 2").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
+    let user_id = create_user(&pool, org_id, "member@example.com", "user").await;
+    let token = generate_jwt_token(admin_id, org_id, "admin");
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/admin/users/{}/deactivate", user_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token.clone())))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let active: bool = sqlx::query_scalar("SELECT is_active FROM users WHERE id=$1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!active);
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/admin/users/{}/reactivate", user_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let active: bool = sqlx::query_scalar("SELECT is_active FROM users WHERE id=$1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(active);
+}
+
+#[actix_rt::test]
+async fn test_admin_update_user_profile() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Update Org").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
+    let user_id = create_user(&pool, org_id, "member@example.com", "user").await;
+    let token = generate_jwt_token(admin_id, org_id, "admin");
+    let new_email = format!("profile_{}@example.com", Uuid::new_v4());
+    let payload = json!({"email": new_email});
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/admin/users/{}/profile", user_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let row: (String, bool) = sqlx::query_as("SELECT email, confirmed FROM users WHERE id=$1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(row.0, new_email);
+    assert!(!row.1);
+}
+
