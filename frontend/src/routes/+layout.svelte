@@ -12,6 +12,7 @@
   import AnalysisJobDetail from '$lib/components/AnalysisJobDetail.svelte';
   import Button from '$lib/components/Button.svelte'; // For Dev Toggles
   import GlobalLoadingIndicator from '$lib/components/GlobalLoadingIndicator.svelte';
+  import ErrorToast from '$lib/components/ErrorToast.svelte';
   import { sessionStore } from '$lib/utils/sessionStore';
 
   // Type Imports or Definitions
@@ -167,6 +168,7 @@
 </script>
 
 <GlobalLoadingIndicator />
+<ErrorToast />
 
 <main class="min-h-screen flex bg-base text-gray-900 dark:bg-neutral-900 dark:text-gray-100">
   {#if loggedIn && org}
