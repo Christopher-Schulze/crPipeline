@@ -3,8 +3,9 @@ use crate::models::{
     AnalysisJob, Document, DocumentError, NewAnalysisJob, NewDocument, OrgSettings,
 };
 use crate::utils::log_action;
+use crate::error::ApiError;
 use actix_multipart::Multipart;
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{get, post, web, HttpResponse, ResponseError};
 use anyhow::Error;
 use async_trait::async_trait;
 use aws_sdk_s3::{presigning::PresigningConfig, Client};
@@ -114,21 +115,20 @@ async fn upload_to_s3(
     bucket: &str,
     key: &str,
     bytes: Vec<u8>,
-) -> Result<(), HttpResponse> {
-    if s3
+) -> Result<(), ApiError> {
+    match s3
         .put_object()
         .bucket(bucket)
         .key(key)
         .body(bytes.into())
         .send()
         .await
-        .is_err()
     {
-        log::error!("Failed to upload {} to S3 bucket {}", key, bucket);
-        Err(HttpResponse::InternalServerError()
-            .json(serde_json::json!({"error": "File upload to storage failed."})))
-    } else {
-        Ok(())
+        Ok(_) => Ok(()),
+        Err(e) => Err(ApiError::from_s3(
+            "File upload to storage failed.",
+            e,
+        )),
     }
 }
 
@@ -198,8 +198,8 @@ pub async fn upload(
     let sanitized_filename_part = sanitize_filename::sanitize(&base_filename);
     let s3_key_name = format!("{}-{}", Uuid::new_v4(), sanitized_filename_part);
 
-    if let Err(resp) = upload_to_s3(s3.get_ref(), &bucket, &s3_key_name, bytes_data.clone()).await {
-        return resp;
+    if let Err(err) = upload_to_s3(s3.get_ref(), &bucket, &s3_key_name, bytes_data.clone()).await {
+        return err.error_response();
     }
 
     let doc_to_create = NewDocument {
@@ -223,16 +223,14 @@ pub async fn upload(
             return HttpResponse::BadRequest()
                 .json(serde_json::json!({"error": "Invalid filename."}));
         }
-        Err(DocumentError::Sqlx(e)) => {
-            log::error!(
-                "Failed to create document record for S3 key {}: {:?}",
-                s3_key_name,
-                e
-            );
-            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
-            return HttpResponse::InternalServerError()
-                .json(serde_json::json!({"error": "Failed to save document information."}));
-        }
+            Err(DocumentError::Sqlx(e)) => {
+                cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+                return ApiError::from_db(
+                    "Failed to save document information.",
+                    e,
+                )
+                .error_response();
+            }
     };
 
     log_action(
@@ -279,14 +277,12 @@ pub async fn upload(
                 }
             }
             Err(e) => {
-                log::error!(
-                    "Failed to create analysis job for document {}: {:?}",
-                    created_document.id,
-                    e
-                );
                 cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
-                return HttpResponse::InternalServerError()
-                    .json(serde_json::json!({"error": "Failed to queue analysis job."}));
+                return ApiError::from_db(
+                    "Failed to queue analysis job.",
+                    e,
+                )
+                .error_response();
             }
         }
     }
@@ -313,8 +309,7 @@ pub async fn download(
         Ok(Some(d)) => d,
         Ok(None) => return HttpResponse::NotFound().finish(),
         Err(e) => {
-            log::error!("Failed to fetch document {}: {:?}", document_id, e);
-            return HttpResponse::InternalServerError().finish();
+            return ApiError::from_db("Failed to fetch document.", e).error_response();
         }
     };
 
@@ -338,26 +333,18 @@ pub async fn download(
                     format!("attachment; filename=\"{}\"", doc.display_name),
                 ))
                 .body(bytes),
-            Err(e) => {
-                log::error!(
-                    "Failed to read local file for document {}: {:?}",
-                    document_id,
-                    e
-                );
-                HttpResponse::InternalServerError().finish()
-            }
+            Err(e) => ApiError::from_s3("Failed to read local file", e).error_response(),
         }
     } else {
         let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "uploads".into());
         let presign_cfg = match PresigningConfig::expires_in(Duration::from_secs(3600)) {
             Ok(cfg) => cfg,
             Err(e) => {
-                log::error!(
-                    "Failed to create presign config for {}: {:?}",
-                    document_id,
-                    e
-                );
-                return HttpResponse::InternalServerError().finish();
+                return ApiError::from_s3(
+                    "Failed to create presign config",
+                    e,
+                )
+                .error_response();
             }
         };
         match s3
@@ -368,10 +355,7 @@ pub async fn download(
             .await
         {
             Ok(req) => HttpResponse::Ok().json(serde_json::json!({"url": req.uri().to_string()})),
-            Err(e) => {
-                log::error!("Failed to presign document {}: {:?}", document_id, e);
-                HttpResponse::InternalServerError().finish()
-            }
+            Err(e) => ApiError::from_s3("Failed to presign document", e).error_response(),
         }
     }
 }
