@@ -67,7 +67,7 @@ async fn run_stages(
                 } else {
                     let text_content = tokio::fs::read_to_string(txt_path).await?;
                     json_result =
-                        processing::run_parse_stage(&text_content, stage.config.as_ref()).await?;
+                        processing::parse::run_parse_stage(&text_content, stage.config.as_ref()).await?;
                 }
                 if let Ok(b) = serde_json::to_vec_pretty(&json_result) {
                     let _ = worker::save_stage_output(
@@ -264,7 +264,7 @@ async fn main() -> Result<()> {
         let bucket = cfg.s3_bucket.clone();
         let mut local = std::env::temp_dir();
         local.push(format!("{}-input.pdf", job.id));
-        processing::download_pdf(&s3_client, &bucket, &doc.filename, &local).await?;
+        processing::ocr::download_pdf(&s3_client, &bucket, &doc.filename, &local).await?;
         let mut txt_path = local.clone();
         txt_path.set_extension("txt");
 

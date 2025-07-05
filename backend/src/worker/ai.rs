@@ -57,7 +57,7 @@ pub async fn handle_ai_stage(
 
     let headers = org_settings.and_then(|s| s.ai_custom_headers.as_ref());
 
-    let result = processing::run_ai(&input_json, &endpoint, &key, headers).await?;
+    let result = processing::ai_client::run_ai(&input_json, &endpoint, &key, headers).await?;
 
     // Save AI output
     if let Ok(bytes) = serde_json::to_vec_pretty(&result) {
