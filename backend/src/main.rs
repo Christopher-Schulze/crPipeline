@@ -15,6 +15,7 @@ use backend::middleware::{
     rate_limit::RateLimit,
     csrf_check::{CsrfCheck, init_csrf_token},
 };
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -28,7 +29,8 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("JWT_SECRET", &config.jwt_secret);
     init_jwt_secret();
     init_csrf_token();
-    tracing_subscriber::fmt::init();
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    fmt().with_env_filter(filter).json().init();
 
     let database_url = config.database_url;
     let pool = PgPoolOptions::new()
