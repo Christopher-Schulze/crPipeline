@@ -22,6 +22,9 @@ SMTP_FROM=noreply@example.com
 BASE_URL=http://localhost:8080
 OCR_API_ENDPOINT=
 OCR_API_KEY=
+# Email queue configuration
+EMAIL_QUEUE_PROVIDER=memory
+EMAIL_QUEUE_SIZE=100
 #PROCESS_ONE_JOB=1
 #LOCAL_S3_DIR=/tmp/s3
 ```

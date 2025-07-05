@@ -8,6 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 use backend::metrics;
 
 use backend::config::AppConfig;
+use backend::email;
 
 use backend::handlers;
 use backend::middleware::{
@@ -29,6 +30,8 @@ async fn main() -> std::io::Result<()> {
     init_jwt_secret();
     init_csrf_token();
     tracing_subscriber::fmt::init();
+
+    email::start_email_worker(&config);
 
     let database_url = config.database_url;
     let pool = PgPoolOptions::new()
