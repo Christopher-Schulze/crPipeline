@@ -25,6 +25,14 @@ jobs:
         run: npm run lint --prefix frontend
       - name: Run frontend tests
         run: npm test --prefix frontend
+      - name: Generate frontend coverage
+        run: npx vitest run --coverage
+        working-directory: frontend
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
       - name: Build frontend
         run: npm run build --prefix frontend
       - name: Generate API docs
@@ -47,6 +55,18 @@ jobs:
           rust-version: stable
       - name: Run backend tests
         run: cargo test --manifest-path backend/Cargo.toml --all-targets
+      - name: Install cargo-tarpaulin
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo install cargo-tarpaulin
+      - name: Generate backend coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo tarpaulin --manifest-path backend/Cargo.toml --out Xml --output-dir coverage
+      - name: Upload backend coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage
+          path: coverage
 
   release:
     needs: [build, backend-tests]
