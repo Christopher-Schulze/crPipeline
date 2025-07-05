@@ -1,4 +1,4 @@
-use backend::processing::run_parse_stage;
+use backend::processing::parse::run_parse_stage;
 use serde_json::json;
 
 #[actix_rt::test]

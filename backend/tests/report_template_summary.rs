@@ -1,4 +1,4 @@
-use backend::processing::generate_report_from_template;
+use backend::processing::report::generate_report_from_template;
 use serde_json::json;
 use lopdf::Document as PdfDoc;
 use uuid::Uuid;

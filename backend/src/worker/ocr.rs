@@ -42,7 +42,7 @@ pub async fn handle_ocr_stage(
             }
         };
 
-        match processing::run_external_ocr(
+        match processing::ocr::run_external_ocr(
             &endpoint,
             if key.is_empty() { None } else { Some(key.as_str()) },
             pdf_bytes,
@@ -61,7 +61,7 @@ pub async fn handle_ocr_stage(
             }
         }
     } else {
-        if let Err(e) = processing::run_ocr(local, txt_path).await {
+        if let Err(e) = processing::ocr::run_ocr(local, txt_path).await {
             error!(job_id=%job.id, "OCR failed: {:?}", e);
             return Ok(true);
         }
