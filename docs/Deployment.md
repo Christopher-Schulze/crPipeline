@@ -38,11 +38,11 @@ kubectl create secret generic frontend-env \
 
 Set the `REGISTRY` secret in your CI settings so images are pushed to your container registry.
 
-## TLS / HTTPS
+## TLS / Ingress
 
-The backend itself does not terminate TLS. In production deploy it behind a reverse proxy or Kubernetes ingress that provides HTTPS. Configure `BASE_URL` and `FRONTEND_ORIGIN` with `https://` URLs so that login cookies receive the `Secure` flag and browsers enforce encrypted connections. Any ingress controller such as Nginx or Traefik can handle the certificates and forward traffic to the pod on port `8080`.
+The backend itself does not terminate TLS. In production deploy it behind a reverse proxy or Kubernetes ingress that provides HTTPS. Configure `BASE_URL` and `FRONTEND_ORIGIN` with `https://` URLs so that login cookies receive the `Secure` flag and browsers enforce encrypted connections. Any ingress controller such as Nginx or Traefik can handle certificates and forward traffic to the pod on port `8080`.
 
-Example Nginx ingress:
+### Example Nginx ingress
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -69,8 +69,29 @@ spec:
               number: 80
 ```
 
-The same concept applies for Traefik using `IngressRoute` objects to route
-HTTPS traffic to the backend service.
+### Example Traefik ingress
+
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: backend
+spec:
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`example.com`)
+    kind: Rule
+    services:
+    - name: backend
+      port: 80
+  tls:
+    secretName: tls-secret
+```
+
+### Certificate management
+
+Use a tool like [cert-manager](https://cert-manager.io/) or your ingress controller's ACME integration to automatically request Let's Encrypt certificates. Ensure the secret referenced by `tls-secret` exists and is kept up to date.
 
 ## Versioned images with Helm
 
