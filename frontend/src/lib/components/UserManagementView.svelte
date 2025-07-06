@@ -7,7 +7,7 @@
   import ConfirmationModal from '$lib/components/ConfirmationModal.svelte'; // Import ConfirmationModal
   import PaginationControls from '$lib/components/PaginationControls.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
-  import { page } from '$app/stores'; // To get current user ID for self-action prevention
+  import { sessionStore } from '$lib/stores/session';
 
   export interface Organization {
     id: string;
@@ -57,7 +57,8 @@
   let confirmButtonVariant: ButtonVariant = 'primary';
   let selectedUserForAction: OrgUserView | null = null;
 
-  const currentUserId = $page.data.session?.userId;
+  let currentUserId: string | null = null;
+  $: currentUserId = $sessionStore.userId;
 
 
   async function loadUsersInOrg(pageToLoad = 1) {

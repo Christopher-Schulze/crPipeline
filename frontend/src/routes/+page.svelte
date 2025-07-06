@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { page } from '$app/stores'; // To access data from +layout.ts if needed, or session
+  import { sessionStore } from '$lib/stores/session';
 
   // This page might eventually show a landing page or redirect based on auth state.
   // Auth state (loggedIn) is available from the root +layout.svelte's data prop,
@@ -12,12 +12,12 @@
   // A proper /login route will be created later.
 
   // Accessing layout data (passed down from root +layout.svelte via SvelteKit)
-  // $: loggedIn = $page.data.session?.loggedIn || false; // Example of accessing layout data
+  // $: loggedIn = $sessionStore.loggedIn || false; // Example of accessing session store
 
   onMount(() => {
     // Client-side redirect based on a simple cookie check (placeholder for proper auth handling via load functions)
     // A more SvelteKit-idiomatic approach would be to handle this in a +layout.ts or +page.ts load function.
-    const isLoggedInFromLayout = $page.data.session?.loggedIn; // Check data from layout
+    const isLoggedInFromLayout = $sessionStore.loggedIn;
 
     if (isLoggedInFromLayout) {
       goto('/dashboard', { replaceState: true });
@@ -42,7 +42,7 @@
       Welcome to cr<span class="text-accent">Pipeline</span>
     </h1>
 
-    {#if !$page.data.session?.loggedIn}
+    {#if !$sessionStore.loggedIn}
       <p class="text-gray-600 dark:text-gray-300">
         Advanced document processing and analysis.
       </p>

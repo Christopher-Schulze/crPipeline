@@ -20,7 +20,7 @@
   // Use native navigation instead of SvelteKit's goto
   const goto = (path: string) => { window.location.href = path; };
   import { apiFetch } from '$lib/utils/apiUtils';
-  import { sessionStore } from '$lib/utils/sessionStore';
+  import { sessionStore } from '$lib/stores/session';
 
   async function logout() {
     try {

@@ -14,7 +14,7 @@
   import GlobalLoadingIndicator from '$lib/components/GlobalLoadingIndicator.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
   import ErrorToast from '$lib/components/ErrorToast.svelte';
-  import { sessionStore } from '$lib/utils/sessionStore';
+  import { sessionStore } from '$lib/stores/session';
 
   // Type Imports or Definitions
   export interface NavItem {

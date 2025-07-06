@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
-  import { page } from '$app/stores';
+  import { sessionStore } from '$lib/stores/session';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import Button from '$lib/components/Button.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
@@ -15,7 +15,8 @@
 
   const dispatch = createEventDispatcher();
 
-  $: orgId = $page.data.session?.org;
+  let orgId: string | null = null;
+  $: orgId = $sessionStore.org;
 
   onMount(async () => {
     if (!orgId) return;

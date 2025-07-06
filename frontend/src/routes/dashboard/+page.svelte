@@ -1,7 +1,7 @@
 <script lang="ts">
   import Dashboard from '$lib/components/Dashboard.svelte';
   import GlassCard from '$lib/components/GlassCard.svelte'; // Used for consistent page structure
-  import { page } from '$app/stores'; // To access layout data
+  import { sessionStore } from '$lib/stores/session';
 
   // The `data` prop would come from a +layout.ts or +page.ts load function
   // which should provide session information, including orgId.
@@ -9,8 +9,9 @@
   // For this step, we assume `data.session.org` is populated by the root +layout.svelte's data prop
   // which itself would get it from a future +layout.ts.
 
-  $: orgId = $page.data.session?.org;
-  $: loggedIn = $page.data.session?.loggedIn;
+  let orgId: string | null = null;
+  let loggedIn = false;
+  $: ({ orgId, loggedIn } = { orgId: $sessionStore.org, loggedIn: $sessionStore.loggedIn });
 
   // Components for main view buttons, shown if not in a specific view via sidebar
   import Button from '$lib/components/Button.svelte';

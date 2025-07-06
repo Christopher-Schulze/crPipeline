@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, getContext } from 'svelte';
-  import { page } from '$app/stores';
+  import { sessionStore } from '$lib/stores/session';
   import DataTable, { type TableHeader } from '$lib/components/DataTable.svelte';
   import Button from '$lib/components/Button.svelte';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -23,8 +23,9 @@
   let isLoading: boolean = true;
   let error: string | null = null;
 
-  // $: console.log("Session data in pipelines page:", $page.data.session);
-  const orgId = $page.data.session?.org; // From root +layout.ts session data
+  let orgId: string | null = null;
+  let loggedIn = false;
+  $: ({ orgId, loggedIn } = { orgId: $sessionStore.org, loggedIn: $sessionStore.loggedIn });
 
   // Get context function to open pipeline editor
   const managePipeline = getContext<(pipelineData?: Pipeline | null) => void>('managePipeline');
@@ -61,7 +62,7 @@
   onMount(() => {
     if (orgId) {
         loadPipelines();
-    } else if ($page.data.session?.loggedIn) {
+    } else if (loggedIn) {
         // User is logged in but no orgId in session, which is unexpected for pipeline management.
         error = "Organization ID is missing from your session. Unable to load pipelines.";
         isLoading = false;
@@ -154,7 +155,7 @@
 <div class="container mx-auto px-4 py-8 space-y-6" in:fade={{ duration: 200 }}>
     <div class="flex justify-between items-center">
         <h1 class="text-3xl font-semibold text-gray-100 dark:text-gray-50">Pipelines</h1>
-        {#if $page.data.session?.loggedIn && orgId}
+        {#if loggedIn && orgId}
             <Button variant="primary" on:click={handleCreateNewPipeline} customClass="flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2">
                     <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
@@ -164,7 +165,7 @@
         {/if}
     </div>
 
-    {#if !$page.data.session?.loggedIn}
+    {#if !loggedIn}
         <GlassCard padding="p-8 text-center">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-primary-500 mx-auto mb-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -175,7 +176,7 @@
             </p>
             <Button href="/login" variant="primary">Go to Login</Button>
         </GlassCard>
-    {:else if !orgId && $page.data.session?.loggedIn}
+    {:else if !orgId && loggedIn}
          <GlassCard padding="p-8 text-center">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-warning-500 mx-auto mb-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />

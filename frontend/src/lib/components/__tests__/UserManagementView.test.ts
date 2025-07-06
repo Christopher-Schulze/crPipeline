@@ -1,11 +1,16 @@
 import { render } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
+import { sessionStore } from "../../stores/session";
 
-vi.mock('$app/stores', () => ({
-  page: {
-    subscribe: (run: any) => { run({ data: { session: { userId: 'u1' } } }); return () => {}; }
-  }
-}));
+beforeEach(() => {
+  sessionStore.setSession({ loggedIn: true, org: "o1", userId: "u1", role: "admin", csrfToken: null });
+});
+
+afterEach(() => {
+  sessionStore.clear();
+});
+
+
 
 vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
   ok: true,
