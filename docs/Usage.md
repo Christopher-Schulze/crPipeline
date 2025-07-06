@@ -100,3 +100,10 @@ Serve `frontend/dist` with a static server and run the compiled backend binary w
 ## Development Scripts
 `scripts/setup_dev.sh` copies example env files, runs migrations and prints commands to start the services.
 `scripts/bootstrap_deps.sh` pre-fetches crates and npm packages and generates lockfiles.
+
+## API-Client
+Generate TypeScript API types from the OpenAPI specification:
+```bash
+npm run gen:api --prefix frontend
+```
+The generated client is written to `frontend/src/lib/api/index.ts`.
