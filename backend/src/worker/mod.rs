@@ -40,11 +40,42 @@ impl WorkerRuntimeConfig {
             .unwrap_or(1);
         Self { concurrency }
     }
+
+    /// Reload configuration from environment variables.
+    pub fn reload(&mut self) {
+        *self = Self::from_env();
+    }
 }
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+/// Listen for SIGHUP and update the concurrency setting when received.
+#[cfg(unix)]
+pub async fn watch_config_changes(concurrency: Arc<AtomicUsize>) {
+    use tokio::signal::unix::{signal, SignalKind};
+    let mut stream = match signal(SignalKind::hangup()) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("Failed to listen for SIGHUP: {:?}", e);
+            return;
+        }
+    };
+    while stream.recv().await.is_some() {
+        let cfg = WorkerRuntimeConfig::from_env();
+        let c = cfg.concurrency.max(1);
+        concurrency.store(c, Ordering::SeqCst);
+        tracing::info!(concurrency=%c, "reloaded worker runtime config");
+    }
+}
+
+/// Stub for non-Unix platforms where SIGHUP is not available.
+#[cfg(not(unix))]
+pub async fn watch_config_changes(_concurrency: Arc<AtomicUsize>) {}
+
+use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
-use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
 use std::env;
 use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
