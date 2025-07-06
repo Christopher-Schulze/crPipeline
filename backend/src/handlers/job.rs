@@ -1,10 +1,11 @@
+use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 use crate::models::{AnalysisJob, Document, JobStageOutput, Pipeline};
-use actix_web::{get, web, HttpResponse, http::StatusCode, ResponseError};
-use crate::error::ApiError;
+use actix_web::{get, http::StatusCode, web, HttpResponse, ResponseError};
 use actix_web_lab::sse::{self, ChannelStream, Sse};
 use aws_sdk_s3::presigning::PresigningConfig;
-use serde::Serialize;
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::time::Duration; // Already here, used for Sse and now PresigningConfig
 use uuid::Uuid; // For S3 presigned URLs
@@ -30,13 +31,21 @@ struct JobDetailsResponse {
     stage_outputs: Vec<JobStageOutput>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct JobEvent {
+    job_id: Uuid,
+    org_id: Uuid,
+    status: String,
+}
+
 /// Return all jobs for an organization.
 #[get("/jobs/{org_id}")]
 async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
     match AnalysisJob::find_by_org(pool.as_ref(), *path).await {
         Ok(list) => HttpResponse::Ok().json(list),
-        Err(_) => ApiError::new("Failed to list jobs", StatusCode::INTERNAL_SERVER_ERROR)
-            .error_response(),
+        Err(_) => {
+            ApiError::new("Failed to list jobs", StatusCode::INTERNAL_SERVER_ERROR).error_response()
+        }
     }
 }
 
@@ -62,6 +71,43 @@ async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<Chann
                 }
             }
             actix_web::rt::time::sleep(Duration::from_secs(2)).await;
+        }
+    });
+    rx
+}
+
+/// Stream job status events for an organization via Redis Pub/Sub.
+#[get("/jobs/events/{org_id}")]
+async fn org_job_events(path: web::Path<Uuid>) -> Sse<ChannelStream> {
+    let org_id = *path;
+    let redis_url = match std::env::var("REDIS_URL") {
+        Ok(u) => u,
+        Err(_) => return sse::channel(0).1,
+    };
+    let client = match redis::Client::open(redis_url) {
+        Ok(c) => c,
+        Err(_) => return sse::channel(0).1,
+    };
+    let mut conn = match client.get_async_connection().await {
+        Ok(c) => c.into_pubsub(),
+        Err(_) => return sse::channel(0).1,
+    };
+    if conn.subscribe("job_status").await.is_err() {
+        return sse::channel(0).1;
+    }
+    let mut stream = conn.on_message();
+    let (tx, rx) = sse::channel(10);
+    actix_web::rt::spawn(async move {
+        while let Some(msg) = stream.next().await {
+            if let Ok(payload) = msg.get_payload::<String>() {
+                if let Ok(event) = serde_json::from_str::<JobEvent>(&payload) {
+                    if event.org_id == org_id {
+                        if tx.send(sse::Data::new(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
         }
     });
     rx
@@ -175,8 +221,9 @@ async fn get_job_details(
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(list_jobs)
         .service(job_events)
+        .service(org_job_events)
         .service(get_job_details)
-        .service(get_stage_output_download_url); // Add the new service
+        .service(get_stage_output_download_url);
 }
 
 /// Create a presigned URL for downloading an output file of a job stage.

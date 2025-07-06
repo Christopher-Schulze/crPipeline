@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, getContext } from 'svelte';
+  import { onDestroy, onMount, getContext } from 'svelte';
   // GlassCard is not used directly per row anymore, DataTable handles overall container.
   // import GlassCard from './GlassCard.svelte';
   import Button from './Button.svelte';
@@ -19,6 +19,7 @@
     // Any other fields from AnalysisJob that might be useful
   }
   export let jobs: Job[] = [];
+  export let orgId: string | null = null;
 
   const viewJobDetails = getContext<(jobId: string) => void>('viewJobDetails');
 
@@ -47,27 +48,50 @@
     pipeline_name: job.pipeline_name,
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); // Initial sort
 
-  let sources: ReconnectingEventSource[] = [];
+  let source: ReconnectingEventSource | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  $: if (jobs.length) {
-    sources.forEach((s) => s.close());
-    sources = jobs.map((job) => {
-      let source: ReconnectingEventSource;
-      source = createReconnectingEventSource(
-        `/api/jobs/${job.id}/events`,
-        (e) => {
-          job.status = e.data;
-          if (e.data === 'completed' || e.data === 'failed') {
-            source.close();
-          }
-        }
-      );
-      return source;
-    });
+  async function fetchJobs() {
+    if (!orgId) return;
+    const res = await fetch(`/api/jobs/${orgId}`);
+    if (res.ok) {
+      jobs = await res.json();
+    }
   }
 
+  function startPolling() {
+    if (pollTimer) return;
+    fetchJobs();
+    pollTimer = setInterval(fetchJobs, 10000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function startStream() {
+    if (!orgId || typeof EventSource === 'undefined') {
+      startPolling();
+      return;
+    }
+    source = createReconnectingEventSource(`/api/jobs/events/${orgId}`, (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const job = jobs.find((j) => j.id === data.job_id);
+        if (job) job.status = data.status;
+      } catch {}
+    });
+    startPolling();
+  }
+
+  onMount(startStream);
+
   onDestroy(() => {
-    sources.forEach((s) => s.close());
+    source?.close();
+    stopPolling();
   });
 </script>
 
