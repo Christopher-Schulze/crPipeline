@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { sessionStore } from '$lib/stores/session';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import Button from '$lib/components/Button.svelte';
   import DataTable, { type TableHeader } from '$lib/components/DataTable.svelte';
@@ -281,7 +281,7 @@
             {new Date(item.created_at).toLocaleDateString('en-CA')}
           </span>
           <div slot="cell-actions" let:item class="flex justify-end items-center space-x-1">
-            {#if item.id === $page.data.session?.userId}
+            {#if item.id === $sessionStore.userId}
               <span class="text-xs text-gray-500 italic px-2 py-1">(Your Account)</span>
             {:else if item.role === 'admin'}
               <span class="text-xs text-gray-500 italic px-2 py-1">(Admin)</span>
@@ -293,7 +293,7 @@
                 <Button variant="ghost" customClass="!px-2 !py-1 text-xs !text-green-400" on:click={() => requestReactivateUser(item)}>Reactivate</Button>
               {/if}
             {/if}
-            {#if !item.confirmed && item.is_active && item.id !== $page.data.session?.userId && item.role !== 'admin'}
+            {#if !item.confirmed && item.is_active && item.id !== $sessionStore.userId && item.role !== 'admin'}
               <Button variant="ghost" customClass="!px-2 !py-1 text-xs !text-sky-400" on:click={() => handleResendConfirmation(item.id)}>Resend Email</Button>
             {/if}
           </div>

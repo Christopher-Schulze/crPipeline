@@ -3,7 +3,7 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import Button from '$lib/components/Button.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
-  import { sessionStore } from '$lib/utils/sessionStore';
+  import { sessionStore } from '$lib/stores/session';
 
   let email = '';
   let password = '';

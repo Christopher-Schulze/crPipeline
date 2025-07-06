@@ -1,6 +1,6 @@
 // frontend/src/lib/utils/apiUtils.ts
 import { loadingStore } from './loadingStore';
-import { sessionStore } from './sessionStore';
+import { sessionStore } from '../stores/session';
 import { errorStore } from './errorStore';
 import { get } from 'svelte/store';
 
