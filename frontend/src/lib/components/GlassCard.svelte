@@ -11,8 +11,8 @@
   export let padding: string = 'p-6'; // e.g., p-4, p-6, p-8
   export let customClass: string = ''; // Allow passing additional classes
 
-  // Combine all classes using DaisyUI card
-  $: cardContainerClasses = `card ${bgOpacity} ${backdropBlur} ${borderStyle} ${borderRadius} ${shadow} ${customClass}`;
+  // Combine all classes using DaisyUI card with glass effect
+  $: cardContainerClasses = `card glass ${bgOpacity} ${backdropBlur} ${borderStyle} ${borderRadius} ${shadow} ${customClass}`;
   $: bodyClasses = `card-body ${padding}`;
 </script>
 

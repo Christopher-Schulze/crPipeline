@@ -230,15 +230,15 @@
   </div>
 
   {#if generalError}
-    <div class="bg-error/20 border border-error/40 text-error px-4 py-3 rounded-lg my-4" role="alert">
-      <strong class="font-bold">Error:</strong>
-      <span class="block sm:inline ml-1">{generalError}</span>
+    <div class="alert alert-error shadow-lg my-4" role="alert">
+      <strong class="font-bold mr-1">Error:</strong>
+      <span>{generalError}</span>
     </div>
   {/if}
   {#if generalSuccess}
-    <div class="bg-success/20 border border-success/40 text-success px-4 py-3 rounded-lg my-4" role="alert">
-      <strong class="font-bold">Success:</strong>
-      <span class="block sm:inline ml-1">{generalSuccess}</span>
+    <div class="alert alert-success shadow-lg my-4" role="alert">
+      <strong class="font-bold mr-1">Success:</strong>
+      <span>{generalSuccess}</span>
     </div>
   {/if}
 
@@ -248,9 +248,9 @@
       <p class="ml-3 text-gray-400">Loading users...</p>
     </div>
   {:else if errorLoadingUsers}
-    <div class="bg-error/10 border border-error/30 text-error px-4 py-3 rounded-lg" role="alert">
-      <strong class="font-bold">Error loading users:</strong>
-      <span class="block sm:inline ml-1">{errorLoadingUsers}</span>
+    <div class="alert alert-error shadow-lg" role="alert">
+      <strong class="font-bold mr-1">Error loading users:</strong>
+      <span>{errorLoadingUsers}</span>
     </div>
   {:else}
     <DataTable
