@@ -149,11 +149,49 @@ async fn delete_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<
     }
 }
 
+#[post("/pipelines/{id}/clone")]
+async fn clone_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
+    let pipeline_id = path.into_inner();
+    let existing = match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE id=$1")
+        .bind(pipeline_id)
+        .fetch_one(pool.as_ref())
+        .await
+    {
+        Ok(p) => p,
+        Err(sqlx::Error::RowNotFound) => {
+            return ApiError::new("Pipeline not found", StatusCode::NOT_FOUND)
+                .error_response();
+        }
+        Err(_) => {
+            return ApiError::new("Failed to fetch pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+                .error_response();
+        }
+    };
+
+    if user.role != "admin" && existing.org_id != user.org_id {
+        return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
+            .error_response();
+    }
+
+    let new_data = NewPipeline {
+        org_id: existing.org_id,
+        name: format!("{} (copy)", existing.name),
+        stages: existing.stages.clone(),
+    };
+
+    match Pipeline::create(&pool, new_data).await {
+        Ok(p) => HttpResponse::Ok().json(p),
+        Err(_) => ApiError::new("Failed to clone pipeline", StatusCode::INTERNAL_SERVER_ERROR)
+            .error_response(),
+    }
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg
         .service(create_pipeline)
         .service(list_pipelines)
         .service(update_pipeline)
-        .service(delete_pipeline);
+        .service(delete_pipeline)
+        .service(clone_pipeline);
 }
 

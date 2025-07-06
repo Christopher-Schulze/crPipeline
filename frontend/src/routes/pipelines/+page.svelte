@@ -118,6 +118,37 @@
       }
   }
 
+  async function handleDeletePipeline(p: Pipeline) {
+      if (!confirm('Delete this pipeline?')) return;
+      try {
+          const res = await apiFetch(`/api/pipelines/${p.id}`, { method: 'DELETE' });
+          if (res.ok) {
+              alert('Pipeline deleted.');
+              document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
+          } else {
+              const err = await res.json().catch(() => ({ error: res.statusText }));
+              alert(`Error deleting pipeline: ${err.error}`);
+          }
+      } catch (e: any) {
+          alert(`Network error while deleting pipeline: ${e.message}`);
+      }
+  }
+
+  async function handleClonePipeline(p: Pipeline) {
+      try {
+          const res = await apiFetch(`/api/pipelines/${p.id}/clone`, { method: 'POST' });
+          if (res.ok) {
+              alert('Pipeline cloned.');
+              document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
+          } else {
+              const err = await res.json().catch(() => ({ error: res.statusText }));
+              alert(`Error cloning pipeline: ${err.error}`);
+          }
+      } catch (e: any) {
+          alert(`Network error while cloning pipeline: ${e.message}`);
+      }
+  }
+
 </script>
 
 <div class="container mx-auto px-4 py-8 space-y-6" in:fade={{ duration: 200 }}>
@@ -182,7 +213,8 @@
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1"><path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" /></svg>
                     Edit
                 </Button>
-                <!-- Delete button can be added later -->
+                <Button variant="ghost" customClass="!px-2 !py-1 text-xs hover:!bg-accent/20" on:click={() => handleClonePipeline(item)}>Clone</Button>
+                <Button variant="ghost" customClass="!px-2 !py-1 text-xs text-red-400 hover:text-red-300" on:click={() => handleDeletePipeline(item)}>Delete</Button>
             </div>
             <span slot="cell-name" let:item title={item.name} class="block truncate max-w-md group-hover:text-accent-lighter transition-colors">
                 {item.name}
