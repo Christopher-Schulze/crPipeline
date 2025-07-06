@@ -10,6 +10,15 @@ export interface FetchOptions extends RequestInit {
   timeoutMs?: number;
 }
 
+class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = 'HttpError';
+  }
+}
+
 const CSRF_HEADER = 'X-CSRF-Token';
 
 export async function apiFetch(url: string, options: FetchOptions = {}): Promise<Response> {
@@ -54,14 +63,17 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
           /* ignore */
         }
       }
-      throw new Error(message);
+      errorStore.show(message);
+      throw new HttpError(message, res.status);
     }
     return res;
   } catch (err: any) {
     if (err.name === 'AbortError') {
       err = new Error('Request timed out');
+      errorStore.show(err.message);
+    } else if (!(err instanceof HttpError)) {
+      errorStore.show(err.message || 'Request failed');
     }
-    errorStore.show(err.message || 'Request failed');
     throw err;
   } finally {
     clearTimeout(timer);

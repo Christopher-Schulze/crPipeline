@@ -4,6 +4,7 @@
   import GlassCard from './GlassCard.svelte';
   import ConfirmationModal from './ConfirmationModal.svelte';
   import { apiFetch } from '$lib/utils/apiUtils'; // Import apiFetch
+  import { errorStore } from '$lib/utils/errorStore';
 
   export let orgId: string;
 
@@ -136,11 +137,11 @@
         dispatch('saved', { accentColor: settings.accent_color });
         alert('Settings saved successfully!');
       } else {
-        alert('Failed to save settings: ' + (await res.text()));
+        errorStore.show('Failed to save settings: ' + (await res.text()));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving settings:', error);
-      alert('Error saving settings.');
+      errorStore.show('Error saving settings: ' + error.message);
     }
   }
 

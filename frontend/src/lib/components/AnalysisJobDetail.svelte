@@ -5,6 +5,7 @@
   import Modal from './Modal.svelte';
   import * as Diff from 'diff'; // Import the diff library
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { errorStore } from '$lib/utils/errorStore';
 
   export let jobId: string;
 
@@ -414,15 +415,15 @@
 
   async function copyToClipboard(text: string | null, type: string) {
     if (!text || typeof navigator.clipboard?.writeText !== 'function') {
-      alert('Clipboard API not available or no text to copy.');
+      errorStore.show('Clipboard API not available or no text to copy.');
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      alert(`${type} content copied to clipboard!`);
+      // Optionally show success toast here in the future
     } catch (err) {
       console.error(`Failed to copy ${type} to clipboard:`, err);
-      alert(`Failed to copy ${type}. See console for details.`);
+      errorStore.show(`Failed to copy ${type}. See console for details.`);
     }
   }
 
@@ -463,7 +464,7 @@
 
   async function viewStageOutput(output: StageOutput) {
     if (output.output_type !== 'txt' && output.output_type !== 'json') {
-      alert("Viewing is currently supported only for .txt and .json files.");
+      errorStore.show("Viewing is currently supported only for .txt and .json files.");
       return;
     }
 
@@ -547,11 +548,11 @@
       } else {
         throw new Error("Download URL not found in the server response.");
       }
-    } catch (err: any) {
-      console.error("Download failed for output ID", outputId, err);
-      alert(`Could not initiate download: ${err.message}`);
-    }
+  } catch (err: any) {
+    console.error("Download failed for output ID", outputId, err);
+    errorStore.show(`Could not initiate download: ${err.message}`);
   }
+}
 
   function getStatusColor(status: string): string {
     if (status === 'completed' || status === 'success') return 'text-green-400';
