@@ -10,6 +10,7 @@
   import OrgAdmin from './lib/components/OrgAdmin.svelte';
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { uiStateStore } from '$lib/stores/uiState';
 
   let loggedIn = false;
   let org: string | null = null;
@@ -17,9 +18,6 @@
   let role: string | null = null;
   let docs: { id: string; filename: string }[] = [];
   let jobs: { id: string; status: string }[] = [];
-  // let showPipeline = false; // Removed this line
-  let showSettingsPanel = false; // Renamed from showSettings
-  let showAdmin = false; // Assuming OrgAdmin is still toggled this way or will be moved to a view
 
   // Import GlassCard
   import GlassCard from './lib/components/GlassCard.svelte';
@@ -40,8 +38,7 @@
     icon?: string;
   }
 
-  let currentPath: string = '/dashboard'; // Default view path
-  let currentView: string = 'dashboard';  // To control component display
+  // Derived from uiStateStore
 
   const mainNavItems: NavItem[] = [
     { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z' },
@@ -51,59 +48,29 @@
   ];
   // Admin/Settings nav items could be added conditionally to mainNavItems based on role.
 
-  let currentViewedJobId: string | null = null;
-  let showPipelineEditorPanel = false;
+  // Additional UI state handled by uiStateStore
 
   function handleSidebarNavigate(event: CustomEvent<{ path: string }>) {
-    currentPath = event.detail.path;
-    const newView = currentPath.substring(1); // Remove leading '/'
-    if (newView === 'dashboard' || newView === 'documents') {
-        currentView = newView;
-    } else {
-        currentView = 'dashboard'; // Default to dashboard if path is unknown
-    }
-    // Close other panels when navigating
-    showSettingsPanel = false; // Updated variable name
-    showAdmin = false;
-    showPipelineEditorPanel = false;
-    currentViewedJobId = null; // Ensure job detail modal also closes
-    console.log("Navigating to view:", currentView);
+    uiStateStore.navigate(event.detail.path);
   }
 
   function toggleSettingsPanel() {
-    if (showSettingsPanel) {
-      showSettingsPanel = false;
-    } else {
-      currentView = 'settings_view_active'; // Or some other indicator that a panel is the main focus
-      showPipelineEditorPanel = false;
-      showAdmin = false;
-      currentViewedJobId = null;
-      showSettingsPanel = true;
-    }
+    uiStateStore.toggleSettings();
   }
 
   function viewJobDetails(jobId: string) {
-    currentViewedJobId = jobId;
+    uiStateStore.viewJobDetails(jobId);
   }
 
   function closeJobDetails() {
-    currentViewedJobId = null;
+    uiStateStore.closeJobDetails();
   }
 
   function togglePipelineEditorPanel() {
-    // Updated to ensure mutual exclusivity with other panels/views
-    if (showPipelineEditorPanel) {
-      showPipelineEditorPanel = false;
-    } else {
-      currentView = 'pipeline_editor_active'; // Or some other indicator
-      showSettingsPanel = false;
-      showAdmin = false;
-      currentViewedJobId = null;
-      showPipelineEditorPanel = true;
-    }
+    uiStateStore.togglePipelineEditor();
   }
 
-  setContext('viewJobDetails', viewJobDetails);
+  setContext('viewJobDetails', (id: string) => uiStateStore.viewJobDetails(id));
   
   async function checkAuth() {
     try {
@@ -155,24 +122,24 @@
 
   function settingsSaved(e: CustomEvent<{ accentColor: string }>) {
     document.documentElement.style.setProperty('--color-accent', e.detail.accentColor);
-    showSettingsPanel = false; // Use new variable name
+    uiStateStore.toggleSettings();
   }
 </script>
 
 <!-- Adjust main layout to include Sidebar -->
 <main class="min-h-screen flex bg-gray-100 text-gray-900 dark:bg-neutral-900 dark:text-gray-200">
   {#if loggedIn && org} <!-- Show sidebar only when logged in and org context is available -->
-    <Sidebar navItems={mainNavItems} {currentPath} on:navigate={handleSidebarNavigate} />
+    <Sidebar navItems={mainNavItems} currentPath={$uiStateStore.currentPath} on:navigate={handleSidebarNavigate} />
   {/if}
 
   <div class="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
     {#if loggedIn && org }
       <!-- Main Content Area based on currentView -->
-      {#if currentView === 'dashboard'}
+      {#if $uiStateStore.currentView === 'dashboard'}
         <GlassCard title="Dashboard" padding="p-4 md:p-6" customClass="text-left space-y-4">
           <Dashboard orgId={org} />
         </GlassCard>
-      {:else if currentView === 'documents'}
+      {:else if $uiStateStore.currentView === 'documents'}
         <GlassCard title="Documents" padding="p-4 md:p-6" customClass="text-left space-y-4">
           <!-- Buttons for main actions related to this view -->
           <div class="mb-4 flex space-x-2">
@@ -182,31 +149,21 @@
         </GlassCard>
       {:else}
         <GlassCard title="Content Area" padding="p-6">
-            <p>Selected Path: {currentPath}</p>
+            <p>Selected Path: {$uiStateStore.currentPath}</p>
             <p class="mt-4">Welcome, {userId} from org {org}. Role: {role}</p>
-            <p>Content for '{currentView}' view to be implemented.</p>
+            <p>Content for '{$uiStateStore.currentView}' view to be implemented.</p>
              <div class="mt-6 space-y-4">
                 <h3 class="text-lg font-semibold">Quick Toggles (Dev):</h3>
                 <div class="space-x-2">
                     <Button variant="secondary" on:click={togglePipelineEditorPanel}>
-                        {showPipelineEditorPanel ? 'Close Pipeline Editor' : 'Open Pipeline Editor'}
+                        {$uiStateStore.showPipelineEditorPanel ? 'Close Pipeline Editor' : 'Open Pipeline Editor'}
                     </Button>
                     <Button variant="secondary" on:click={toggleSettingsPanel}>
-                        {showSettingsPanel ? 'Close Settings' : 'Open Settings'}
+                        {$uiStateStore.showSettingsPanel ? 'Close Settings' : 'Open Settings'}
                     </Button>
                     {#if role === 'admin'}
-                        <Button variant="secondary" on:click={() => {
-                           if (showAdmin) {
-                               showAdmin = false;
-                           } else {
-                               currentView = 'admin_view_active'; // Or similar to indicate context switch
-                               showSettingsPanel = false;
-                               showPipelineEditorPanel = false;
-                               currentViewedJobId = null;
-                               showAdmin = true;
-                           }
-                        }}>
-                        {showAdmin ? 'Close Admin' : 'Open Admin'}
+                        <Button variant="secondary" on:click={uiStateStore.toggleAdmin}>
+                        {$uiStateStore.showAdmin ? 'Close Admin' : 'Open Admin'}
                         </Button>
                     {/if}
                 </div>
@@ -215,7 +172,7 @@
       {/if}
 
       <!-- Containers for components that are not main views but can be shown/hidden globally -->
-      {#if showAdmin && org && role === 'admin'}
+      {#if $uiStateStore.showAdmin && org && role === 'admin'}
          <GlassCard title="Admin Panel" customClass="mt-6 text-left space-y-4" padding="p-4 md:p-6">
             <OrgAdmin />
          </GlassCard>
@@ -240,45 +197,45 @@
     {/if}
   </div>
 
-  {#if currentViewedJobId}
-    <AnalysisJobDetail jobId={currentViewedJobId} on:close={closeJobDetails} />
+  {#if $uiStateStore.currentViewedJobId}
+    <AnalysisJobDetail jobId={$uiStateStore.currentViewedJobId} on:close={closeJobDetails} />
   {/if}
 
   <SlideOver
-    isOpen={showPipelineEditorPanel}
+    isOpen={$uiStateStore.showPipelineEditorPanel}
     title="Pipeline Editor"
     position="right"
     maxWidth="max-w-xl"
-    on:close={() => showPipelineEditorPanel = false}
+    on:close={() => uiStateStore.togglePipelineEditor()}
   >
     <div slot="content">
-      {#if showPipelineEditorPanel && org}
+      {#if $uiStateStore.showPipelineEditorPanel && org}
         <PipelineEditor
           orgId={org}
           on:saved={() => {
             console.log('Pipeline saved event received in App.svelte');
-            showPipelineEditorPanel = false;
+            uiStateStore.togglePipelineEditor();
             // Potentially refresh a list of pipelines here
           }}
           on:cancel={() => {
-            showPipelineEditorPanel = false;
+            uiStateStore.togglePipelineEditor();
           }}
         />
-      {:else if showPipelineEditorPanel && !org}
+      {:else if $uiStateStore.showPipelineEditorPanel && !org}
          <p class="text-red-500 p-4">Organization ID is not available. Cannot load pipeline editor.</p>
       {/if}
     </div>
   </SlideOver>
 
   <SlideOver
-    isOpen={showSettingsPanel && !!org}
+    isOpen={$uiStateStore.showSettingsPanel && !!org}
     title="Organization Settings"
     position="right"
     maxWidth="max-w-lg"
-    on:close={() => showSettingsPanel = false}
+    on:close={() => uiStateStore.toggleSettings()}
   >
     <div slot="content">
-      {#if showSettingsPanel && org}
+      {#if $uiStateStore.showSettingsPanel && org}
         <SettingsForm
           orgId={org}
           on:saved={(e) => {
@@ -286,7 +243,7 @@
           }}
         />
         <!-- No explicit on:cancel needed if SettingsForm doesn't have a dedicated cancel button -->
-      {:else if showSettingsPanel && !org}
+      {:else if $uiStateStore.showSettingsPanel && !org}
         <p class="text-red-500 p-4">Organization ID is not available. Cannot load settings.</p>
       {/if}
     </div>
