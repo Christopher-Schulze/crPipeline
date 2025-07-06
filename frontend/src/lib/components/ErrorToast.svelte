@@ -3,10 +3,10 @@
   import { fly } from 'svelte/transition';
 </script>
 
-<div class="fixed top-4 right-4 z-50 space-y-2" aria-live="assertive">
+<div class="toast toast-top toast-end z-50" aria-live="assertive">
   {#each $errorStore as err (err.id)}
     <div
-      class="bg-red-600 text-white px-4 py-2 rounded shadow flex items-start"
+      class="alert alert-error shadow-lg flex"
       transition:fly={{ x: 16, duration: 150 }}
     >
       <span class="flex-1">{err.message}</span>
