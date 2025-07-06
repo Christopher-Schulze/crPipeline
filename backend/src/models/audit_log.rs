@@ -1,5 +1,6 @@
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Serialize, FromRow, Debug)]
@@ -8,6 +9,7 @@ pub struct AuditLog {
     pub org_id: Uuid,
     pub user_id: Uuid,
     pub action: String,
+    pub created_at: DateTime<Utc>,
 }
 
 pub struct NewAuditLog {
@@ -34,5 +36,21 @@ impl AuditLog {
             .bind(org_id)
             .fetch_all(pool)
             .await
+    }
+
+    pub async fn list_by_org_paginated(
+        pool: &PgPool,
+        org_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> sqlx::Result<Vec<AuditLog>> {
+        sqlx::query_as::<_, AuditLog>(
+            "SELECT * FROM audit_logs WHERE org_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(org_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
     }
 }

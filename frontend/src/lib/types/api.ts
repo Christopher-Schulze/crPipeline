@@ -44,3 +44,11 @@ export interface OrgSettings {
   prompt_templates?: { id?: string; name: string; text: string }[] | null;
   ai_custom_headers?: { id: string; name: string; value: string }[] | null;
 }
+
+export interface AuditLog {
+  id: string;
+  org_id: string;
+  user_id: string;
+  action: string;
+  created_at: string;
+}
