@@ -38,9 +38,12 @@ jobs:
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
       - name: Run migrations
         run: cargo run --manifest-path backend/Cargo.toml --bin migrate
-      - name: E2E Tests
+      - name: Unit Tests
+        run: ./scripts/run_tests_docker.sh
+      - name: Seed demo data
+        run: ./scripts/seed_demo.sh
+      - name: Playwright E2E
         run: |
-          ./scripts/run_tests_docker.sh
           npx playwright install --with-deps
           npm run e2e --prefix frontend
 
