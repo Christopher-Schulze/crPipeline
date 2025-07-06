@@ -7,6 +7,7 @@ Multi-tenant document analysis platform built with Rust and Svelte.
 - [Architecture](docs/Architecture.md)
 - [Environment](docs/Environment.md)
 - [Setup](docs/Setup.md)
+- [Worker als Dienst](docs/Setup.md#worker-als-dienst)
 - [Security](docs/Security.md)
 - [Continuous Integration](docs/Continuous_Integration.md)
 - [Deployment](docs/Deployment.md)
