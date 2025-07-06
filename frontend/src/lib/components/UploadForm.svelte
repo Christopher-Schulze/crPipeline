@@ -49,7 +49,7 @@
 <div class="space-y-3 p-1">
   <div>
     <input
-      class="glass-input w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30"
+      class="file-input file-input-bordered glass w-full text-sm"
       type="file"
       accept="application/pdf,.md,.txt"
       on:change={handleUpload}

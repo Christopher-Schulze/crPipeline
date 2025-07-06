@@ -158,12 +158,12 @@
     >
       <div class="flex items-center gap-2 mb-2">
         <input
-          class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
+          class="input input-bordered glass flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
           bind:value={stage.type}
           placeholder="Stage Type (e.g., ocr, ai)"
         />
         <input
-          class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
+          class="input input-bordered glass flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
           bind:value={stage.command}
           placeholder="Command / Config (optional)"
         />

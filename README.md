@@ -2,6 +2,8 @@
 
 Multi-tenant document analysis platform built with Rust and Svelte.
 
+The frontend uses [DaisyUI](https://daisyui.com) components with the `corporate` and `business` themes. See [docs/DaisyUI_Themes.md](docs/DaisyUI_Themes.md) for details.
+
 ## Documentation
 - [Usage](docs/Usage.md)
 - [Architecture](docs/Architecture.md)
