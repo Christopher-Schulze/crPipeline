@@ -42,14 +42,15 @@ impl WorkerRuntimeConfig {
     }
 }
 
+use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
-use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
 use std::env;
 use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
 
 /// Upload a blob to S3 or the local filesystem when `LOCAL_S3_DIR` is set.
+#[tracing::instrument(skip(s3, data))]
 pub async fn upload_bytes(
     s3: &S3Client,
     bucket: &str,
@@ -76,13 +77,15 @@ pub async fn upload_bytes(
                 .await
             {
                 Ok(_) => break Ok(()),
-                Err(_e) if attempts < 3 => {
+                Err(e) if attempts < 3 => {
+                    tracing::error!(error=?e, bucket, key, "s3 upload failed, retrying");
                     S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
                     attempts += 1;
                     sleep(Duration::from_millis(500 * attempts as u64)).await;
                     continue;
                 }
                 Err(e) => {
+                    tracing::error!(error=?e, bucket, key, "s3 upload failed");
                     S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
                     break Err(e.into());
                 }
