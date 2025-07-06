@@ -15,7 +15,8 @@
     ],
     "types": [
       "svelte",
-      "vitest/globals"
+      "vitest/globals",
+      "@playwright/test"
     ],
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",

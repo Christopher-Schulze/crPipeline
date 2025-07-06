@@ -39,7 +39,10 @@ jobs:
       - name: Run migrations
         run: cargo run --manifest-path backend/Cargo.toml --bin migrate
       - name: E2E Tests
-        run: ./scripts/run_tests_docker.sh
+        run: |
+          ./scripts/run_tests_docker.sh
+          npx playwright install --with-deps
+          npm run e2e --prefix frontend
 
   frontend-coverage:
     needs: build
