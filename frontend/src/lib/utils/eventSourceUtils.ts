@@ -6,7 +6,9 @@ export interface ReconnectingEventSource {
 export function createReconnectingEventSource(
   url: string,
   onMessage: (e: MessageEvent) => void,
-  retryDelay = 1000
+  retryDelay = 1000,
+  onOpen?: () => void,
+  onError?: () => void
 ): ReconnectingEventSource {
   let es: EventSource;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -16,7 +18,11 @@ export function createReconnectingEventSource(
     if (closed) return;
     es = new EventSource(url);
     es.onmessage = onMessage;
+    if (onOpen) {
+      es.onopen = onOpen;
+    }
     es.onerror = () => {
+      if (onError) onError();
       es.close();
       if (!closed) {
         timer = setTimeout(connect, retryDelay);
@@ -34,6 +40,9 @@ export function createReconnectingEventSource(
     }
     es.onerror = null;
     es.onmessage = null;
+    if (es.onopen) {
+      es.onopen = null;
+    }
     es.close();
   };
 

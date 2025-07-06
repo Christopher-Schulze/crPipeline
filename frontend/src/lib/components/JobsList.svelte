@@ -72,19 +72,47 @@
     }
   }
 
+  async function handleEvent(e: MessageEvent) {
+    try {
+      const data = JSON.parse(e.data);
+      const job = jobs.find((j) => j.id === data.job_id);
+      if (job) {
+        job.status = data.status;
+      } else {
+        const res = await fetch(`/api/jobs/${data.job_id}/details`);
+        if (res.ok) {
+          const d = await res.json();
+          jobs = [
+            {
+              id: d.id,
+              org_id: d.org_id,
+              document_id: d.document_id,
+              pipeline_id: d.pipeline_id,
+              status: d.status,
+              created_at: d.job_created_at,
+              document_name: d.document_name,
+              pipeline_name: d.pipeline_name,
+            },
+            ...jobs,
+          ];
+        }
+      }
+    } catch {}
+  }
+
   function startStream() {
     if (!orgId || typeof EventSource === 'undefined') {
       startPolling();
       return;
     }
-    source = createReconnectingEventSource(`/api/jobs/events/${orgId}`, (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        const job = jobs.find((j) => j.id === data.job_id);
-        if (job) job.status = data.status;
-      } catch {}
-    });
     startPolling();
+    source = createReconnectingEventSource(
+      `/api/jobs/events/${orgId}`,
+      handleEvent,
+      1000,
+      () => stopPolling(),
+      () => startPolling()
+    );
   }
 
   onMount(startStream);

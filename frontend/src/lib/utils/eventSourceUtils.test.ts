@@ -25,23 +25,28 @@ describe('createReconnectingEventSource', () => {
   });
 
   it('reconnects after error and stops after close', () => {
-    const { getEventSource, close } = createReconnectingEventSource('/test', () => {}, 500);
+    const onOpen = vi.fn();
+    const onError = vi.fn();
+    const { getEventSource, close } = createReconnectingEventSource('/test', () => {}, 500, onOpen, onError);
 
     expect(MockEventSource.instances.length).toBe(1);
+    expect(onOpen).toHaveBeenCalledTimes(1);
 
     const first = getEventSource() as unknown as MockEventSource;
     first.onerror && first.onerror();
+    expect(onError).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(500);
 
     expect(MockEventSource.instances.length).toBe(2);
+    expect(onOpen).toHaveBeenCalledTimes(2);
 
     close();
 
     const second = getEventSource() as unknown as MockEventSource;
     second.onerror && second.onerror();
     vi.advanceTimersByTime(500);
-
+    expect(onError).toHaveBeenCalledTimes(2);
     expect(MockEventSource.instances.length).toBe(2);
   });
 });
