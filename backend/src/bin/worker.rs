@@ -45,6 +45,7 @@ async fn publish_status_event(job_id: Uuid, org_id: Uuid, status: &str) {
 }
 
 /// Execute all stages of a job. Returns `Ok` on success or `Err` on the first stage failure.
+#[tracing::instrument(skip(pool, s3_client, job, doc, stages, org_settings, local, txt_path))]
 async fn run_stages(
     pool: &PgPool,
     s3_client: &S3Client,
@@ -170,6 +171,7 @@ async fn run_stages(
     Ok(())
 }
 
+#[tracing::instrument(skip(path))]
 async fn remove_with_retry(path: &Path, job_id: Uuid, desc: &str) {
     const ATTEMPTS: u8 = 2;
     for attempt in 1..=ATTEMPTS {
@@ -186,6 +188,7 @@ async fn remove_with_retry(path: &Path, job_id: Uuid, desc: &str) {
     }
 }
 
+#[tracing::instrument(skip(pool, s3_client, job, doc, stages, org_settings))]
 async fn process_job(
     pool: Arc<PgPool>,
     s3_client: Arc<S3Client>,
@@ -253,6 +256,7 @@ async fn process_job(
 }
 
 #[tokio::main]
+#[tracing::instrument(skip_all)]
 async fn main() -> Result<()> {
     let cfg = match WorkerConfig::from_env() {
         Ok(c) => c,

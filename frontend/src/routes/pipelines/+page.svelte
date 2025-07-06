@@ -5,6 +5,7 @@
   import Button from '$lib/components/Button.svelte';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { errorStore } from '$lib/utils/errorStore';
   import { fade } from 'svelte/transition';
 
   // Define Pipeline type consistent with PipelineEditor and backend
@@ -106,7 +107,7 @@
           managePipeline(originalPipeline);
       } else {
           console.error("Could not find original pipeline data or managePipeline context is unavailable.", pipelineToEdit);
-          alert("Error: Could not initiate pipeline editing.");
+          errorStore.show("Error: Could not initiate pipeline editing.");
       }
   }
 
@@ -115,7 +116,7 @@
           managePipeline(null); // Pass null for new pipeline
       } else {
           console.error("managePipeline context is unavailable.");
-          alert("Error: Could not open pipeline editor.");
+          errorStore.show("Error: Could not open pipeline editor.");
       }
   }
 
@@ -128,10 +129,10 @@
               document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
           } else {
               const err = await res.json().catch(() => ({ error: res.statusText }));
-              alert(`Error deleting pipeline: ${err.error}`);
+              errorStore.show(`Error deleting pipeline: ${err.error}`);
           }
       } catch (e: any) {
-          alert(`Network error while deleting pipeline: ${e.message}`);
+          errorStore.show(`Network error while deleting pipeline: ${e.message}`);
       }
   }
 
@@ -143,10 +144,10 @@
               document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
           } else {
               const err = await res.json().catch(() => ({ error: res.statusText }));
-              alert(`Error cloning pipeline: ${err.error}`);
+              errorStore.show(`Error cloning pipeline: ${err.error}`);
           }
       } catch (e: any) {
-          alert(`Network error while cloning pipeline: ${e.message}`);
+          errorStore.show(`Network error while cloning pipeline: ${e.message}`);
       }
   }
 

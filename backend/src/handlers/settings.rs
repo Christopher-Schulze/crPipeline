@@ -2,12 +2,13 @@ use crate::middleware::auth::AuthUser;
 use crate::models::OrgSettings;
 
 use crate::error::ApiError;
-use actix_web::{get, post, web, HttpResponse, http::StatusCode, ResponseError};
+use actix_web::{get, http::StatusCode, post, web, HttpResponse, ResponseError};
 use sqlx::PgPool;
 use url::Url;
 use uuid::Uuid;
 
 #[get("/settings/{org_id}")]
+#[tracing::instrument(skip(pool, user))]
 async fn get_settings(
     path: web::Path<Uuid>,
     user: AuthUser,
@@ -62,13 +63,17 @@ async fn get_settings(
                 org_id_from_path,
                 e
             );
-            ApiError::new("Failed to retrieve settings", StatusCode::INTERNAL_SERVER_ERROR)
-                .error_response()
+            ApiError::new(
+                "Failed to retrieve settings",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response()
         }
     }
 }
 
 #[post("/settings")]
+#[tracing::instrument(skip(payload, pool, user))]
 async fn update_settings(
     payload: web::Json<OrgSettings>, // The incoming settings from frontend
     user: AuthUser,
@@ -180,8 +185,11 @@ async fn update_settings(
                 current_settings.org_id,
                 e
             );
-            ApiError::new("Failed to update settings", StatusCode::INTERNAL_SERVER_ERROR)
-                .error_response()
+            ApiError::new(
+                "Failed to update settings",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response()
         }
     }
 }

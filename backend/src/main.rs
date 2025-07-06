@@ -15,6 +15,7 @@ use backend::middleware::{
     jwt::init_jwt_secret,
     rate_limit::RateLimit,
     csrf_check::{CsrfCheck, init_csrf_token},
+    request_metrics::RequestMetrics,
 };
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -65,6 +66,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .wrap(RateLimit)
             .wrap(CsrfCheck)
+            .wrap(RequestMetrics)
             .wrap(prometheus.clone())
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(s3_client.clone()))

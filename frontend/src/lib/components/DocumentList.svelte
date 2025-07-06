@@ -5,6 +5,7 @@ import type { TableHeader } from './DataTable.svelte';
 import PaginationControls from './PaginationControls.svelte';
 import { onMount } from 'svelte';
 import { apiFetch } from '$lib/utils/apiUtils';
+import { errorStore } from '$lib/utils/errorStore';
 import type { Document as APIDocument } from '$lib/types/api';
 
 // Base Document interface matching backend model
@@ -175,7 +176,7 @@ async function downloadDocument(id: string) {
     window.open(url, '_blank');
   } catch (error) {
     console.error("Download error:", error);
-    alert('Error getting download link. See console.');
+    errorStore.show('Error getting download link. See console.');
   }
 }
 
@@ -186,10 +187,10 @@ async function deleteDocument(id: string) {
     if (res.ok) {
       await loadDocuments(currentPage);
     } else {
-      alert('Failed to delete document: ' + (await res.text()));
+      errorStore.show('Failed to delete document: ' + (await res.text()));
     }
   } catch (e: any) {
-    alert(`Error deleting document: ${e.message}`);
+    errorStore.show(`Error deleting document: ${e.message}`);
   }
 }
 </script>

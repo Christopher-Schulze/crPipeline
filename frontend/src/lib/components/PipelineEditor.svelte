@@ -3,6 +3,7 @@
   import StageList from './pipeline_editor/StageList.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { errorStore } from '$lib/utils/errorStore';
   import type { Stage, Pipeline } from '$lib/types/api';
   import type { EditorPromptTemplate, RegexPatternConfig } from './pipeline_editor/types';
 
@@ -198,11 +199,11 @@
 
   async function savePipeline() {
     if (!pipeline.name.trim()) {
-      alert("Pipeline name is required.");
+      errorStore.show("Pipeline name is required.");
       return;
     }
     if (pipeline.stages.length === 0) {
-      alert("Pipeline must have at least one stage.");
+      errorStore.show("Pipeline must have at least one stage.");
       return;
     }
 
@@ -224,11 +225,11 @@
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error during save." }));
         console.error('Failed to save pipeline:', errorData);
-        alert(`Error saving pipeline: ${errorData.error || response.statusText}`);
+        errorStore.show(`Error saving pipeline: ${errorData.error || response.statusText}`);
       }
     } catch (e: any) {
       console.error('Network or other error saving pipeline:', e);
-      alert(`Network error while saving pipeline: ${e.message}`);
+      errorStore.show(`Network error while saving pipeline: ${e.message}`);
     }
   }
 
@@ -245,10 +246,10 @@
         document.body.dispatchEvent(new CustomEvent('pipelinesUpdated'));
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        alert(`Error deleting pipeline: ${errorData.error || response.statusText}`);
+        errorStore.show(`Error deleting pipeline: ${errorData.error || response.statusText}`);
       }
     } catch (e: any) {
-      alert(`Network error while deleting pipeline: ${e.message}`);
+      errorStore.show(`Network error while deleting pipeline: ${e.message}`);
     }
   }
 

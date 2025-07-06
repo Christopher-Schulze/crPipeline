@@ -1,11 +1,11 @@
+use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 use crate::models::{
     AnalysisJob, Document, DocumentError, NewAnalysisJob, NewDocument, OrgSettings,
 };
 use crate::utils::log_action;
-use crate::error::ApiError;
 use actix_multipart::Multipart;
-use actix_web::{get, post, delete, web, HttpResponse, ResponseError};
+use actix_web::{delete, get, post, web, HttpResponse, ResponseError};
 use anyhow::Error;
 use async_trait::async_trait;
 use aws_sdk_s3::{presigning::PresigningConfig, Client};
@@ -54,7 +54,6 @@ pub struct UploadParams {
     pub pipeline_id: Option<Uuid>,
     pub is_target: Option<bool>,
 }
-
 
 async fn check_upload_quota(pool: &PgPool, org_id: Uuid) -> Result<(), HttpResponse> {
     match OrgSettings::find(pool, org_id).await {
@@ -110,6 +109,7 @@ async fn check_analysis_quota(pool: &PgPool, org_id: Uuid) -> Result<(), HttpRes
     }
 }
 
+#[tracing::instrument(skip(s3, bytes))]
 async fn upload_to_s3(
     s3: &Client,
     bucket: &str,
@@ -125,16 +125,15 @@ async fn upload_to_s3(
         .await
     {
         Ok(_) => Ok(()),
-        Err(e) => Err(ApiError::from_s3(
-            "File upload to storage failed.",
-            e,
-        )),
+        Err(e) => {
+            tracing::error!(error=?e, bucket, key, "upload failed");
+            Err(ApiError::from_s3("File upload to storage failed.", e))
+        }
     }
 }
 
-
-
 #[post("/upload")]
+#[tracing::instrument(skip(payload, params, pool, s3, user))]
 pub async fn upload(
     mut payload: Multipart,
     params: web::Query<UploadParams>,
@@ -223,14 +222,10 @@ pub async fn upload(
             return HttpResponse::BadRequest()
                 .json(serde_json::json!({"error": "Invalid filename."}));
         }
-            Err(DocumentError::Sqlx(e)) => {
-                cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
-                return ApiError::from_db(
-                    "Failed to save document information.",
-                    e,
-                )
-                .error_response();
-            }
+        Err(DocumentError::Sqlx(e)) => {
+            cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
+            return ApiError::from_db("Failed to save document information.", e).error_response();
+        }
     };
 
     log_action(
@@ -278,11 +273,7 @@ pub async fn upload(
             }
             Err(e) => {
                 cleanup_s3_object(s3.get_ref(), &bucket, &s3_key_name).await;
-                return ApiError::from_db(
-                    "Failed to queue analysis job.",
-                    e,
-                )
-                .error_response();
+                return ApiError::from_db("Failed to queue analysis job.", e).error_response();
             }
         }
     }
@@ -293,6 +284,7 @@ pub async fn upload(
 /// Download a document either by streaming locally when `LOCAL_S3_DIR` is set
 /// or by returning a presigned S3 URL.
 #[get("/download/{document_id}")]
+#[tracing::instrument(skip(pool, s3, user))]
 pub async fn download(
     path: web::Path<Uuid>,
     user: AuthUser,
@@ -340,11 +332,7 @@ pub async fn download(
         let presign_cfg = match PresigningConfig::expires_in(Duration::from_secs(3600)) {
             Ok(cfg) => cfg,
             Err(e) => {
-                return ApiError::from_s3(
-                    "Failed to create presign config",
-                    e,
-                )
-                .error_response();
+                return ApiError::from_s3("Failed to create presign config", e).error_response();
             }
         };
         match s3
@@ -361,6 +349,7 @@ pub async fn download(
 }
 
 #[delete("/documents/{id}")]
+#[tracing::instrument(skip(pool, s3, user))]
 pub async fn delete_document(
     path: web::Path<Uuid>,
     user: AuthUser,
@@ -393,16 +382,24 @@ pub async fn delete_document(
 
     match Document::delete(&pool, doc_id).await {
         Ok(_) => {
-            log_action(&pool, user.org_id, user.user_id, &format!("delete_document:{}", doc_id)).await;
+            log_action(
+                &pool,
+                user.org_id,
+                user.user_id,
+                &format!("delete_document:{}", doc_id),
+            )
+            .await;
             HttpResponse::Ok().finish()
-        },
+        }
         Err(e) => ApiError::from_db("Failed to delete document", e).error_response(),
     }
 }
 
 /// Configure Actix routes for document-related endpoints.
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(upload).service(download).service(delete_document);
+    cfg.service(upload)
+        .service(download)
+        .service(delete_document);
 }
 
 async fn validate_document(
@@ -410,11 +407,8 @@ async fn validate_document(
     file_content_type: &Option<String>,
     bytes_data: &[u8],
 ) -> Result<(String, i32), HttpResponse> {
-    let (base_filename, file_type) = crate::utils::validate_filename_and_type(
-        user_filename,
-        file_content_type,
-        bytes_data,
-    )?;
+    let (base_filename, file_type) =
+        crate::utils::validate_filename_and_type(user_filename, file_content_type, bytes_data)?;
 
     let pages = if file_type == "pdf" {
         match PdfDoc::load_mem(bytes_data).map(|d| d.get_pages().len() as i32) {
@@ -430,4 +424,3 @@ async fn validate_document(
 
     Ok((base_filename, pages))
 }
-

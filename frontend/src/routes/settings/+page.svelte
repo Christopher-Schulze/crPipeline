@@ -4,6 +4,7 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import Button from '$lib/components/Button.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
+  import { errorStore } from '$lib/utils/errorStore';
 
   interface Header { id: string; name: string; value: string; }
 
@@ -63,10 +64,10 @@
         dispatch('settingsUpdated');
         alert('Settings saved.');
       } else {
-        alert('Failed to save settings: ' + (await res.text()));
+        errorStore.show('Failed to save settings: ' + (await res.text()));
       }
     } catch (e: any) {
-      alert('Error saving settings: ' + e.message);
+      errorStore.show('Error saving settings: ' + e.message);
     }
   }
 </script>
