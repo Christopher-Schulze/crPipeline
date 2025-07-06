@@ -50,6 +50,7 @@ use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
 
 /// Upload a blob to S3 or the local filesystem when `LOCAL_S3_DIR` is set.
+#[tracing::instrument(skip(s3, data))]
 pub async fn upload_bytes(
     s3: &S3Client,
     bucket: &str,
@@ -76,14 +77,16 @@ pub async fn upload_bytes(
                 .await
             {
                 Ok(_) => break Ok(()),
-                Err(_e) if attempts < 3 => {
+                Err(e) if attempts < 3 => {
                     S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
+                    tracing::error!(?e, bucket, key, attempt=attempts+1, "s3 upload failed, retrying");
                     attempts += 1;
                     sleep(Duration::from_millis(500 * attempts as u64)).await;
                     continue;
                 }
                 Err(e) => {
                     S3_ERROR_COUNTER.with_label_values(&["upload"]).inc();
+                    tracing::error!(?e, bucket, key, "s3 upload failed");
                     break Err(e.into());
                 }
             }
@@ -97,6 +100,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 /// Save stage output to storage and create a database record.
+#[tracing::instrument(skip(pool, s3, content))]
 pub async fn save_stage_output(
     pool: &PgPool,
     s3: &S3Client,

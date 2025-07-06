@@ -135,6 +135,7 @@ async fn upload_to_s3(
 
 
 #[post("/upload")]
+#[tracing::instrument(skip_all)]
 pub async fn upload(
     mut payload: Multipart,
     params: web::Query<UploadParams>,
@@ -293,6 +294,7 @@ pub async fn upload(
 /// Download a document either by streaming locally when `LOCAL_S3_DIR` is set
 /// or by returning a presigned S3 URL.
 #[get("/download/{document_id}")]
+#[tracing::instrument(skip_all)]
 pub async fn download(
     path: web::Path<Uuid>,
     user: AuthUser,
@@ -361,6 +363,7 @@ pub async fn download(
 }
 
 #[delete("/documents/{id}")]
+#[tracing::instrument(skip_all)]
 pub async fn delete_document(
     path: web::Path<Uuid>,
     user: AuthUser,

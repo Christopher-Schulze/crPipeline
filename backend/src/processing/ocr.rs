@@ -37,6 +37,7 @@ fn backoff(attempt: u32) -> Duration {
 /// * `bucket` - Source bucket name.
 /// * `key` - Key of the object to download.
 /// * `path` - Local destination for the file.
+#[tracing::instrument(skip(s3, path))]
 pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -> Result<()> {
     if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
         let local_path = Path::new(&local_dir).join(key);
@@ -48,6 +49,7 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
         Ok(o) => o,
         Err(e) => {
             S3_ERROR_COUNTER.with_label_values(&["download"]).inc();
+            tracing::error!(?e, bucket, key, "failed to download from S3");
             return Err(e.into());
         }
     };
@@ -55,6 +57,7 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
         Ok(b) => b.into_bytes(),
         Err(e) => {
             S3_ERROR_COUNTER.with_label_values(&["download"]).inc();
+            tracing::error!(?e, bucket, key, "failed to read S3 object body");
             return Err(e.into());
         }
     };

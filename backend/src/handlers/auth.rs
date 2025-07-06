@@ -36,6 +36,7 @@ pub struct ResetRequest { pub email: String }
 pub struct ResetInput { pub token: Uuid, pub password: String }
 
 #[post("/register")]
+#[tracing::instrument(skip_all)]
 pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -> HttpResponse {
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = match Argon2::default().hash_password(data.password.as_bytes(), &salt) {
@@ -92,6 +93,7 @@ pub async fn register(data: web::Json<RegisterInput>, pool: web::Data<PgPool>) -
 pub struct LoginInput { pub email: String, pub password: String }
 
 #[post("/login")]
+#[tracing::instrument(skip_all)]
 pub async fn login(
     data: web::Json<LoginInput>,
     pool: web::Data<PgPool>,
