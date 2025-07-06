@@ -5,10 +5,11 @@ use backend::config::WorkerConfig;
 use backend::models::{AnalysisJob, Document, OrgSettings, Pipeline};
 use backend::processing;
 use backend::worker::metrics::{
-    spawn_metrics_server, JOB_COUNTER, JOB_HISTOGRAM, OCR_HISTOGRAM,
-    RUNNING_JOBS_GAUGE, STAGE_HISTOGRAM,
+    spawn_metrics_server, JOB_COUNTER, JOB_HISTOGRAM, OCR_HISTOGRAM, RUNNING_JOBS_GAUGE,
+    STAGE_HISTOGRAM,
 };
 use backend::worker::{self, Stage, WorkerRuntimeConfig};
+use serde_json::json;
 use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
@@ -23,6 +24,22 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 use uuid::Uuid;
+
+async fn publish_status_event(job_id: Uuid, org_id: Uuid, status: &str) {
+    if let Ok(url) = std::env::var("REDIS_URL") {
+        if let Ok(client) = redis::Client::open(url) {
+            if let Ok(mut conn) = client.get_async_connection().await {
+                let payload =
+                    json!({"job_id": job_id, "org_id": org_id, "status": status}).to_string();
+                let _: Result<(), _> = redis::cmd("PUBLISH")
+                    .arg("job_status")
+                    .arg(payload)
+                    .query_async(&mut conn)
+                    .await;
+            }
+        }
+    }
+}
 
 /// Execute all stages of a job. Returns `Ok` on success or `Err` on the first stage failure.
 async fn run_stages(
@@ -182,6 +199,7 @@ async fn process_job(
     {
         error!(job_id=%job.id, "Failed to download PDF: {:?}", e);
         let _ = AnalysisJob::update_status(&pool, job.id, "failed").await;
+        publish_status_event(job.id, job.org_id, "failed").await;
         return;
     }
     let mut txt_path = local.clone();
@@ -204,6 +222,7 @@ async fn process_job(
     match res {
         Ok(_) => {
             let _ = AnalysisJob::update_status(&pool, job.id, "completed").await;
+            publish_status_event(job.id, job.org_id, "completed").await;
             JOB_COUNTER.with_label_values(&["success"]).inc();
             JOB_HISTOGRAM
                 .with_label_values(&["success"])
@@ -213,6 +232,7 @@ async fn process_job(
         Err(e) => {
             error!(job_id=%job.id, "Job processing failed: {:?}", e);
             let _ = AnalysisJob::update_status(&pool, job.id, "failed").await;
+            publish_status_event(job.id, job.org_id, "failed").await;
             JOB_COUNTER.with_label_values(&["failed"]).inc();
             JOB_HISTOGRAM
                 .with_label_values(&["failed"])

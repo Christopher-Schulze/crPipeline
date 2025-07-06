@@ -223,7 +223,7 @@
 
       <!-- JobsList could be part of dashboard or its own view or a global panel -->
       <GlassCard title="Analysis Jobs" customClass="mt-6 text-left space-y-4" padding="p-4 md:p-6">
-        <JobsList {jobs} />
+        <JobsList {jobs} orgId={org} />
       </GlassCard>
 
     {:else if !loggedIn}

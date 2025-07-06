@@ -18,7 +18,7 @@ test('shows provided document and pipeline names', () => {
       pipeline_name: 'MyPipe',
     },
   ];
-  const { getByText } = render(JobsList, { props: { jobs } });
+  const { getByText } = render(JobsList, { props: { jobs, orgId: 'o1' } });
   expect(getByText('Doc.pdf')).toBeInTheDocument();
   expect(getByText('MyPipe')).toBeInTheDocument();
 });

@@ -302,6 +302,18 @@ paths:
       responses:
         '200':
           description: Event stream
+  /jobs/events/{org_id}:
+    get:
+      summary: Stream organization job events
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event stream
   /jobs/{job_id}/details:
     get:
       summary: Get job details

@@ -69,9 +69,13 @@ GET /api/audit/{org_id}
 List jobs and get details:
 ```text
 GET /api/jobs/{org_id}
+GET /api/jobs/events/{org_id}
 GET /api/jobs/{job_id}/events
 GET /api/jobs/{job_id}/details
 ```
+The `/api/jobs/events/{org_id}` endpoint streams job status updates over SSE.
+Workers publish to Redis and the frontend listens with `EventSource`,
+falling back to polling `/api/jobs/{org_id}` if the stream is unavailable.
 
 ### Stage Output Downloads
 ```text
