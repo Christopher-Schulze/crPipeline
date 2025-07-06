@@ -14,7 +14,10 @@ use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 use tokio::process::Command;
@@ -291,11 +294,12 @@ async fn main() -> Result<()> {
     let pool = Arc::new(pool);
     let s3_client = Arc::new(s3_client);
     let runtime_cfg = WorkerRuntimeConfig::from_env();
-    let concurrency = runtime_cfg.concurrency.max(1);
+    let concurrency = Arc::new(AtomicUsize::new(runtime_cfg.concurrency.max(1)));
+    tokio::spawn(worker::watch_config_changes(Arc::clone(&concurrency)));
     let mut tasks: JoinSet<()> = JoinSet::new();
 
     'outer: loop {
-        if tasks.len() >= concurrency {
+        if tasks.len() >= concurrency.load(Ordering::SeqCst) {
             tokio::select! {
                 _ = &mut shutdown_signal => {
                     info!("Shutdown signal received");
