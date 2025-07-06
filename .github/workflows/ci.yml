@@ -9,6 +9,8 @@ on:
       IMAGE_TAG:
         description: 'Tag for Docker images'
         required: false
+  schedule:
+    - cron: '0 0 * * 0'
 
 jobs:
   build:
@@ -34,6 +36,11 @@ jobs:
         run: npm run build --prefix frontend
       - name: Generate API docs
         run: npx -y redoc-cli@0.13.21 bundle docs/openapi.yaml -o docs/api.html
+      - name: Upload API docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-reference
+          path: docs/api.html
       - name: Check backend (Clippy)
         run: cargo clippy --manifest-path backend/Cargo.toml --all-targets -- --deny warnings
       - name: Run migrations
