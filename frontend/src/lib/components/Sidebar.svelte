@@ -17,7 +17,8 @@
   //   dispatch('navigate', { path });
   // }
 
-  import { goto } from '$app/navigation';
+  // Use native navigation instead of SvelteKit's goto
+  const goto = (path: string) => { window.location.href = path; };
   import { apiFetch } from '$lib/utils/apiUtils';
   import { sessionStore } from '$lib/utils/sessionStore';
 
@@ -32,7 +33,7 @@
   }
 </script>
 
-<aside class="w-60 h-screen bg-neutral-800/70 backdrop-blur-xl border-r border-neutral-700/50 p-3 space-y-1 flex flex-col shadow-2xl dark:bg-neutral-800/80 dark:border-neutral-700"> {/* Added dark mode consistency */}
+<aside class="w-60 h-screen bg-neutral-800/70 backdrop-blur-xl border-r border-neutral-700/50 p-3 space-y-1 flex flex-col shadow-2xl dark:bg-neutral-800/80 dark:border-neutral-700"> <!-- Added dark mode consistency -->
   <div class="text-center py-3 mb-3 border-b border-neutral-700/50">
     <h2 class="text-2xl font-bold text-gray-100 tracking-tight">
       cr<span class="text-accent">Pipeline</span>

@@ -11,15 +11,18 @@
   export let padding: string = 'p-6'; // e.g., p-4, p-6, p-8
   export let customClass: string = ''; // Allow passing additional classes
 
-  // Combine all classes
-  $: cardClasses = `${bgOpacity} ${backdropBlur} ${borderStyle} ${borderRadius} ${shadow} ${padding} ${customClass}`;
+  // Combine all classes using DaisyUI card
+  $: cardContainerClasses = `card ${bgOpacity} ${backdropBlur} ${borderStyle} ${borderRadius} ${shadow} ${customClass}`;
+  $: bodyClasses = `card-body ${padding}`;
 </script>
 
-<div class="{cardClasses}">
+<div class="{cardContainerClasses}">
   {#if title}
-    <h2 class="{titleClass}">{title}</h2>
+    <h2 class="card-title {titleClass}">{title}</h2>
   {/if}
-  <slot />
+  <div class="{bodyClasses}">
+    <slot />
+  </div>
 </div>
 
 <style lang="postcss">

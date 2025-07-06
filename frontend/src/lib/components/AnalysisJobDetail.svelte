@@ -608,7 +608,7 @@
           </div>
         {:else if jobDetails}
           <div class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3"> {/* Removed base text-sm from grid div */}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3"> <!-- Removed base text-sm from grid div -->
               <div><span class="text-sm font-light text-gray-500 dark:text-gray-400 mr-1">Job ID:</span> <span class="text-sm text-gray-100 dark:text-gray-50 font-mono">{jobDetails.id}</span></div>
               <div>
                 <span class="text-sm font-light text-gray-500 dark:text-gray-400 mr-1">Status:</span>
@@ -835,7 +835,7 @@
             Comparison: AI Input <span class="text-xs font-light text-gray-500 dark:text-gray-400">({aiInputStageOutputMetadata?.stage_name})</span> vs. AI Output <span class="text-xs font-light text-gray-500 dark:text-gray-400">({aiOutputStageOutputMetadata?.stage_name})</span>
           </h4>
       </div>
-      <pre class="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-200 bg-white dark:bg-black/40 p-4 rounded custom-scrollbar min-h-[200px] mt-1 max-h-[calc(70vh-50px)] overflow-y-auto"> {/* Changed p-3 to p-4 */}
+      <pre class="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-200 bg-white dark:bg-black/40 p-4 rounded custom-scrollbar min-h-[200px] mt-1 max-h-[calc(70vh-50px)] overflow-y-auto"> <!-- Changed p-3 to p-4 -->
         {@html aiDiffViewHtml || '<span class="text-gray-400">No diff data loaded or error.</span>'}
       </pre>
     {/if}
@@ -871,7 +871,7 @@
             Comparison: OCR Text <span class="text-xs font-light text-gray-500 dark:text-gray-400">({ocrOutputToDisplay?.stage_name})</span> vs. Parse JSON <span class="text-xs font-light text-gray-500 dark:text-gray-400">({parseOutputToDisplay?.stage_name})</span>
           </h4>
       </div>
-      <pre class="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-200 bg-white dark:bg-black/40 p-4 rounded custom-scrollbar min-h-[200px] mt-1 max-h-[calc(70vh-50px)] overflow-y-auto"> {/* Changed p-3 to p-4 */}
+      <pre class="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-200 bg-white dark:bg-black/40 p-4 rounded custom-scrollbar min-h-[200px] mt-1 max-h-[calc(70vh-50px)] overflow-y-auto"> <!-- Changed p-3 to p-4 -->
         {@html ocrParseDiffViewHtml || '<span class="text-gray-400">No diff data loaded or error.</span>'}
       </pre>
     {/if}

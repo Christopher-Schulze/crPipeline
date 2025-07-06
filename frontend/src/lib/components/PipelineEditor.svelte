@@ -259,9 +259,9 @@
 </style>
 
 <div class="space-y-4 text-gray-200">
-  <input class="glass-input w-full !bg-neutral-700/50 !border-neutral-600/80 !text-gray-100" bind:value={pipeline.name} placeholder="Pipeline name" />
+  <input class="input input-bordered w-full" bind:value={pipeline.name} placeholder="Pipeline name" />
   {#if promptTemplatesError}
-    <div class="bg-error/20 border border-error/40 text-error px-3 py-2 rounded text-sm">
+    <div class="alert alert-error text-sm">
       {promptTemplatesError}
     </div>
   {/if}
@@ -272,8 +272,8 @@
       {isLoadingOrgSettings}
     />
     <div class="flex gap-2 mt-3 p-3 border-t border-neutral-700/50">
-      <input class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" bind:value={newStageType} placeholder="New Stage Type" />
-      <input class="glass-input flex-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" bind:value={newCommand} placeholder="Command (optional)" />
+      <input class="input input-bordered flex-1" bind:value={newStageType} placeholder="New Stage Type" />
+      <input class="input input-bordered flex-1" bind:value={newCommand} placeholder="Command (optional)" />
       <Button variant="primary" customClass="!px-3 !py-1.5" on:click={addStage}>Add Stage</Button>
     </div>
 

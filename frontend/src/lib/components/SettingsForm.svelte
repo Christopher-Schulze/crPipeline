@@ -268,12 +268,12 @@
         </p>
       </div>
 
-      <div class="mt-4 pt-3 border-t border-neutral-600/70"> {/* Adjusted border color */}
+      <div class="mt-4 pt-3 border-t border-neutral-600/70"> <!-- Adjusted border color -->
         <h4 class="text-sm font-semibold text-gray-200 mb-2">Custom AI HTTP Headers (Optional)</h4>
         {#if settings.ai_custom_headers && settings.ai_custom_headers.length > 0}
           <div class="space-y-2">
             {#each settings.ai_custom_headers as header (header.id)}
-              <div class="flex items-center space-x-2 p-2 bg-black/20 rounded-md border border-neutral-600/50"> {/* Darker bg and border for items */}
+              <div class="flex items-center space-x-2 p-2 bg-black/20 rounded-md border border-neutral-600/50"> <!-- Darker bg and border for items -->
                 <input
                   type="text"
                   bind:value={header.name}
@@ -313,9 +313,8 @@
           type="password"
           id="ocr_api_key"
           bind:value={settings.ocr_api_key}
-          class="glass-input w-full mt-1"
-          placeholder={settings.ocr_api_key === "********" ? "Key is set (masked). Type to change." : "Enter OCR API Key"}
           class="glass-input w-full mt-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100"
+          placeholder={settings.ocr_api_key === "********" ? "Key is set (masked). Type to change." : "Enter OCR API Key"}
         />
         <p class="text-sm font-light text-gray-400 dark:text-gray-500 mt-1">
           If a key shows '********', it means a key is currently set.
@@ -330,7 +329,7 @@
     <div class="space-y-4 p-2">
       {#if settings.prompt_templates && settings.prompt_templates.length > 0}
         {#each settings.prompt_templates as template, index (template.id || index)}
-          <div class="p-3 border border-neutral-600/50 rounded-lg bg-black/20 space-y-2"> {/* Darker item bg and border */}
+          <div class="p-3 border border-neutral-600/50 rounded-lg bg-black/20 space-y-2"> <!-- Darker item bg and border -->
             <label class="block">
               <span class="text-sm font-medium text-gray-300">Template Name</span>
               <input type="text" class="glass-input w-full mt-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" placeholder="e.g., Document Summary" bind:value={template.name} />
