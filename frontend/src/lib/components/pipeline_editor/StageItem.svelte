@@ -61,7 +61,7 @@
       on:input={changed}
       placeholder="Command / Config (optional)"
     />
-    <Button variant="ghost" customClass="!text-red-500 hover:!text-red-400 !p-1" on:click={remove}>
+    <Button variant="ghost" customClass="!text-error hover:!text-error-content !p-1" on:click={remove}>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
         <path
           fill-rule="evenodd"

@@ -171,7 +171,7 @@
       </div>
 
       {#if errorMsg}
-        <p class="text-sm text-red-400 bg-red-900/30 p-2 rounded-md">{errorMsg}</p>
+        <p class="text-sm text-error bg-error/30 p-2 rounded-md">{errorMsg}</p>
       {/if}
     {:else}
       <p class="text-gray-400">No user selected or user data is unavailable.</p>

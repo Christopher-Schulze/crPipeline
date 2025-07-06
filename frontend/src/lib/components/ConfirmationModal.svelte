@@ -42,11 +42,7 @@
     <Button variant={cancelButtonVariant} on:click={handleCancel} customClass="!py-1.5 !px-3 text-sm">
       {cancelText}
     </Button>
-    <Button
-      variant={confirmButtonVariant === 'danger' ? 'primary' : confirmButtonVariant}
-      on:click={handleConfirm}
-      customClass="{confirmButtonVariant === 'danger' ? '!bg-red-600 hover:!bg-red-700 !border-red-600 hover:!border-red-700 text-white' : ''} !py-1.5 !px-3 text-sm"
-    >
+    <Button variant={confirmButtonVariant} on:click={handleConfirm} customClass="!py-1.5 !px-3 text-sm">
       {confirmText}
     </Button>
   </div>

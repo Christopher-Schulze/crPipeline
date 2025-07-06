@@ -286,7 +286,7 @@
                   placeholder="Header Value"
                   class="glass-input flex-1 text-sm !bg-neutral-700/60 !border-neutral-600 !text-gray-100"
                 />
-                <Button variant="ghost" customClass="!px-1.5 !py-1 text-xs !text-red-400 hover:!text-red-300 hover:!bg-red-500/10" on:click={() => requestRemoveAiCustomHeader(header.id, header.name)}>
+                <Button variant="ghost" customClass="!px-1.5 !py-1 text-xs !text-error hover:!text-error-content hover:!bg-error/10" on:click={() => requestRemoveAiCustomHeader(header.id, header.name)}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </Button>
               </div>
@@ -339,7 +339,7 @@
               <textarea class="glass-input w-full h-24 mt-1 !bg-neutral-600/50 !border-neutral-500/70 !text-gray-100" placeholder="Enter prompt text. Use {{content}} or {{json_input}} for previous stage data." bind:value={template.text}></textarea>
             </label>
             <div class="text-right">
-              <Button variant="ghost" on:click={() => requestRemovePromptTemplate(index, template)} customClass="text-red-500 hover:text-red-700 hover:bg-red-500/10 !px-2 !py-1 text-xs">Remove</Button>
+              <Button variant="ghost" on:click={() => requestRemovePromptTemplate(index, template)} customClass="text-error hover:text-error-content hover:bg-error/10 !px-2 !py-1 text-xs">Remove</Button>
             </div>
           </div>
         {/each}

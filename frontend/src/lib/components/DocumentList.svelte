@@ -260,7 +260,7 @@ async function deleteDocument(id: string) {
       <Button variant="ghost" customClass="!px-2 !py-1 text-xs" on:click={() => downloadDocument(item.id)}>
         Download
       </Button>
-      <Button variant="ghost" customClass="!px-2 !py-1 text-xs text-red-400 hover:text-red-300" on:click={() => deleteDocument(item.id)}>
+      <Button variant="danger" customClass="!px-2 !py-1 text-xs" on:click={() => deleteDocument(item.id)}>
         Delete
       </Button>
     </div>
