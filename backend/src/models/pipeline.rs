@@ -1,9 +1,9 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 /// Defines a sequence of stages to run on a document.
-#[derive(Serialize, FromRow, Debug)]
+#[derive(Serialize, Deserialize, FromRow, Debug, Clone)]
 pub struct Pipeline {
     pub id: Uuid,
     pub org_id: Uuid,
