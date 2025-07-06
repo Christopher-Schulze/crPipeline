@@ -8,7 +8,8 @@
   import ConfirmationModal from './ConfirmationModal.svelte';
   import InviteUserModal from './InviteUserModal.svelte';
   import { onMount } from 'svelte';
-  import { apiFetch } from '$lib/utils/apiUtils'; // Import apiFetch
+import { apiFetch } from '$lib/utils/apiUtils'; // Import apiFetch
+import { errorStore } from '$lib/utils/errorStore';
 
   // Props
   export let currentUserId: string | null | undefined = undefined; // Added as per plan
@@ -35,17 +36,17 @@
         orgs = await res.json();
       } else {
         console.error('Failed to load organizations:', await res.text());
-        alert('Error: Could not load organizations.');
+        errorStore.show('Error: Could not load organizations.');
       }
     } catch (error) {
       console.error('Error loading organizations:', error);
-      alert('Error: Could not load organizations.');
+      errorStore.show('Error: Could not load organizations.');
     }
   }
   async function createOrgInModal() {
     // ... (existing createOrgInModal logic - keeping it the same) ...
     if (!newOrgName.trim()) {
-      alert('Organization name cannot be empty.');
+      errorStore.show('Organization name cannot be empty.');
       return;
     }
     try {
@@ -67,11 +68,11 @@
       } else {
         const errorText = await res.text();
         console.error('Failed to create organization:', errorText);
-        alert('Error: Could not create organization. ' + errorText);
+        errorStore.show('Error: Could not create organization. ' + errorText);
       }
     } catch (error) {
       console.error('Error creating organization:', error);
-      alert('Error: Could not create organization. See console for details.');
+      errorStore.show('Error: Could not create organization. See console for details.');
     }
   }
   function maskApiKey(apiKey: string) {
@@ -131,7 +132,7 @@
         alert(data.message || 'User deactivated successfully.');
         loadAllUsers(); // Refresh user list
       } catch (e: any) {
-        alert(`Error: ${e.message}`);
+        errorStore.show(`Error: ${e.message}`);
       }
     };
     showConfirmationModal = true;
@@ -150,7 +151,7 @@
         alert(data.message || 'User reactivated successfully.');
         loadAllUsers(); // Refresh user list
       } catch (e: any) {
-        alert(`Error: ${e.message}`);
+        errorStore.show(`Error: ${e.message}`);
         console.error("Error reactivating user:", e);
       }
     };
@@ -176,7 +177,7 @@
       // The user list will reflect the current 'confirmed' status from the DB.
     } catch (e: any) {
       console.error("Error resending confirmation email:", e);
-      alert(`Error: ${e.message}`);
+      errorStore.show(`Error: ${e.message}`);
     }
   }
 
@@ -185,7 +186,7 @@
     // Client-side check for UX is good but not strictly a security measure here.
     // For instance, preventing edits on any 'admin' user via this UI:
     if (userToEdit.role === 'admin') {
-        alert("Global admin roles cannot be modified through this interface.");
+        errorStore.show("Global admin roles cannot be modified through this interface.");
         return;
     }
     editingUser = userToEdit;

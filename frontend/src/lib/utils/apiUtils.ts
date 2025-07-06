@@ -54,14 +54,19 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
           /* ignore */
         }
       }
-      throw new Error(message);
+      errorStore.show(message);
+      const err: any = new Error(message);
+      err._handled = true;
+      throw err;
     }
     return res;
   } catch (err: any) {
     if (err.name === 'AbortError') {
       err = new Error('Request timed out');
     }
-    errorStore.show(err.message || 'Request failed');
+    if (!err._handled) {
+      errorStore.show(err.message || 'Request failed');
+    }
     throw err;
   } finally {
     clearTimeout(timer);
