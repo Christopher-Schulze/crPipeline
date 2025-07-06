@@ -27,7 +27,7 @@ Die folgenden Schritte richten den Service unter systemd ein.
    Environment=ENV_FILE=/opt/crPipeline/backend/.env.prod
    ```
 
-5. **Logrotate einrichten** – um Logdateien in `/var/log/worker.log` zu rotieren, kann folgende Konfiguration unter `/etc/logrotate.d/worker` abgelegt werden:
+5. **Logrotate einrichten** – um Logdateien in `/var/log/worker.log` zu rotieren, kann folgende Konfiguration unter `/etc/logrotate.d/worker` abgelegt werden (passe Pfade bei Bedarf an):
    ```
    /var/log/worker.log {
        daily
@@ -39,6 +39,7 @@ Die folgenden Schritte richten den Service unter systemd ein.
    }
    ```
    Ergänze dazu in `worker.service` die Zeile `StandardOutput=append:/var/log/worker.log`.
+   Falls du einen anderen Speicherort wählst, ersetze den Pfad entsprechend sowohl in dieser Zeile als auch in der Logrotate-Datei.
 
 6. **Neustartstrategie** – in `deploy/worker.service` ist `Restart=always` gesetzt. Damit startet systemd den Worker automatisch neu, falls er unerwartet beendet wird oder beim Systemstart noch nicht läuft.
 
@@ -51,6 +52,21 @@ sudo chmod +x /opt/crPipeline/scripts/worker_service.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now worker.service
 ```
+
+## Automatische Updates
+
+Nach einem Release-Upgrade reicht es meist aus, das neue Binary bereitzustellen und den Dienst neu zu starten:
+
+```bash
+sudo systemctl restart worker.service
+```
+
+Wurde die Unit-Datei angepasst, lade sie zunächst neu:
+
+```bash
+sudo systemctl daemon-reload
+```
+Starte anschließend den Dienst erneut.
 
 ## Statische Assets ausliefern
 
