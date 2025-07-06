@@ -5,10 +5,7 @@
   export let customClass: string = ''; // Renamed from 'class' to avoid conflict if used directly
   export let href: string | undefined = undefined;
 
-  let baseClasses: string =
-    "px-4 py-2 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 \
-    transition-colors duration-150 ease-in-out inline-flex items-center justify-center \
-    disabled:cursor-not-allowed"; // Common disabled behavior
+  let baseClasses: string = "btn"; // Common disabled behavior
 
   let currentVariantClasses: string = '';
 
@@ -16,25 +13,13 @@
   $: {
     switch (variant) {
       case 'primary':
-        currentVariantClasses = `
-          bg-accent text-white
-          hover:bg-accent/80
-          focus:ring-accent
-          disabled:bg-gray-300 disabled:text-gray-500`;
+        currentVariantClasses = "btn-primary";
         break;
       case 'secondary':
-        currentVariantClasses = `
-          bg-white/70 backdrop-blur-sm text-accent border border-accent/50
-          hover:bg-white/90 hover:border-accent
-          focus:ring-accent
-          disabled:bg-gray-200/50 disabled:text-gray-400 disabled:border-gray-300/50`;
+        currentVariantClasses = "btn-secondary";
         break;
       case 'ghost':
-        currentVariantClasses = `
-          bg-transparent text-accent
-          hover:bg-accent/10
-          focus:ring-accent focus:bg-accent/10
-          disabled:text-gray-400`;
+        currentVariantClasses = "btn-ghost";
         break;
     }
   }

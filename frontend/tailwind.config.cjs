@@ -30,4 +30,18 @@ module.exports = {
     }
   },
   plugins: [require('daisyui')],
+  daisyui: {
+    themes: [
+      {
+        light: {
+          primary: 'var(--color-accent, #30D5C8)',
+          accent: 'var(--color-accent, #30D5C8)',
+          'base-100': '#f2f2f5',
+          error: '#FF3B30',
+          success: '#34C759'
+        }
+      },
+      'dark'
+    ]
+  }
 };

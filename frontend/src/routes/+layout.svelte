@@ -12,6 +12,7 @@
   import AnalysisJobDetail from '$lib/components/AnalysisJobDetail.svelte';
   import Button from '$lib/components/Button.svelte'; // For Dev Toggles
   import GlobalLoadingIndicator from '$lib/components/GlobalLoadingIndicator.svelte';
+  import { apiFetch } from '$lib/utils/apiUtils';
   import ErrorToast from '$lib/components/ErrorToast.svelte';
   import { sessionStore } from '$lib/utils/sessionStore';
 
@@ -51,6 +52,31 @@
   let showPipelineEditorPanel = false;
   let currentViewedJobId: string | null = null;
   let pipelineToEdit: Pipeline | null = null;
+  let loadedAccentForOrg: string | null = null;
+
+  async function loadAccentColor() {
+    if (!org || org === loadedAccentForOrg) return;
+    try {
+      const res = await apiFetch(`/api/settings/${org}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accent_color) {
+          document.documentElement.style.setProperty('--color-accent', data.accent_color);
+          loadedAccentForOrg = org;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load accent color', e);
+    }
+  }
+
+  onMount(() => {
+    loadAccentColor();
+  });
+
+  $: if (org) {
+    loadAccentColor();
+  }
 
   // Define Pipeline type (consistent with PipelineEditor's expectation)
   export interface Pipeline { // Exporting if other components might use it, or keep local
@@ -84,7 +110,8 @@
       showSettingsPanel = true;
     }
   }
-  function settingsSaved() {
+  function settingsSaved(e: CustomEvent<{ accentColor: string }>) {
+    document.documentElement.style.setProperty('--color-accent', e.detail.accentColor);
     showSettingsPanel = false;
   }
 

@@ -47,8 +47,8 @@
 
   // Styling props with defaults for a glassy table appearance
   export let tableContainerClass: string =
-    "overflow-auto max-h-[75vh] shadow-md rounded-lg border border-neutral-700/50 bg-neutral-800/40 backdrop-blur-md";
-  export let tableClass: string = "min-w-full divide-y divide-neutral-700/30";
+    "overflow-x-auto max-h-[75vh] shadow-md rounded-lg";
+  export let tableClass: string = "table table-zebra";
   export let thClass: string =
     "px-4 py-2.5 text-left text-xs font-light text-gray-200 dark:text-gray-300 uppercase tracking-wider "+
     "bg-neutral-700/85 dark:bg-neutral-800/90 backdrop-blur-sm shadow-sm";

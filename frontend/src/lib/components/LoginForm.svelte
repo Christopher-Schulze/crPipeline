@@ -22,10 +22,10 @@
 </script>
 
 <form class="space-y-4" on:submit|preventDefault={submit}>
-  <input class="glass-input w-full" type="email" bind:value={email} placeholder="Email" required />
-  <input class="glass-input w-full" type="password" bind:value={password} placeholder="Password" required />
-  <button class="btn-primary w-full" on:click|preventDefault={submit}>Login</button>
+  <input class="input input-bordered w-full" type="email" bind:value={email} placeholder="Email" required />
+  <input class="input input-bordered w-full" type="password" bind:value={password} placeholder="Password" required />
+  <button class="btn btn-primary w-full" on:click|preventDefault={submit}>Login</button>
   {#if error}
-    <p class="text-red-500 text-sm">{error}</p>
+    <div class="alert alert-error text-sm">{error}</div>
   {/if}
 </form>
