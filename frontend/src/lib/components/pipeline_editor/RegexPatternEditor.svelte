@@ -33,7 +33,7 @@
         />
         <Button
           variant="ghost"
-          customClass="!px-1.5 !py-0.5 !text-red-400 hover:!text-red-300"
+          customClass="!px-1.5 !py-0.5 !text-error hover:!text-error-content"
           on:click={() => removePattern(pattern.id)}
           >X</Button
         >

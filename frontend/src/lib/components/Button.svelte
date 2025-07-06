@@ -1,5 +1,5 @@
 <script lang="ts">
-  export let variant: 'primary' | 'secondary' | 'ghost' = 'primary';
+  export let variant: 'primary' | 'secondary' | 'ghost' | 'danger' = 'primary';
   export let type: 'button' | 'submit' | 'reset' = 'button';
   export let disabled: boolean = false;
   export let customClass: string = ''; // Renamed from 'class' to avoid conflict if used directly
@@ -20,6 +20,9 @@
         break;
       case 'ghost':
         currentVariantClasses = "btn-ghost";
+        break;
+      case 'danger':
+        currentVariantClasses = "btn-error";
         break;
     }
   }

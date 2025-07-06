@@ -114,7 +114,7 @@
   function getStatusColor(status: string): string {
     // Ensure these text color classes are defined in Tailwind or global styles
     if (status === 'completed' || status === 'success') return 'text-green-600'; // Standard Tailwind green
-    if (status === 'failed' || status === 'error') return 'text-red-600';     // Standard Tailwind red
+    if (status === 'failed' || status === 'error') return 'text-error';
     if (status === 'in_progress' || status === 'running') return 'text-blue-500';
     return 'text-gray-500'; // Default for unknown or pending statuses
   }
@@ -130,13 +130,13 @@
   </GlassCard>
 </div>
 {#if quotaError}
-  <p class="text-red-500 text-sm mt-2">{quotaError}</p>
+  <p class="text-error text-sm mt-2">{quotaError}</p>
 {/if}
 <GlassCard class="mt-8" padding="p-6">
   <canvas bind:this={canvasEl}></canvas>
 </GlassCard>
 {#if usageError}
-  <p class="text-red-500 text-sm mt-2">{usageError}</p>
+  <p class="text-error text-sm mt-2">{usageError}</p>
 {/if}
 
 <!-- Recent Analyses Section -->
@@ -171,5 +171,5 @@
   {/if}
 </GlassCard>
 {#if recentError}
-  <p class="text-red-500 text-sm mt-2">{recentError}</p>
+  <p class="text-error text-sm mt-2">{recentError}</p>
 {/if}

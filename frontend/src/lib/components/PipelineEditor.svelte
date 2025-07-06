@@ -279,7 +279,7 @@
 
     <div class="flex items-center justify-between mt-6">
       {#if pipeline.id}
-        <Button variant="ghost" customClass="text-red-500 hover:text-red-400" on:click={deletePipeline}>Delete</Button>
+        <Button variant="danger" customClass="!px-3 !py-1.5" on:click={deletePipeline}>Delete</Button>
       {/if}
       <div class="ml-auto space-x-2">
         <Button variant="secondary" on:click={() => dispatch('cancel')}>Cancel</Button>

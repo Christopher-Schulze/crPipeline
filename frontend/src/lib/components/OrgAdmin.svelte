@@ -314,7 +314,7 @@
       {#if isLoadingUsers}
         <p class="text-gray-400 text-center py-5">Loading users...</p>
       {:else if usersError}
-        <p class="text-red-400 bg-red-500/10 p-3 rounded-md text-center">Error loading users: {usersError}</p>
+        <p class="text-error bg-error/10 p-3 rounded-md text-center">Error loading users: {usersError}</p>
       <!-- DataTable will now show its own empty state if allUsers is empty and not loading/error -->
       {:else}
         <DataTable

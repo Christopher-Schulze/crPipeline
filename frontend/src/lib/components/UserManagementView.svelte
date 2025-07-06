@@ -305,7 +305,7 @@
           {#if !item.confirmed && item.is_active}
             <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-sky-400 hover:!text-sky-300" on:click={() => handleResendConfirmation(item)} title="Resend Confirmation Email">Resend Email</Button>
           {/if}
-          <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-red-500 hover:!text-red-400" on:click={() => requestRemoveUser(item)} title="Remove User from Organization">Remove</Button>
+          <Button variant="ghost" customClass="!px-1.5 !py-0.5 text-xs !text-error hover:!text-error-content" on:click={() => requestRemoveUser(item)} title="Remove User from Organization">Remove</Button>
         {/if}
       </div>
       <div slot="paginationControls" let:currentPageProps let:totalPagesProps>

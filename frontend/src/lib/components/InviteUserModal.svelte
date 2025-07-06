@@ -154,7 +154,7 @@
       <p class="text-sm text-green-400 bg-green-500/20 p-3 rounded-md">{successMsg}</p>
     {/if}
     {#if errorMsg}
-      <p class="text-sm text-red-400 bg-red-500/20 p-3 rounded-md">{errorMsg}</p>
+      <p class="text-sm text-error bg-error/20 p-3 rounded-md">{errorMsg}</p>
     {/if}
 
     <form on:submit|preventDefault={handleSubmit} id="inviteUserForm" class="space-y-4">
@@ -202,7 +202,7 @@
         {:else if !isOrgAdminInvite}
            <p class="text-xs text-gray-400 bg-neutral-700/30 p-2 rounded-md">No organizations available. Global admins can create them in the 'Organizations' tab.</p>
         {:else} <!-- isOrgAdminInvite but no organizations passed (should not happen based on UserManagementView logic) -->
-           <p class="text-xs text-red-400 bg-red-500/20 p-2 rounded-md">Error: Organization details are missing for this invitation.</p>
+           <p class="text-xs text-error bg-error/20 p-2 rounded-md">Error: Organization details are missing for this invitation.</p>
         {/if}
       </div>
     </form>

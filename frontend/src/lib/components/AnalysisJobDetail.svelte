@@ -555,7 +555,7 @@
 
   function getStatusColor(status: string): string {
     if (status === 'completed' || status === 'success') return 'text-green-400';
-    if (status === 'failed' || status === 'error') return 'text-red-400';
+    if (status === 'failed' || status === 'error') return 'text-error';
     if (status === 'in_progress' || status === 'running') return 'text-blue-400';
     return 'text-gray-300'; // Default for unknown or pending statuses
   }
@@ -603,8 +603,8 @@
             <p class="text-gray-300 text-lg">Loading job details...</p> <!-- Spinner could go here -->
           </div>
         {:else if error}
-          <div class="p-4 bg-red-800/30 rounded-md text-center">
-            <p class="text-red-300">Error: {error}</p>
+          <div class="p-4 bg-error/30 rounded-md text-center">
+            <p class="text-error">Error: {error}</p>
           </div>
         {:else if jobDetails}
           <div class="space-y-4">
@@ -614,7 +614,7 @@
                 <span class="text-sm font-light text-gray-500 dark:text-gray-400 mr-1">Status:</span>
                 <span class="font-semibold px-2 py-0.5 rounded-full text-xs {getStatusColor(jobDetails.status)}
                   {jobDetails.status === 'completed' ? 'bg-green-800/70' :
-                   jobDetails.status === 'failed' ? 'bg-red-800/70' :
+                   jobDetails.status === 'failed' ? 'bg-error/70' :
                    jobDetails.status === 'in_progress' ? 'bg-blue-800/70' :
                    'bg-gray-700/70'}">
                   {jobDetails.status}
@@ -639,7 +639,7 @@
                     {#if isLoadingOcrText}
                       <p class="text-gray-400 text-center py-4">Loading OCR text...</p>
                     {:else if ocrTextError}
-                      <p class="text-red-400 bg-red-900/30 p-2 rounded-md">Error: {ocrTextError}</p>
+                      <p class="text-error bg-error/30 p-2 rounded-md">Error: {ocrTextError}</p>
                     {:else if ocrTextOutput}
                        <Button variant="ghost" customClass="!absolute top-1 right-1 !px-1.5 !py-0.5 text-xs z-10" on:click={() => copyToClipboard(ocrTextOutput, 'OCR Text')}>Copy</Button>
                       <pre class="whitespace-pre-wrap break-all text-xs text-gray-300 bg-transparent pt-5">
@@ -667,7 +667,7 @@
                   {#if isLoadingParseJson}
                     <p class="text-gray-300 text-center py-4">Loading Parse JSON output...</p>
                   {:else if parseJsonError}
-                    <p class="text-red-400 bg-red-900/30 p-2 rounded-md">Error: {parseJsonError}</p>
+                    <p class="text-error bg-error/30 p-2 rounded-md">Error: {parseJsonError}</p>
                   {:else if parseJsonOutput}
                     <Button variant="ghost" customClass="!absolute top-1 right-1 !px-1.5 !py-0.5 text-xs z-10" on:click={() => copyToClipboard(parseJsonOutput, 'Parse JSON')}>Copy</Button>
                     <pre class="whitespace-pre-wrap break-all text-xs text-gray-200 bg-transparent pt-5">
@@ -690,7 +690,7 @@
                   {#if isLoadingAiJson}
                     <p class="text-gray-300 text-center py-4">Loading AI JSON output...</p>
                   {:else if aiJsonError}
-                    <p class="text-red-400 bg-red-900/30 p-2 rounded-md">Error: {aiJsonError}</p>
+                    <p class="text-error bg-error/30 p-2 rounded-md">Error: {aiJsonError}</p>
                   {:else if aiJsonOutput}
                     <Button variant="ghost" customClass="!absolute top-1 right-1 !px-1.5 !py-0.5 text-xs z-10" on:click={() => copyToClipboard(aiJsonOutput, 'AI JSON')}>Copy</Button>
                     <pre class="whitespace-pre-wrap break-all text-xs text-gray-200 bg-transparent pt-5">

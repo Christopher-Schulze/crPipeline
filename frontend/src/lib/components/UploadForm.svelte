@@ -56,7 +56,7 @@
     />
     <p class="mt-1 text-xs text-gray-500">PDF, Markdown, or TXT files accepted.</p>
     {#if errorMsg}
-      <p class="mt-1 text-xs text-red-600">{errorMsg}</p>
+      <p class="mt-1 text-xs text-error">{errorMsg}</p>
     {/if}
   </div>
   <div class="mt-2">

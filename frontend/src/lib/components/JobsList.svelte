@@ -25,8 +25,8 @@
 
   // Helper for status colors
   function getStatusColorClass(status: string): string {
-    if (status === 'completed' || status === 'success') return 'bg-green-500/20 text-green-300'; // Adjusted for darker table context
-    if (status === 'failed' || status === 'error') return 'bg-red-500/20 text-red-300';
+    if (status === 'completed' || status === 'success') return 'bg-green-500/20 text-green-300';
+    if (status === 'failed' || status === 'error') return 'bg-error/20 text-error';
     if (status === 'in_progress' || status === 'running') return 'bg-blue-500/20 text-blue-300';
     return 'bg-gray-500/20 text-gray-300';
   }
