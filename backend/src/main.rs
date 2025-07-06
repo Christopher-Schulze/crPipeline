@@ -12,6 +12,7 @@ use backend::email;
 
 use backend::handlers;
 use backend::middleware::{
+    metrics::Metrics,
     jwt::init_jwt_secret,
     rate_limit::RateLimit,
     csrf_check::{CsrfCheck, init_csrf_token},
@@ -65,6 +66,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .wrap(RateLimit)
             .wrap(CsrfCheck)
+            .wrap(Metrics)
             .wrap(prometheus.clone())
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(s3_client.clone()))

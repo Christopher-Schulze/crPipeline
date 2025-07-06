@@ -32,6 +32,22 @@ pub static JOB_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
     HistogramVec::new(opts, &["status"]).unwrap()
 });
 
+pub static HTTP_REQUEST_COUNTER: Lazy<IntCounterVec> = Lazy::new(|| {
+    let opts = Opts::new(
+        "http_requests_total",
+        "Total number of HTTP requests",
+    );
+    IntCounterVec::new(opts, &["method", "endpoint", "status"]).unwrap()
+});
+
+pub static HTTP_REQUEST_HISTOGRAM: Lazy<HistogramVec> = Lazy::new(|| {
+    let opts = HistogramOpts::new(
+        "http_request_duration_seconds",
+        "HTTP request latency in seconds",
+    );
+    HistogramVec::new(opts, &["method", "endpoint", "status"]).unwrap()
+});
+
 pub fn register_metrics(registry: &Registry) {
     registry
         .register(Box::new(AUTH_FAILURE_COUNTER.clone()))
@@ -44,5 +60,11 @@ pub fn register_metrics(registry: &Registry) {
         .unwrap();
     registry
         .register(Box::new(JOB_HISTOGRAM.clone()))
+        .unwrap();
+    registry
+        .register(Box::new(HTTP_REQUEST_COUNTER.clone()))
+        .unwrap();
+    registry
+        .register(Box::new(HTTP_REQUEST_HISTOGRAM.clone()))
         .unwrap();
 }
