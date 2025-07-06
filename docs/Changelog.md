@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.4 - 2025-07-06
+- Added concurrent job processing via `WORKER_CONCURRENCY`.
+- Frontend build now precompiles DaisyUI themes.
+- Added pipeline CRUD integration tests.
+
 ## v0.3 - 2025-07-05
 - Added settings page and global API fetch wrapper.
 - Implemented document deletion and worker service script.
