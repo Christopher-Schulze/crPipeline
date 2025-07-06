@@ -100,11 +100,11 @@ spec:
 
 ### Certificate management
 
-Use a tool like [cert-manager](https://cert-manager.io/) or your ingress controller's ACME integration to automatically request Let's Encrypt certificates. Ensure the secret referenced by `tls-secret` exists and is kept up to date.
+Use a tool like [cert-manager](https://cert-manager.io/) or your ingress controller's ACME integration to automatically request Let's Encrypt certificates. Ensure the secret referenced by `tls-secret` exists and is kept up to date. When running the included Nginx or Traefik examples outside Kubernetes, copy your certificate files into `nginx/certs` or configure Traefik's ACME support accordingly.
 
 ## Versioned images with Helm
 
-An example `values.yaml` could look like:
+An example `values.yaml` could look like (also provided as `k8s/values-example.yaml`):
 
 ```yaml
 backendImage:
@@ -125,6 +125,16 @@ Kustomize users can achieve the same by applying an `image` patch that sets the
 tag for each deployment.
 
 Refer to [Setup](Setup.md) for local development. For metrics and dashboards see [Monitoring](Monitoring.md).
+
+## Systemd
+
+For bare-metal deployments the worker can run as a systemd service. The unit file
+`deploy/worker.service` and the helper script `scripts/install_worker_service.sh`
+install the service under `/etc/systemd/system`. Step-by-step instructions and
+customization hints are provided in
+[`Todo-fuer-User.md`](Todo-fuer-User.md). The service expects the same
+environment variables that are used by the Docker Compose setup and Kubernetes
+manifests.
 
 ## Produktivbetrieb
 

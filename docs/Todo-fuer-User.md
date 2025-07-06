@@ -9,11 +9,11 @@ Die folgenden Schritte richten den Service unter systemd ein.
    cargo build --release --bin worker --features worker-bin
    ```
 
-2. **Service installieren** – das Skript `scripts/install_worker_service.sh` kopiert die Unit-Datei `deploy/worker.service` nach `/etc/systemd/system/worker.service` und legt unter `/opt/crPipeline` die benötigten Dateien an.
+2. **Service installieren** – das Skript `scripts/install_worker_service.sh` kopiert die Unit-Datei `deploy/worker.service` nach `/etc/systemd/system/worker.service`, legt unter `/opt/crPipeline` die benötigten Dateien an und erzeugt bei Bedarf automatisch den Systemnutzer `crpipeline`.
    ```bash
    sudo ./scripts/install_worker_service.sh
    ```
-   Passe `WorkingDirectory` und `User` in der Unit-Datei bei Bedarf an, bevor du das Skript ausführst.
+   Passe die Pfade über die Umgebungsvariablen `TARGET` und `UNIT_FILE` oder den Benutzernamen über `SERVICE_USER` an, falls andere Werte gewünscht sind.
 
 3. **Dienst starten und Status prüfen**
    ```bash
