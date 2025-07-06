@@ -17,7 +17,7 @@ cargo run --bin migrate
 
 ## Testing
 - `cargo test` – backend unit tests
-- `npm run build --prefix frontend` – ensure Svelte app compiles
+- `npm run build:prod --prefix frontend` – ensure Svelte app compiles and DaisyUI themes are generated
 - `npm install --prefix frontend` – install dev dependencies before running frontend tests
 - `npm test --prefix frontend` – run frontend unit and component tests
 
@@ -39,14 +39,17 @@ cargo run --bin worker --features worker-bin
 ```
 
 In production compile and run the worker binary in release mode. Set
-`REDIS_URL` to the Redis instance used by the API. Optionally set
-`PROCESS_ONE_JOB=1` so the worker exits after a single job which is useful in
-container pre-stop hooks. Start multiple workers for higher throughput:
+`REDIS_URL` to the Redis instance used by the API. `WORKER_CONCURRENCY`
+specifies how many jobs a single worker processes in parallel. Optionally use
+`SHUTDOWN_AFTER_IDLE` to exit after a period of inactivity or
+`PROCESS_ONE_JOB=1` for pre-stop hooks. Multiple worker processes can be started
+if desired:
 ```bash
 cargo build --release --bin worker --features worker-bin
 REDIS_URL=redis://redis:6379/ ./target/release/worker
 ```
-Running the command in several processes allows jobs to be handled concurrently.
+Running multiple worker processes or increasing `WORKER_CONCURRENCY` allows jobs
+to be handled concurrently.
 
 ## Cleanup
 Remove expired documents that have passed their `expires_at` timestamp.
@@ -90,7 +93,7 @@ Add AI prompt templates to organization settings using the following structure:
 Compile the backend and build the frontend:
 ```bash
 cargo build --release --manifest-path backend/Cargo.toml
-npm run build --prefix frontend
+npm run build:prod --prefix frontend
 ```
 Serve `frontend/dist` with a static server and run the compiled backend binary with the appropriate environment.
 

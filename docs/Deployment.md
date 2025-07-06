@@ -134,6 +134,9 @@ Die Images werden normalerweise durch den CI-Workflow erstellt. Bei Bedarf könn
 docker build -t myorg/backend:latest backend
 docker build -t myorg/frontend:latest frontend
 ```
+The frontend Dockerfile runs `npm run build:prod` so DaisyUI themes are included
+in the production build. If you build the frontend without Docker, run this
+command manually before copying `frontend/dist`.
 
 ### Kubernetes-Manifeste nutzen
 Alle notwendigen Ressourcen befinden sich im Verzeichnis `k8s/`. Mit
