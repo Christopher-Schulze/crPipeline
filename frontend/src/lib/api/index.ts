@@ -955,7 +955,10 @@ export interface paths {
         /** List audit logs for organization */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    limit?: number;
+                };
                 header?: never;
                 path: {
                     org_id: string;
