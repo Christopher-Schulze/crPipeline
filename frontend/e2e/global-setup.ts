@@ -2,6 +2,8 @@ import { FullConfig } from '@playwright/test';
 import { execSync } from 'child_process';
 import http from 'http';
 import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function waitFor(url: string, timeout = 60000) {
   const start = Date.now();
