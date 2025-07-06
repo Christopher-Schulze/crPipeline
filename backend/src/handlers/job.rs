@@ -40,6 +40,7 @@ struct JobEvent {
 
 /// Return all jobs for an organization.
 #[get("/jobs/{org_id}")]
+#[tracing::instrument(skip(pool))]
 async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
     match AnalysisJob::find_by_org(pool.as_ref(), *path).await {
         Ok(list) => HttpResponse::Ok().json(list),
@@ -51,6 +52,7 @@ async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpRespon
 
 /// Server-sent events stream sending job status updates.
 #[get("/jobs/{id}/events")]
+#[tracing::instrument(skip(pool))]
 async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<ChannelStream> {
     let (tx, rx) = sse::channel(10);
     let job_id = *path;
@@ -78,6 +80,7 @@ async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<Chann
 
 /// Stream job status events for an organization via Redis Pub/Sub.
 #[get("/jobs/events/{org_id}")]
+#[tracing::instrument]
 async fn org_job_events(path: web::Path<Uuid>) -> Sse<ChannelStream> {
     let org_id = *path;
     let redis_url = match std::env::var("REDIS_URL") {
@@ -115,6 +118,7 @@ async fn org_job_events(path: web::Path<Uuid>) -> Sse<ChannelStream> {
 
 /// Retrieve job metadata along with document and pipeline info.
 #[get("/jobs/{job_id}/details")]
+#[tracing::instrument(skip(pool, user))]
 async fn get_job_details(
     path: web::Path<Uuid>,
     user: AuthUser, // For authorization
@@ -228,6 +232,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
 /// Create a presigned URL for downloading an output file of a job stage.
 #[get("/jobs/outputs/{output_id}/download_url")]
+#[tracing::instrument(skip(pool, s3_client, user))]
 async fn get_stage_output_download_url(
     path: web::Path<Uuid>, // output_id from job_stage_outputs table
     user: AuthUser,

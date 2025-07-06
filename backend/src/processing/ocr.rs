@@ -1,10 +1,10 @@
-use std::time::Duration;
+use crate::worker::metrics::S3_ERROR_COUNTER;
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
-use crate::worker::metrics::S3_ERROR_COUNTER;
 use reqwest::header::{HeaderValue, AUTHORIZATION};
 use reqwest::multipart;
 use std::path::Path;
+use std::time::Duration;
 use tokio::process::Command;
 
 #[derive(Debug)]
@@ -37,6 +37,7 @@ fn backoff(attempt: u32) -> Duration {
 /// * `bucket` - Source bucket name.
 /// * `key` - Key of the object to download.
 /// * `path` - Local destination for the file.
+#[tracing::instrument(skip(s3))]
 pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -> Result<()> {
     if let Ok(local_dir) = std::env::var("LOCAL_S3_DIR") {
         let local_path = Path::new(&local_dir).join(key);
@@ -47,6 +48,7 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
     let obj = match s3.get_object().bucket(bucket).key(key).send().await {
         Ok(o) => o,
         Err(e) => {
+            tracing::error!(error=?e, bucket, key, "s3 download failed");
             S3_ERROR_COUNTER.with_label_values(&["download"]).inc();
             return Err(e.into());
         }
@@ -54,6 +56,7 @@ pub async fn download_pdf(s3: &S3Client, bucket: &str, key: &str, path: &Path) -
     let bytes = match obj.body.collect().await {
         Ok(b) => b.into_bytes(),
         Err(e) => {
+            tracing::error!(error=?e, bucket, key, "s3 download body failed");
             S3_ERROR_COUNTER.with_label_values(&["download"]).inc();
             return Err(e.into());
         }
@@ -100,18 +103,17 @@ pub async fn run_external_ocr(
                 } else if attempts < MAX_RETRIES {
                     attempts += 1;
                     let status = resp.status();
-                    let msg = resp
-                        .text()
-                        .await
-                        .unwrap_or_else(|_| "unknown".into());
-                    log::warn!("OCR request failed status {} attempt {}: {}", status, attempts, msg);
+                    let msg = resp.text().await.unwrap_or_else(|_| "unknown".into());
+                    log::warn!(
+                        "OCR request failed status {} attempt {}: {}",
+                        status,
+                        attempts,
+                        msg
+                    );
                     tokio::time::sleep(backoff(attempts)).await;
                 } else {
                     let status = resp.status();
-                    let msg = resp
-                        .text()
-                        .await
-                        .unwrap_or_else(|_| "unknown".into());
+                    let msg = resp.text().await.unwrap_or_else(|_| "unknown".into());
                     return Err(OcrError::HttpError(status, msg));
                 }
             }
