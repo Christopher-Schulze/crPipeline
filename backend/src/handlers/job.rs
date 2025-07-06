@@ -95,9 +95,9 @@ async fn org_job_events(path: web::Path<Uuid>) -> Sse<ChannelStream> {
     if conn.subscribe("job_status").await.is_err() {
         return sse::channel(0).1;
     }
-    let mut stream = conn.on_message();
     let (tx, rx) = sse::channel(10);
     actix_web::rt::spawn(async move {
+        let mut stream = conn.on_message();
         while let Some(msg) = stream.next().await {
             if let Ok(payload) = msg.get_payload::<String>() {
                 if let Ok(event) = serde_json::from_str::<JobEvent>(&payload) {

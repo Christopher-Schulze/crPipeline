@@ -1,11 +1,56 @@
-use actix_web::{web, get, post, put, delete, HttpResponse, http::StatusCode, ResponseError};
+use actix_web::{delete, get, post, put, web, HttpResponse, ResponseError, http::StatusCode};
 use crate::error::ApiError;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use crate::models::{Pipeline, NewPipeline};
+use crate::models::{NewPipeline, Pipeline};
 use crate::middleware::auth::AuthUser;
 use crate::pipeline_validation::validate_stages;
+use dashmap::DashMap;
+use once_cell::sync::Lazy;
+use redis::AsyncCommands;
+
+static PIPELINE_CACHE: Lazy<DashMap<Uuid, Vec<Pipeline>>> = Lazy::new(DashMap::new);
+
+async fn cache_get(org_id: Uuid) -> Option<Vec<Pipeline>> {
+    let key = format!("pipelines:{}", org_id);
+    if let Ok(redis_url) = std::env::var("REDIS_URL") {
+        if let Ok(client) = redis::Client::open(redis_url) {
+            if let Ok(mut conn) = client.get_async_connection().await {
+                if let Ok(data) = conn.get::<_, String>(&key).await {
+                    if let Ok(pipes) = serde_json::from_str::<Vec<Pipeline>>(&data) {
+                        return Some(pipes);
+                    }
+                }
+            }
+        }
+    }
+    PIPELINE_CACHE.get(&org_id).map(|v| v.clone())
+}
+
+async fn cache_set(org_id: Uuid, pipelines: &[Pipeline]) {
+    PIPELINE_CACHE.insert(org_id, pipelines.to_vec());
+    if let Ok(redis_url) = std::env::var("REDIS_URL") {
+        if let Ok(client) = redis::Client::open(redis_url) {
+            if let Ok(mut conn) = client.get_async_connection().await {
+                if let Ok(data) = serde_json::to_string(pipelines) {
+                    let _ : redis::RedisResult<()> = conn.set::<_, _, ()>(&format!("pipelines:{}", org_id), data).await;
+                }
+            }
+        }
+    }
+}
+
+async fn cache_invalidate(org_id: Uuid) {
+    PIPELINE_CACHE.remove(&org_id);
+    if let Ok(redis_url) = std::env::var("REDIS_URL") {
+        if let Ok(client) = redis::Client::open(redis_url) {
+            if let Ok(mut conn) = client.get_async_connection().await {
+                let _ : redis::RedisResult<()> = conn.del::<_, ()>(&format!("pipelines:{}", org_id)).await;
+            }
+        }
+    }
+}
 
 #[derive(Deserialize)]
 pub struct PipelineInput {
@@ -43,7 +88,10 @@ async fn create_pipeline(data: web::Json<PipelineInput>, user: AuthUser, pool: w
     };
 
     match Pipeline::create(&pool, new_pipeline_data).await {
-        Ok(p) => HttpResponse::Ok().json(p),
+        Ok(p) => {
+            cache_invalidate(data.org_id).await;
+            HttpResponse::Ok().json(p)
+        }
         Err(e) => {
             log::error!("Failed to create pipeline for org_id {}: {:?}", data.org_id, e);
             ApiError::new("Failed to create pipeline", StatusCode::INTERNAL_SERVER_ERROR)
@@ -58,12 +106,18 @@ async fn list_pipelines(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<P
         return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED)
             .error_response();
     }
+    if let Some(cached) = cache_get(*path).await {
+        return HttpResponse::Ok().json(cached);
+    }
     match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE org_id=$1")
         .bind(*path)
         .fetch_all(pool.as_ref())
         .await
     {
-        Ok(list) => HttpResponse::Ok().json(list),
+        Ok(list) => {
+            cache_set(*path, &list).await;
+            HttpResponse::Ok().json(list)
+        }
         Err(_) => ApiError::new("Failed to list pipelines", StatusCode::INTERNAL_SERVER_ERROR)
             .error_response(),
     }
@@ -111,7 +165,10 @@ async fn update_pipeline(
     }
 
     match Pipeline::update(&pool, pipeline_id, &data.name, data.stages.clone()).await {
-        Ok(p) => HttpResponse::Ok().json(p),
+        Ok(p) => {
+            cache_invalidate(existing.org_id).await;
+            HttpResponse::Ok().json(p)
+        }
         Err(_) => ApiError::new("Failed to update pipeline", StatusCode::INTERNAL_SERVER_ERROR)
             .error_response(),
     }
@@ -143,7 +200,10 @@ async fn delete_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<
     }
 
     match Pipeline::delete(&pool, pipeline_id).await {
-        Ok(_) => HttpResponse::Ok().finish(),
+        Ok(_) => {
+            cache_invalidate(existing.org_id).await;
+            HttpResponse::Ok().finish()
+        }
         Err(_) => ApiError::new("Failed to delete pipeline", StatusCode::INTERNAL_SERVER_ERROR)
             .error_response(),
     }
@@ -180,7 +240,10 @@ async fn clone_pipeline(path: web::Path<Uuid>, user: AuthUser, pool: web::Data<P
     };
 
     match Pipeline::create(&pool, new_data).await {
-        Ok(p) => HttpResponse::Ok().json(p),
+        Ok(p) => {
+            cache_invalidate(existing.org_id).await;
+            HttpResponse::Ok().json(p)
+        }
         Err(_) => ApiError::new("Failed to clone pipeline", StatusCode::INTERNAL_SERVER_ERROR)
             .error_response(),
     }
