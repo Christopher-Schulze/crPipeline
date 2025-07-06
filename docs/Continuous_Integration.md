@@ -30,3 +30,14 @@ login succeeds for confirmed users and fails for unconfirmed accounts. Start the
 database services via `docker compose up -d db redis minio` and run `cargo test`
 to execute the full suite.
 
+### End-to-End Tests
+Playwright tests live in `frontend/e2e`. When running locally, the test runner
+builds and starts all containers from `docker-compose.yml` and seeds demo data
+with `scripts/seed_demo.sh`. Execute the suite with:
+
+```bash
+npm run e2e --prefix frontend
+```
+
+The CI workflow performs the same steps after the unit tests finish.
+
