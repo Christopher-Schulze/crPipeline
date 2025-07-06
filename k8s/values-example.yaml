@@ -1,0 +1,6 @@
+backendImage:
+  repository: myorg/backend
+  tag: v1.0.0
+frontendImage:
+  repository: myorg/frontend
+  tag: v1.0.0
