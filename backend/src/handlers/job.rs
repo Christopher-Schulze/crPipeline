@@ -1,5 +1,6 @@
 use crate::middleware::auth::AuthUser;
 use crate::models::{AnalysisJob, Document, JobStageOutput, Pipeline};
+use crate::models::analysis_job::JobWithNames;
 use actix_web::{get, web, HttpResponse, http::StatusCode, ResponseError};
 use crate::error::ApiError;
 use actix_web_lab::sse::{self, ChannelStream, Sse};
@@ -8,6 +9,12 @@ use serde::Serialize;
 use sqlx::PgPool;
 use std::time::Duration; // Already here, used for Sse and now PresigningConfig
 use uuid::Uuid; // For S3 presigned URLs
+
+#[derive(serde::Deserialize)]
+struct Pagination {
+    page: Option<i64>,
+    per_page: Option<i64>,
+}
 
 /// Combined details returned by [`get_job_details`].
 #[derive(Serialize)]
@@ -32,9 +39,49 @@ struct JobDetailsResponse {
 
 /// Return all jobs for an organization.
 #[get("/jobs/{org_id}")]
-async fn list_jobs(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
-    match AnalysisJob::find_by_org(pool.as_ref(), *path).await {
-        Ok(list) => HttpResponse::Ok().json(list),
+async fn list_jobs(
+    path: web::Path<Uuid>,
+    query: web::Query<Pagination>,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    let org_id = *path;
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(20).max(1).min(100);
+    let offset = (page - 1) * per_page;
+
+    let total_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM analysis_jobs WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(pool.as_ref())
+        .await
+        .unwrap_or(0);
+
+    match sqlx::query_as::<_, JobWithNames>(
+        r#"
+        SELECT aj.*, d.display_name AS document_name, p.name AS pipeline_name
+        FROM analysis_jobs aj
+        JOIN documents d ON aj.document_id = d.id
+        JOIN pipelines p ON aj.pipeline_id = p.id
+        WHERE aj.org_id = $1
+        ORDER BY aj.created_at DESC
+        LIMIT $2 OFFSET $3
+        "#,
+    )
+    .bind(org_id)
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(pool.as_ref())
+    .await
+    {
+        Ok(list) => {
+            let total_pages = ((total_items as f64) / (per_page as f64)).ceil() as i64;
+            HttpResponse::Ok().json(serde_json::json!({
+                "items": list,
+                "total_items": total_items,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": total_pages
+            }))
+        }
         Err(_) => ApiError::new("Failed to list jobs", StatusCode::INTERNAL_SERVER_ERROR)
             .error_response(),
     }

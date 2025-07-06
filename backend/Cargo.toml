@@ -24,7 +24,7 @@ aws-sdk-s3 = "0.31"
 futures-util = "0.3"
 actix-web-lab = "0.19"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
 anyhow = "1"
 lopdf = "0.32"
 dashmap = "5"

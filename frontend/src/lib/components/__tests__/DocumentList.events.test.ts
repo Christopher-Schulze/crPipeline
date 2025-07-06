@@ -47,6 +47,7 @@ test('download button uses API and opens link', async () => {
   await fireEvent.click(getByText('Download'));
 
   await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/documents/org1?page=1&per_page=10&sort_by=upload_date&sort_order=desc', expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith('/api/download/1', { credentials: 'include' });
     expect(openSpy).toHaveBeenCalledWith('http://example.com/file.pdf', '_blank');
   });

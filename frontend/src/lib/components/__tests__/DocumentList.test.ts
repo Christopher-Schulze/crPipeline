@@ -47,6 +47,7 @@ test('deletes document via api', async () => {
   await getByText('Delete').click();
 
   await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/documents/org1?page=1&per_page=10&sort_by=upload_date&sort_order=desc', expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith('/api/documents/1', expect.objectContaining({ method: 'DELETE' }));
     expect(queryByText('Doc One')).not.toBeInTheDocument();
   });

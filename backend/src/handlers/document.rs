@@ -55,6 +55,12 @@ pub struct UploadParams {
     pub is_target: Option<bool>,
 }
 
+#[derive(serde::Deserialize)]
+pub struct Pagination {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
 
 async fn check_upload_quota(pool: &PgPool, org_id: Uuid) -> Result<(), HttpResponse> {
     match OrgSettings::find(pool, org_id).await {
@@ -360,6 +366,52 @@ pub async fn download(
     }
 }
 
+#[get("/documents/{org_id}")]
+pub async fn list_documents(
+    path: web::Path<Uuid>,
+    query: web::Query<Pagination>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    let org_id = path.into_inner();
+
+    if org_id != user.org_id && user.role != "admin" {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(20).max(1).min(100);
+    let offset = (page - 1) * per_page;
+
+    let total_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM documents WHERE org_id=$1")
+        .bind(org_id)
+        .fetch_one(pool.as_ref())
+        .await
+        .unwrap_or(0);
+
+    match sqlx::query_as::<_, Document>(
+        "SELECT * FROM documents WHERE org_id=$1 ORDER BY upload_date DESC LIMIT $2 OFFSET $3",
+    )
+    .bind(org_id)
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(pool.as_ref())
+    .await
+    {
+        Ok(docs) => {
+            let total_pages = ((total_items as f64) / (per_page as f64)).ceil() as i64;
+            HttpResponse::Ok().json(serde_json::json!({
+                "items": docs,
+                "total_items": total_items,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": total_pages
+            }))
+        }
+        Err(e) => ApiError::from_db("Failed to list documents", e).error_response(),
+    }
+}
+
 #[delete("/documents/{id}")]
 pub async fn delete_document(
     path: web::Path<Uuid>,
@@ -402,7 +454,10 @@ pub async fn delete_document(
 
 /// Configure Actix routes for document-related endpoints.
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(upload).service(download).service(delete_document);
+    cfg.service(upload)
+        .service(download)
+        .service(list_documents)
+        .service(delete_document);
 }
 
 async fn validate_document(

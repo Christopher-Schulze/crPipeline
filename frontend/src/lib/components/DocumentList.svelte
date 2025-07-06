@@ -68,7 +68,7 @@ async function loadDocuments(pageToLoad = 1, newSortBy?: string | null, newSortO
   const currentSortOrder = newSortOrder !== undefined ? newSortOrder : sortOrder;
 
   try {
-    let apiUrl = `/api/documents/${orgId}?page=${currentPage}&limit=${docsPerPage}`;
+    let apiUrl = `/api/documents/${orgId}?page=${currentPage}&per_page=${docsPerPage}`;
     if (currentSortBy) {
       apiUrl += `&sort_by=${encodeURIComponent(currentSortBy)}`;
       if (currentSortOrder) {

@@ -89,6 +89,16 @@ Add AI prompt templates to organization settings using the following structure:
 }
 ```
 
+## Pagination
+List endpoints `/api/documents/{org_id}` and `/api/jobs/{org_id}` accept optional `page` and `per_page` query parameters.
+Example:
+
+```bash
+curl "/api/documents/<org>?page=2&per_page=20"
+```
+
+The response contains `items`, `page`, `per_page`, `total_items` and `total_pages`.
+
 ## Production Build
 Compile the backend and build the frontend:
 ```bash
