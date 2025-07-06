@@ -8,17 +8,19 @@ use backend::worker::metrics::{
     spawn_metrics_server, JOB_COUNTER, JOB_HISTOGRAM, OCR_HISTOGRAM, RUNNING_JOBS_GAUGE,
     STAGE_HISTOGRAM,
 };
-use backend::worker::{self, Stage, WorkerRuntimeConfig};
+use backend::worker::{self, spawn_config_reloader, Stage, WorkerRuntimeConfig};
 use serde_json::json;
 use serde_json::{self, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{atomic::{AtomicUsize, Ordering}, Arc},
     time::{Duration, Instant},
 };
 use tokio::process::Command;
 use tokio::signal;
+#[cfg(unix)]
+use tokio::signal::unix::{signal as unix_signal, SignalKind};
 use tokio::task::JoinSet;
 use tokio::time::sleep;
 use tracing::{error, info, warn};
@@ -282,18 +284,28 @@ async fn main() -> Result<()> {
     let blpop_timeout = if idle_duration.is_some() { 60 } else { 0 };
 
     let mut shutdown_signal = signal::ctrl_c();
+    #[cfg(unix)]
+    let mut term_signal = unix_signal(SignalKind::terminate()).expect("install SIGTERM handler");
     tokio::pin!(shutdown_signal);
+    #[cfg(unix)]
+    tokio::pin!(term_signal);
 
     let pool = Arc::new(pool);
     let s3_client = Arc::new(s3_client);
     let runtime_cfg = WorkerRuntimeConfig::from_env();
-    let concurrency = runtime_cfg.concurrency.max(1);
+    let concurrency = Arc::new(AtomicUsize::new(runtime_cfg.concurrency.max(1)));
+    spawn_config_reloader(Arc::clone(&concurrency));
     let mut tasks: JoinSet<()> = JoinSet::new();
 
     'outer: loop {
-        if tasks.len() >= concurrency {
+        if tasks.len() >= concurrency.load(Ordering::SeqCst) {
             tokio::select! {
                 _ = &mut shutdown_signal => {
+                    info!("Shutdown signal received");
+                    break 'outer;
+                }
+                #[cfg(unix)]
+                _ = &mut term_signal => {
                     info!("Shutdown signal received");
                     break 'outer;
                 }
@@ -308,6 +320,11 @@ async fn main() -> Result<()> {
         cmd.arg("jobs").arg(blpop_timeout);
         let job: Option<(String, String)> = tokio::select! {
             _ = &mut shutdown_signal => {
+                info!("Shutdown signal received");
+                break 'outer;
+            }
+            #[cfg(unix)]
+            _ = &mut term_signal => {
                 info!("Shutdown signal received");
                 break 'outer;
             }

@@ -42,6 +42,26 @@ impl WorkerRuntimeConfig {
     }
 }
 
+use std::sync::{atomic::{AtomicUsize, Ordering}, Arc};
+
+/// Spawn a task listening for `SIGHUP` to reload runtime settings.
+#[cfg(unix)]
+pub fn spawn_config_reloader(concurrency: Arc<AtomicUsize>) {
+    tokio::spawn(async move {
+        if let Ok(mut sig) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup()) {
+            while sig.recv().await.is_some() {
+                let cfg = WorkerRuntimeConfig::from_env();
+                let val = cfg.concurrency.max(1);
+                concurrency.store(val, Ordering::SeqCst);
+                tracing::info!(concurrency=val, "Reloaded worker configuration");
+            }
+        }
+    });
+}
+
+#[cfg(not(unix))]
+pub fn spawn_config_reloader(_concurrency: Arc<AtomicUsize>) {}
+
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client as S3Client;
 use crate::worker::metrics::{S3_ERROR_COUNTER, WORKER_SHUTDOWN_COUNTER};
