@@ -6,7 +6,7 @@ use actix_web::{delete, get, http::StatusCode, post, put, web, HttpResponse, Res
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use redis::AsyncCommands;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -60,6 +60,22 @@ pub struct PipelineInput {
     pub org_id: Uuid,
     pub name: String,
     pub stages: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+pub struct ListQuery {
+    pub search: Option<String>,
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct PaginatedPipelines {
+    pub items: Vec<Pipeline>,
+    pub total_items: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub total_pages: i64,
 }
 
 #[post("/pipelines")]
@@ -117,32 +133,84 @@ async fn create_pipeline(
 }
 
 #[get("/pipelines/{org_id}")]
-#[tracing::instrument(skip(pool, user))]
+#[tracing::instrument(skip(pool, user, query))]
 async fn list_pipelines(
     path: web::Path<Uuid>,
+    query: web::Query<ListQuery>,
     user: AuthUser,
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
     if *path != user.org_id {
         return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED).error_response();
     }
-    if let Some(cached) = cache_get(*path).await {
-        return HttpResponse::Ok().json(cached);
-    }
-    match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE org_id=$1")
-        .bind(*path)
-        .fetch_all(pool.as_ref())
-        .await
-    {
-        Ok(list) => {
-            cache_set(*path, &list).await;
-            HttpResponse::Ok().json(list)
+
+    let search = query.search.as_ref().map(|s| format!("%{}%", s));
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(20).max(1).min(100);
+    let offset = (page - 1) * limit;
+
+    if search.is_none() && query.page.is_none() && query.limit.is_none() {
+        if let Some(cached) = cache_get(*path).await {
+            return HttpResponse::Ok().json(cached);
         }
-        Err(_) => ApiError::new(
-            "Failed to list pipelines",
-            StatusCode::INTERNAL_SERVER_ERROR,
-        )
-        .error_response(),
+    }
+
+    let items_query;
+    let count_query;
+    if search.is_some() {
+        items_query = "SELECT * FROM pipelines WHERE org_id=$1 AND name ILIKE $2 ORDER BY name ASC LIMIT $3 OFFSET $4";
+        count_query = "SELECT COUNT(*) FROM pipelines WHERE org_id=$1 AND name ILIKE $2";
+    } else {
+        items_query = "SELECT * FROM pipelines WHERE org_id=$1 ORDER BY name ASC LIMIT $2 OFFSET $3";
+        count_query = "SELECT COUNT(*) FROM pipelines WHERE org_id=$1";
+    }
+
+    let items_res = if let Some(ref s) = search {
+        sqlx::query_as::<_, Pipeline>(items_query)
+            .bind(*path)
+            .bind(s)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool.as_ref())
+            .await
+    } else {
+        sqlx::query_as::<_, Pipeline>(items_query)
+            .bind(*path)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool.as_ref())
+            .await
+    };
+
+    let count_res: sqlx::Result<i64> = if let Some(ref s) = search {
+        sqlx::query_scalar(count_query)
+            .bind(*path)
+            .bind(s)
+            .fetch_one(pool.as_ref())
+            .await
+    } else {
+        sqlx::query_scalar(count_query)
+            .bind(*path)
+            .fetch_one(pool.as_ref())
+            .await
+    };
+
+    match (items_res, count_res) {
+        (Ok(items), Ok(total)) => {
+            if search.is_none() && query.page.is_none() && query.limit.is_none() {
+                cache_set(*path, &items).await;
+                return HttpResponse::Ok().json(items);
+            }
+            let total_pages = (total as f64 / limit as f64).ceil() as i64;
+            HttpResponse::Ok().json(PaginatedPipelines {
+                items,
+                total_items: total,
+                page,
+                per_page: limit,
+                total_pages,
+            })
+        }
+        _ => ApiError::new("Failed to list pipelines", StatusCode::INTERNAL_SERVER_ERROR).error_response(),
     }
 }
 

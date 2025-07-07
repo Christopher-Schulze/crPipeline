@@ -2,6 +2,7 @@
   import { onMount, onDestroy, getContext } from 'svelte';
   import { sessionStore } from '$lib/stores/session';
   import DataTable, { type TableHeader } from '$lib/components/DataTable.svelte';
+  import PaginationControls from '$lib/components/PaginationControls.svelte';
   import Button from '$lib/components/Button.svelte';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
@@ -24,6 +25,13 @@
   let isLoading: boolean = true;
   let error: string | null = null;
 
+  let searchTerm: string = '';
+  let searchDebounce: number;
+  let currentPage = 1;
+  let totalPages = 0;
+  let totalPipelines = 0;
+  let pipelinesPerPage = 10;
+
   let orgId: string | null = null;
   let loggedIn = false;
   $: ({ orgId, loggedIn } = { orgId: $sessionStore.org, loggedIn: $sessionStore.loggedIn });
@@ -31,7 +39,7 @@
   // Get context function to open pipeline editor
   const managePipeline = getContext<(pipelineData?: Pipeline | null) => void>('managePipeline');
 
-  async function loadPipelines() {
+  async function loadPipelines(pageToLoad = 1) {
     if (!orgId) {
       error = "Organization context not available. Please ensure you are part of an organization.";
       isLoading = false;
@@ -40,18 +48,31 @@
     }
     isLoading = true;
     error = null;
+    currentPage = pageToLoad;
     try {
-      const response = await apiFetch(`/api/pipelines/${orgId}`);
+      let apiUrl = `/api/pipelines/${orgId}?page=${currentPage}&limit=${pipelinesPerPage}`;
+      if (searchTerm.trim() !== '') {
+        apiUrl += `&search=${encodeURIComponent(searchTerm.trim())}`;
+      }
+
+      const response = await apiFetch(apiUrl);
 
       if (!response.ok) {
         const errText = await response.text();
         const errData = JSON.parse(errText || "{}");
         throw new Error(errData.error || `Failed to fetch pipelines for organization ${orgId}: ${response.statusText} - ${errText}`);
       }
-      pipelines = await response.json();
+      const data = await response.json();
+      pipelines = data.items;
+      currentPage = data.page;
+      totalPages = data.total_pages;
+      totalPipelines = data.total_items;
+      pipelinesPerPage = data.per_page;
     } catch (e: any) {
       error = e.message;
       pipelines = [];
+      totalPages = 0;
+      totalPipelines = 0;
       console.error("Error loading pipelines:", e);
     } finally {
       isLoading = false;
@@ -73,7 +94,7 @@
     }
 
     pipelinesUpdatedHandler = () => {
-        loadPipelines();
+        loadPipelines(currentPage);
     };
     document.body.addEventListener('pipelinesUpdated', pipelinesUpdatedHandler);
   });
@@ -151,6 +172,19 @@
       }
   }
 
+  function onSearchInput() {
+      clearTimeout(searchDebounce);
+      searchDebounce = window.setTimeout(() => {
+          loadPipelines(1);
+      }, 500);
+  }
+
+  function handlePageChange(event: CustomEvent<{ page: number }>) {
+      if (event.detail.page !== currentPage) {
+          loadPipelines(event.detail.page);
+      }
+  }
+
 </script>
 
 <div class="container mx-auto px-4 py-8 space-y-6" in:fade={{ duration: 200 }}>
@@ -165,6 +199,18 @@
             </Button>
         {/if}
     </div>
+    {#if loggedIn && orgId}
+        <div class="flex items-center justify-between mt-4">
+            <input
+                type="text"
+                placeholder="Search pipelines..."
+                class="glass-input w-full max-w-sm text-sm"
+                bind:value={searchTerm}
+                on:input={onSearchInput}
+                disabled={isLoading}
+            />
+        </div>
+    {/if}
 
     {#if !loggedIn}
         <GlassCard padding="p-8 text-center">
@@ -202,6 +248,10 @@
             items={tablePipelines}
             keyField="id"
             tableSortable={true}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalPipelines}
+            itemsPerPage={pipelinesPerPage}
             emptyStateMessage="No pipelines configured yet for this organization."
             emptyStateIconPath="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H16.5m-6 6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H10.5"
             tableContainerClass="bg-neutral-800/40 backdrop-blur-sm shadow-lg rounded-xl border border-neutral-700/50 overflow-hidden"
@@ -223,6 +273,13 @@
             </span>
             <span slot="cell-created_at" let:item class="text-xs text-gray-400">{item.created_at}</span>
             <span slot="cell-updated_at" let:item class="text-xs text-gray-400">{item.updated_at}</span>
+            <div slot="paginationControls" let:currentPageProps let:totalPagesProps>
+                <PaginationControls
+                    currentPage={currentPageProps}
+                    totalPages={totalPagesProps}
+                    on:pageChange={handlePageChange}
+                />
+            </div>
         </DataTable>
     {/if}
 </div>
