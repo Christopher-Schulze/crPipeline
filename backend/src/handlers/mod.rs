@@ -13,6 +13,7 @@ pub mod admin; // New module
 
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/api")
+        .service(auth::logout)
         .configure(auth::routes)
         .service(auth::logout)
         .configure(org::routes)

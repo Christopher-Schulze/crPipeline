@@ -208,6 +208,16 @@ pub async fn login(
     }
 }
 
+#[post("/logout")]
+#[tracing::instrument]
+async fn logout() -> HttpResponse {
+    let cookie = actix_web::cookie::Cookie::build("token", "")
+        .path("/")
+        .max_age(ActixDuration::ZERO)
+        .finish();
+    HttpResponse::Ok().cookie(cookie).finish()
+}
+
 #[get("/confirm/{token}")]
 #[tracing::instrument(skip(pool))]
 async fn confirm(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> HttpResponse {
@@ -272,6 +282,7 @@ async fn logout() -> HttpResponse {
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
         .service(login)
+        .service(logout)
         .service(me)
         .service(confirm)
         .service(request_reset)
