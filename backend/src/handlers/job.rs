@@ -78,6 +78,44 @@ async fn job_events(path: web::Path<Uuid>, pool: web::Data<PgPool>) -> Sse<Chann
     rx
 }
 
+/// Stream status events for a single job via Redis Pub/Sub.
+#[get("/jobs/{id}/detail_events")]
+#[tracing::instrument]
+async fn job_detail_events(path: web::Path<Uuid>) -> Sse<ChannelStream> {
+    let job_id = *path;
+    let redis_url = match std::env::var("REDIS_URL") {
+        Ok(u) => u,
+        Err(_) => return sse::channel(0).1,
+    };
+    let client = match redis::Client::open(redis_url) {
+        Ok(c) => c,
+        Err(_) => return sse::channel(0).1,
+    };
+    let mut conn = match client.get_async_connection().await {
+        Ok(c) => c.into_pubsub(),
+        Err(_) => return sse::channel(0).1,
+    };
+    if conn.subscribe("job_status").await.is_err() {
+        return sse::channel(0).1;
+    }
+    let (tx, rx) = sse::channel(10);
+    actix_web::rt::spawn(async move {
+        let mut stream = conn.on_message();
+        while let Some(msg) = stream.next().await {
+            if let Ok(payload) = msg.get_payload::<String>() {
+                if let Ok(event) = serde_json::from_str::<JobEvent>(&payload) {
+                    if event.job_id == job_id {
+                        if tx.send(sse::Data::new(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    rx
+}
+
 /// Stream job status events for an organization via Redis Pub/Sub.
 #[get("/jobs/events/{org_id}")]
 #[tracing::instrument]
@@ -225,6 +263,7 @@ async fn get_job_details(
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(list_jobs)
         .service(job_events)
+        .service(job_detail_events)
         .service(org_job_events)
         .service(get_job_details)
         .service(get_stage_output_download_url);
