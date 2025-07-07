@@ -264,11 +264,14 @@ async fn update_pipeline(
             cache_invalidate(existing.org_id).await;
             HttpResponse::Ok().json(p)
         }
-        Err(_) => ApiError::new(
-            "Failed to update pipeline",
-            StatusCode::INTERNAL_SERVER_ERROR,
-        )
-        .error_response(),
+        Err(_) => {
+            cache_invalidate(existing.org_id).await;
+            ApiError::new(
+                "Failed to update pipeline",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response()
+        }
     }
 }
 
@@ -308,11 +311,14 @@ async fn delete_pipeline(
             cache_invalidate(existing.org_id).await;
             HttpResponse::Ok().finish()
         }
-        Err(_) => ApiError::new(
-            "Failed to delete pipeline",
-            StatusCode::INTERNAL_SERVER_ERROR,
-        )
-        .error_response(),
+        Err(_) => {
+            cache_invalidate(existing.org_id).await;
+            ApiError::new(
+                "Failed to delete pipeline",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response()
+        }
     }
 }
 
@@ -357,11 +363,14 @@ async fn clone_pipeline(
             cache_invalidate(existing.org_id).await;
             HttpResponse::Ok().json(p)
         }
-        Err(_) => ApiError::new(
-            "Failed to clone pipeline",
-            StatusCode::INTERNAL_SERVER_ERROR,
-        )
-        .error_response(),
+        Err(_) => {
+            cache_invalidate(existing.org_id).await;
+            ApiError::new(
+                "Failed to clone pipeline",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .error_response()
+        }
     }
 }
 
