@@ -3,6 +3,8 @@
   import GlassCard from './GlassCard.svelte';
   import Button from './Button.svelte';
   import Modal from './Modal.svelte';
+  import Spinner from './Spinner.svelte';
+  import { createReconnectingEventSource, type ReconnectingEventSource } from '$lib/utils/eventSourceUtils';
   import * as Diff from 'diff'; // Import the diff library
   import { apiFetch } from '$lib/utils/apiUtils';
   import { errorStore } from '$lib/utils/errorStore';
@@ -89,6 +91,10 @@
   // For AI Diff
   let aiDiffViewHtml: string | null = null;       // For AI Input vs Output diff
 
+  // SSE and polling
+  let stream: ReconnectingEventSource | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 
   const dispatch = createEventDispatcher();
 
@@ -169,12 +175,59 @@
     }
   }
 
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+      if (jobId) fetchJobDetails(jobId);
+    }, 5000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function startStream() {
+    if (!jobId || typeof EventSource === 'undefined') {
+      startPolling();
+      return;
+    }
+    startPolling();
+    stream = createReconnectingEventSource(
+      `/api/jobs/${jobId}/events`,
+      (e: MessageEvent) => {
+        const status = e.data;
+        if (status && status !== jobDetails?.status) {
+          fetchJobDetails(jobId);
+        }
+        if (status === 'completed' || status === 'failed') {
+          stopPolling();
+          stream?.close();
+        }
+      },
+      1000,
+      () => stopPolling(),
+      () => startPolling()
+    );
+  }
+
   onMount(() => {
     if (jobId) {
       fetchJobDetails(jobId);
+      startStream();
     } else {
       error = "Job ID is missing.";
       isLoading = false;
+    }
+  });
+
+  onDestroy(() => {
+    stream?.close();
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
     }
   });
 
@@ -600,9 +653,7 @@
 
     <div class="p-5 sm:p-6 space-y-4 max-h-[calc(90vh-140px)] overflow-y-auto"> <!-- Content Padding & Scroll, adjusted max-h -->
         {#if isLoading}
-          <div class="flex justify-center items-center min-h-[200px]">
-            <p class="text-gray-300 text-lg">Loading job details...</p> <!-- Spinner could go here -->
-          </div>
+          <Spinner message="Loading job details..." />
         {:else if error}
           <div class="p-4 bg-error/30 rounded-md text-center">
             <p class="text-error">Error: {error}</p>
@@ -638,7 +689,7 @@
                 >
                   <div class="p-3 max-h-[300px] overflow-y-auto custom-scrollbar relative">
                     {#if isLoadingOcrText}
-                      <p class="text-gray-400 text-center py-4">Loading OCR text...</p>
+                      <Spinner message="Loading OCR text..." size="sm" />
                     {:else if ocrTextError}
                       <p class="text-error bg-error/30 p-2 rounded-md">Error: {ocrTextError}</p>
                     {:else if ocrTextOutput}
@@ -666,7 +717,7 @@
               >
                 <div class="p-3 max-h-[400px] overflow-y-auto custom-scrollbar relative">
                   {#if isLoadingParseJson}
-                    <p class="text-gray-300 text-center py-4">Loading Parse JSON output...</p>
+                    <Spinner message="Loading Parse JSON output..." size="sm" />
                   {:else if parseJsonError}
                     <p class="text-error bg-error/30 p-2 rounded-md">Error: {parseJsonError}</p>
                   {:else if parseJsonOutput}
@@ -689,7 +740,7 @@
               >
                 <div class="p-3 max-h-[400px] overflow-y-auto custom-scrollbar relative">
                   {#if isLoadingAiJson}
-                    <p class="text-gray-300 text-center py-4">Loading AI JSON output...</p>
+                    <Spinner message="Loading AI JSON output..." size="sm" />
                   {:else if aiJsonError}
                     <p class="text-error bg-error/30 p-2 rounded-md">Error: {aiJsonError}</p>
                   {:else if aiJsonOutput}
@@ -707,17 +758,15 @@
 
             <hr class="border-white/10 my-4"/>
 
-            <div class="flex flex-wrap gap-4 justify-center my-4">
-              {#if ocrOutputToDisplay && parseOutputToDisplay}
-                <Button variant="primary" on:click={openOcrJsonCompareModal} customClass="text-sm !py-1.5">
-                  Compare OCR & Parse Output
-                </Button>
-              {/if}
-              {#if aiInputStageOutputMetadata && aiOutputStageOutputMetadata}
-                <Button variant="primary" on:click={viewAiDiff} customClass="text-sm !py-1.5">
-                  View AI Input / Output
-                </Button>
-              {/if}
+            <div class="flex justify-center my-4">
+              <div class="btn-group">
+                {#if ocrOutputToDisplay && parseOutputToDisplay}
+                  <Button variant="primary" on:click={openOcrJsonCompareModal} customClass="text-sm !py-1.5">Compare OCR & Parse Output</Button>
+                {/if}
+                {#if aiInputStageOutputMetadata && aiOutputStageOutputMetadata}
+                  <Button variant="secondary" on:click={viewAiDiff} customClass="text-sm !py-1.5">AI Input / Output</Button>
+                {/if}
+              </div>
             </div>
 
             <section>
@@ -732,10 +781,11 @@
                           {output.output_type}
                         </span>
                       </div>
-                      <div class="flex items-center space-x-2 flex-shrink-0">
+                      <div class="flex items-center flex-shrink-0">
+                          <div class="btn-group">
                           {#if output.output_type === 'txt' || output.output_type === 'json'}
                               <Button variant="ghost" customClass="text-xs !py-1 !px-2 !text-sky-400 hover:!text-sky-300 hover:!bg-sky-500/10" on:click={() => viewStageOutput(output)}>
-                                  View (Modal)
+                                  View
                               </Button>
                           {/if}
                           <Button
@@ -756,6 +806,7 @@
                           >
                               Download
                           </Button>
+                          </div>
                       </div>
                     </div>
                   {/each}
@@ -789,9 +840,7 @@
 >
   <div slot="content">
     {#if isLoadingOutputContent}
-      <div class="flex justify-center items-center min-h-[200px]">
-        <p class="text-gray-300 text-lg">Loading output content...</p>
-      </div>
+      <Spinner message="Loading output content..." />
     {:else if viewingOutputContent}
       <pre
         class="whitespace-pre-wrap break-all p-2 text-xs text-gray-200 bg-neutral-900/60
@@ -819,9 +868,9 @@
 >
   <div slot="content">
     {#if isLoadingAiDiff}
-      <p class="text-gray-300 dark:text-gray-400 text-center py-10">Loading AI input/output data...</p>
+      <Spinner message="Loading AI input/output data..." />
     {:else if aiDiffError && !aiDiffViewHtml}
-      <p class="text-red-500 dark:text-red-400 text-center py-10">Error: {aiDiffError}</p>
+      <p class="text-error bg-error/30 p-2 rounded-md text-center">Error: {aiDiffError}</p>
     {:else}
       <div class="relative">
           <div class="absolute top-1 right-1 z-20 flex space-x-1">
@@ -855,9 +904,9 @@
 >
   <div slot="content">
     {#if isLoadingOcrParseCompare}
-      <p class="text-gray-300 dark:text-gray-400 text-center py-10">Loading comparison data...</p>
+      <Spinner message="Loading comparison data..." />
     {:else if ocrParseCompareError}
-      <p class="text-red-500 dark:text-red-400 text-center py-10">Error: {ocrParseCompareError}</p>
+      <p class="text-error bg-error/30 p-2 rounded-md text-center">Error: {ocrParseCompareError}</p>
     {:else}
        <div class="relative">
           <div class="absolute top-1 right-1 z-20 flex space-x-1">
