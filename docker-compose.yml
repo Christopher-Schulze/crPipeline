@@ -40,6 +40,10 @@ services:
       S3_BUCKET: uploads
       JWT_SECRET: changeme
       REDIS_URL: redis://redis:6379/
+      FRONTEND_ORIGIN: http://localhost:5173
+      AI_API_URL:
+      AI_API_KEY:
+      BASE_URL: http://localhost:8080
     depends_on:
       - db
       - minio

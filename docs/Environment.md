@@ -38,7 +38,7 @@ the worker exposes Prometheus metrics at `http://0.0.0.0:$METRICS_PORT/metrics`.
 The backend API always serves metrics at `/metrics` on its regular port.
 
 ### Secret Management
-Run `scripts/generate_secrets.sh` to create `backend/.env.prod` with random credentials. Update it with your production endpoints and load it on startup with `source backend/.env.prod`.
+Run `scripts/generate_secrets.sh` to create `backend/.env.prod` with random credentials. Pass `--k8s --apply` to create and apply a Kubernetes secret automatically. Update the generated file with your production endpoints and load it on startup with `source backend/.env.prod`.
 
 ### Frontend Variables
 Frontend builds can consume environment variables prefixed with `VITE_`.

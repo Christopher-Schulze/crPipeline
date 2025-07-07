@@ -3,7 +3,7 @@ All endpoints enforce JWT authentication and CORS restrictions via the `FRONTEND
 
 ### Secrets
 
-For production deployments generate unique credentials instead of relying on the example values in `backend/.env`. Run `scripts/generate_secrets.sh` to create `backend/.env.prod` with random keys. Review the generated file and provide your own database and service endpoints before starting the application.
+For production deployments generate unique credentials instead of relying on the example values in `backend/.env`. Run `scripts/generate_secrets.sh` to create `backend/.env.prod` with random keys. Use `--k8s --apply` to immediately populate the `backend-env` secret. Review the generated file and provide your own database and service endpoints before starting the application.
 
 ### Recommended production values
 

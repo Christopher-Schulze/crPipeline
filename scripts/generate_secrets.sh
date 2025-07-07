@@ -2,17 +2,22 @@
 set -e
 
 # Generate a .env file with random secrets suitable for production.
-# Usage: ./generate_secrets.sh [OUTPUT] [--k8s]
-# When --k8s is supplied the script also prints a Kubernetes Secret manifest
-# to stdout. Redirect the output to a file or pipe it directly to kubectl.
+# Usage: ./generate_secrets.sh [OUTPUT] [--k8s] [--apply]
+# When --k8s is supplied the script prints a Kubernetes Secret manifest. With
+# --apply the manifest is piped to kubectl so the secret is created directly.
 
 OUTPUT="backend/.env.prod"
 K8S=0
+APPLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --k8s)
       K8S=1
+      shift
+      ;;
+    --apply)
+      APPLY=1
       shift
       ;;
     *)
@@ -43,7 +48,7 @@ EOT
 echo "Generated $OUTPUT with random credentials. Fill DATABASE_URL and other settings as needed."
 
 if [[ $K8S -eq 1 ]]; then
-cat <<EOF
+MANIFEST=$(cat <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -61,4 +66,12 @@ data:
   AI_API_URL: $(printf "" | base64 -w0)
   AI_API_KEY: $(printf "" | base64 -w0)
 EOF
+)
+
+  if [[ $APPLY -eq 1 ]]; then
+    echo "$MANIFEST" | kubectl apply -f -
+    echo "Applied Kubernetes secret backend-env"
+  else
+    echo "$MANIFEST"
+  fi
 fi
