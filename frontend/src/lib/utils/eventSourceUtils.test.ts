@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createReconnectingEventSource } from './eventSourceUtils';
+import { createReconnectingEventSource, createEventStreamWithFallback } from './eventSourceUtils';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -48,5 +48,30 @@ describe('createReconnectingEventSource', () => {
     vi.advanceTimersByTime(500);
     expect(onError).toHaveBeenCalledTimes(2);
     expect(MockEventSource.instances.length).toBe(2);
+  });
+});
+
+describe('createEventStreamWithFallback', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('uses polling when EventSource is undefined', () => {
+    vi.stubGlobal('EventSource', undefined as any);
+    const pollFn = vi.fn();
+    const stream = createEventStreamWithFallback('/poll', () => {}, pollFn, 1000);
+
+    expect(pollFn).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1000);
+    expect(pollFn).toHaveBeenCalledTimes(2);
+
+    stream.close();
+    vi.advanceTimersByTime(1000);
+    expect(pollFn).toHaveBeenCalledTimes(2);
   });
 });

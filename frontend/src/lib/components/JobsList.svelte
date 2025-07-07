@@ -4,7 +4,7 @@
   // import GlassCard from './GlassCard.svelte';
   import Button from './Button.svelte';
   import DataTable, { type TableHeader } from './DataTable.svelte'; // Import DataTable and TableHeader
-  import { createReconnectingEventSource, type ReconnectingEventSource } from '$lib/utils/eventSourceUtils';
+  import { createEventStreamWithFallback, type EventStream } from '$lib/utils/eventSourceUtils';
 
   // Define a more complete Job interface based on AnalysisJob model + potential names
   interface Job {
@@ -48,27 +48,13 @@
     pipeline_name: job.pipeline_name,
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); // Initial sort
 
-  let source: ReconnectingEventSource | null = null;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let stream: EventStream | null = null;
 
   async function fetchJobs() {
     if (!orgId) return;
     const res = await fetch(`/api/jobs/${orgId}`);
     if (res.ok) {
       jobs = await res.json();
-    }
-  }
-
-  function startPolling() {
-    if (pollTimer) return;
-    fetchJobs();
-    pollTimer = setInterval(fetchJobs, 10000);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
     }
   }
 
@@ -101,25 +87,18 @@
   }
 
   function startStream() {
-    if (!orgId || typeof EventSource === 'undefined') {
-      startPolling();
-      return;
-    }
-    startPolling();
-    source = createReconnectingEventSource(
+    if (!orgId) return;
+    stream = createEventStreamWithFallback(
       `/api/jobs/events/${orgId}`,
       handleEvent,
-      1000,
-      () => stopPolling(),
-      () => startPolling()
+      fetchJobs
     );
   }
 
   onMount(startStream);
 
   onDestroy(() => {
-    source?.close();
-    stopPolling();
+    stream?.close();
   });
 </script>
 

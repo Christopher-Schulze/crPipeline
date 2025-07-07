@@ -32,7 +32,7 @@ kubectl create secret generic backend-env \
   --from-literal=JWT_SECRET=$(openssl rand -hex 32) \
   --from-literal=S3_BUCKET=uploads
 kubectl create secret generic frontend-env \
-  --from-literal=PUBLIC_BACKEND_URL=https://example.com
+  --from-literal=VITE_PUBLIC_BACKEND_URL=https://example.com
 ```
 
 Equivalent manifest files `k8s/backend-secret.yaml` and

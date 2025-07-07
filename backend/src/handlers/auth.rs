@@ -271,6 +271,7 @@ async fn reset_password(data: web::Json<ResetInput>, pool: web::Data<PgPool>) ->
     }
 }
 
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
         .service(login)

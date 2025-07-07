@@ -62,6 +62,14 @@ function createUiStateStore() {
       update((state) => ({ ...state, currentViewedJobId: id })),
     closeJobDetails: () =>
       update((state) => ({ ...state, currentViewedJobId: null })),
+    closeAll: () =>
+      update((state) => ({
+        ...state,
+        showSettingsPanel: false,
+        showPipelineEditorPanel: false,
+        showAdmin: false,
+        currentViewedJobId: null
+      })),
     reset: () => set(initialState)
   };
 }
