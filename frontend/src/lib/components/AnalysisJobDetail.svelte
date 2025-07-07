@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import GlassCard from './GlassCard.svelte';
   import Button from './Button.svelte';
   import Modal from './Modal.svelte';
   import * as Diff from 'diff'; // Import the diff library
   import { apiFetch } from '$lib/utils/apiUtils';
   import { errorStore } from '$lib/utils/errorStore';
+  import { createReconnectingEventSource, type ReconnectingEventSource } from '$lib/utils/eventSourceUtils';
 
   export let jobId: string;
 
@@ -89,6 +90,10 @@
   // For AI Diff
   let aiDiffViewHtml: string | null = null;       // For AI Input vs Output diff
 
+  // SSE and polling
+  let source: ReconnectingEventSource | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 
   const dispatch = createEventDispatcher();
 
@@ -169,13 +174,61 @@
     }
   }
 
+  function startPolling() {
+    if (pollTimer) return;
+    fetchJobDetails(jobId);
+    pollTimer = setInterval(() => fetchJobDetails(jobId), 10000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  async function handleEvent(e: MessageEvent) {
+    try {
+      const data = JSON.parse(e.data);
+      if (jobDetails) {
+        jobDetails.status = data.status;
+      }
+      if (data.status === 'completed' || data.status === 'failed') {
+        await fetchJobDetails(jobId);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function startStream() {
+    if (!jobId || typeof EventSource === 'undefined') {
+      startPolling();
+      return;
+    }
+    startPolling();
+    source = createReconnectingEventSource(
+      `/api/jobs/${jobId}/detail_events`,
+      handleEvent,
+      1000,
+      () => stopPolling(),
+      () => startPolling()
+    );
+  }
+
   onMount(() => {
     if (jobId) {
       fetchJobDetails(jobId);
+      startStream();
     } else {
       error = "Job ID is missing.";
       isLoading = false;
     }
+  });
+
+  onDestroy(() => {
+    source?.close();
+    stopPolling();
   });
 
   // Reactive fetch if jobId changes (optional, as App.svelte remounts it)
