@@ -15,6 +15,7 @@
   import { apiFetch } from '$lib/utils/apiUtils';
   import ErrorToast from '$lib/components/ErrorToast.svelte';
   import { sessionStore } from '$lib/stores/session';
+  import { uiStateStore } from '$lib/stores/uiState';
 
   // Type Imports or Definitions
   export interface NavItem {
@@ -76,6 +77,19 @@
 
   $: if (org) {
     loadAccentColor();
+  }
+
+  let prevPath = '';
+  $: {
+    const newPath = $page.url.pathname;
+    if (newPath !== prevPath) {
+      prevPath = newPath;
+      showSettingsPanel = false;
+      showPipelineEditorPanel = false;
+      currentViewedJobId = null;
+      pipelineToEdit = null;
+      uiStateStore.closeAll();
+    }
   }
 
   // Define Pipeline type (consistent with PipelineEditor's expectation)

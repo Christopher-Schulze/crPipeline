@@ -153,6 +153,8 @@
       pipeline.stages = [...pipeline.stages, newStage];
       newStageType = '';
       newCommand = '';
+    } else {
+      errorStore.show('Please enter a stage type.');
     }
   }
 

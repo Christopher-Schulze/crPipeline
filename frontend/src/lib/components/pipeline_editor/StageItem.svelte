@@ -33,11 +33,11 @@
 </script>
 
 <div
-  class={`stage-item p-4 rounded-lg cursor-grab border-2 ${
-    dragState.draggingVisualIndex === index ? 'dragging !border-accent' : 'border-neutral-700/70'
+  class={`stage-item card glass p-4 cursor-grab border ${
+    dragState.draggingVisualIndex === index ? 'dragging border-accent' : 'border-neutral-700/70'
   } ${
     dragState.draggedOverIndex === index && dragState.draggedItemId !== stage.id
-      ? 'drag-over-highlight !border-accent'
+      ? 'drag-over-highlight border-accent'
       : 'hover:border-neutral-600'
   }`}
   draggable="true"
