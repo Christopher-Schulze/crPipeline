@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde_json::Value;
+use dotenvy;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct PromptTemplate {
@@ -34,6 +35,12 @@ pub struct WorkerRuntimeConfig {
 impl WorkerRuntimeConfig {
     /// Load configuration from environment variables.
     pub fn from_env() -> Self {
+        // reload environment variables from file when ENV_FILE is set
+        if let Ok(path) = std::env::var("ENV_FILE") {
+            dotenvy::from_filename(path).ok();
+        } else {
+            dotenvy::dotenv().ok();
+        }
         let concurrency = std::env::var("WORKER_CONCURRENCY")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -98,13 +105,15 @@ pub async fn upload_bytes(
         tokio::fs::write(path, data).await?;
         Ok(())
     } else {
+        use bytes::Bytes;
+        let bytes = Bytes::from(data);
         let mut attempts = 0;
         loop {
             match s3
                 .put_object()
                 .bucket(bucket)
                 .key(key)
-                .body(ByteStream::from(data.clone()))
+                .body(ByteStream::from(bytes.clone()))
                 .send()
                 .await
             {
