@@ -77,7 +77,7 @@
       apiPath = `/api/organizations/me/invite`;
       apiPayload = { email }; // Org admin invites implicitly set role='user' and use their own org_id
     } else {
-      apiPath = `/api/admin/invite_user`;
+      apiPath = `/api/admin/invite`;
       apiPayload = {
         email,
         role: selectedRole,

@@ -33,4 +33,13 @@ impl Organization {
             .fetch_all(pool)
             .await
     }
+
+    /// Update organization name and return updated org
+    pub async fn update_name(pool: &PgPool, org_id: Uuid, name: String) -> sqlx::Result<Organization> {
+        sqlx::query_as::<_, Organization>("UPDATE organizations SET name=$1 WHERE id=$2 RETURNING id, name, api_key")
+            .bind(name)
+            .bind(org_id)
+            .fetch_one(pool)
+            .await
+    }
 }
