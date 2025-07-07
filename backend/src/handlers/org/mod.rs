@@ -3,6 +3,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use crate::models::{Organization, NewOrganization, OrgSettings};
 use crate::middleware::auth::AuthUser;
+use uuid::Uuid;
 
 pub mod invites;
 pub mod user_management;
@@ -76,10 +77,38 @@ async fn list_orgs(user: AuthUser, pool: web::Data<PgPool>) -> HttpResponse {
     }
 }
 
+#[actix_web::put("/orgs/{org_id}")]
+async fn update_org(
+    path: web::Path<Uuid>,
+    data: web::Json<OrgInput>,
+    user: AuthUser,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    if user.role != "admin" {
+        return HttpResponse::Forbidden().json(serde_json::json!({"error": "You do not have permission to update organizations."}));
+    }
+    let org_id = path.into_inner();
+    let name = data.name.trim();
+    if name.is_empty() {
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Organization name cannot be empty."}));
+    }
+    match Organization::update_name(&pool, org_id, name.to_string()).await {
+        Ok(org) => HttpResponse::Ok().json(org),
+        Err(sqlx::Error::Database(db_err)) if db_err.constraint() == Some("organizations_name_key") => {
+            HttpResponse::Conflict().json(serde_json::json!({"error": "An organization with this name already exists."}))
+        }
+        Err(e) => {
+            log::error!("Failed to update organization {}: {:?}", org_id, e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to update organization."}))
+        }
+    }
+}
+
 pub fn org_routes() -> Scope {
     web::scope("/orgs")
         .service(create_org)
         .service(list_orgs)
+        .service(update_org)
 }
 
 pub fn org_me_routes() -> Scope {

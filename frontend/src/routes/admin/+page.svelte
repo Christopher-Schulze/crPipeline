@@ -9,6 +9,7 @@
   import ConfirmationModal from '$lib/components/ConfirmationModal.svelte';
   import InviteUserModal from '$lib/components/InviteUserModal.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import EditOrganizationModal from '$lib/components/EditOrganizationModal.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
 
   // Tab handling
@@ -21,6 +22,8 @@
   let newOrgName = '';
   let showCreateOrgModal = false;
   let newlyCreatedOrgWithKey: Org | null = null;
+  let showEditOrgModal = false;
+  let editingOrg: Org | null = null;
 
   function openCreateOrgModal() {
     newOrgName = '';
@@ -28,6 +31,13 @@
   }
   function closeCreateOrgModal() {
     showCreateOrgModal = false;
+  }
+  function openEditOrgModal(org: Org) {
+    editingOrg = org;
+    showEditOrgModal = true;
+  }
+  function closeEditOrgModal() {
+    showEditOrgModal = false;
   }
   async function loadOrgs() {
     try {
@@ -182,7 +192,8 @@
   const orgTableHeaders: TableHeader[] = [
     { key: 'name', label: 'Name', cellClass: '!text-gray-200 group-hover:!text-accent-lighter', sortable: true },
     { key: 'id', label: 'ID', cellClass: 'font-mono !text-xs !text-gray-400', sortable: false },
-    { key: 'api_key', label: 'API Key', sortable: false }
+    { key: 'api_key', label: 'API Key', sortable: false },
+    { key: 'actions', label: 'Actions', headerClass: 'text-right', cellClass: 'text-right', sortable: false }
   ];
 
   onMount(() => {
@@ -322,6 +333,9 @@
         tableClass="min-w-full divide-y divide-neutral-700/30"
       >
         <span slot="cell-id" let:value title={value}>{value.substring(0,8)}...</span>
+        <div slot="cell-actions" let:item class="space-x-2">
+          <Button variant="ghost" customClass="!px-2 !py-1 text-xs" on:click={() => openEditOrgModal(item)}>Edit</Button>
+        </div>
       </DataTable>
     </GlassCard>
   {/if}
@@ -369,6 +383,15 @@
       organizations={orgs}
       on:close={() => showInviteUserModal = false}
       on:user_invited={() => { showInviteUserModal = false; loadAllUsers(); }}
+    />
+  {/if}
+
+  {#if showEditOrgModal && editingOrg}
+    <EditOrganizationModal
+      isOpen={showEditOrgModal}
+      org={editingOrg}
+      on:close={closeEditOrgModal}
+      on:updated={() => { closeEditOrgModal(); loadOrgs(); }}
     />
   {/if}
 </div>

@@ -271,14 +271,6 @@ async fn reset_password(data: web::Json<ResetInput>, pool: web::Data<PgPool>) ->
     }
 }
 
-#[post("/logout")]
-async fn logout() -> HttpResponse {
-    let cookie = actix_web::cookie::Cookie::build("token", "")
-        .max_age(ActixDuration::ZERO)
-        .finish();
-    HttpResponse::Ok().cookie(cookie).finish()
-}
-
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
         .service(login)

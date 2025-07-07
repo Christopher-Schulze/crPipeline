@@ -217,3 +217,42 @@ async fn test_resend_confirmation_email_org_user_unauthorized() {
     let body: serde_json::Value = test::read_body_json(resp).await;
     assert!(body.get("error").is_some());
 }
+
+#[actix_rt::test]
+async fn test_update_org_name_as_admin() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Old Name").await;
+    let admin_id = create_user(&pool, org_id, "admin@example.com", "admin").await;
+    let token = generate_jwt_token(admin_id, org_id, "admin");
+
+    let payload = json!({ "name": "New Name" });
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/orgs/{}", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let name: String = sqlx::query_scalar("SELECT name FROM organizations WHERE id=$1")
+        .bind(org_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "New Name");
+}
+
+#[actix_rt::test]
+async fn test_update_org_name_unauthorized() {
+    let Ok((app, pool)) = setup_test_app().await else { return; };
+    let org_id = create_org(&pool, "Org").await;
+    let user_id = create_user(&pool, org_id, "user@example.com", "user").await;
+    let token = generate_jwt_token(user_id, org_id, "user");
+
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/orgs/{}", org_id))
+        .insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+        .set_json(&json!({ "name": "x" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+}
