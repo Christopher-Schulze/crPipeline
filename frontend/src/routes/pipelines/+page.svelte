@@ -6,6 +6,7 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import { apiFetch } from '$lib/utils/apiUtils';
   import { errorStore } from '$lib/utils/errorStore';
+  import PaginationControls from '$lib/components/PaginationControls.svelte';
   import { fade } from 'svelte/transition';
 
   // Define Pipeline type consistent with PipelineEditor and backend
@@ -24,6 +25,13 @@
   let isLoading: boolean = true;
   let error: string | null = null;
 
+  let currentPage = 1;
+  let pipelinesPerPage = 10;
+  let totalPipelines = 0;
+  let totalPipelinePages = 0;
+  let searchTerm = '';
+  let searchDebounce: number;
+
   let orgId: string | null = null;
   let loggedIn = false;
   $: ({ orgId, loggedIn } = { orgId: $sessionStore.org, loggedIn: $sessionStore.loggedIn });
@@ -31,7 +39,7 @@
   // Get context function to open pipeline editor
   const managePipeline = getContext<(pipelineData?: Pipeline | null) => void>('managePipeline');
 
-  async function loadPipelines() {
+  async function loadPipelines(pageToLoad = 1) {
     if (!orgId) {
       error = "Organization context not available. Please ensure you are part of an organization.";
       isLoading = false;
@@ -41,14 +49,23 @@
     isLoading = true;
     error = null;
     try {
-      const response = await apiFetch(`/api/pipelines/${orgId}`);
+      let url = `/api/pipelines/${orgId}?page=${pageToLoad}&limit=${pipelinesPerPage}`;
+      if (searchTerm.trim() !== '') {
+        url += `&search=${encodeURIComponent(searchTerm.trim())}`;
+      }
+      const response = await apiFetch(url);
 
       if (!response.ok) {
         const errText = await response.text();
         const errData = JSON.parse(errText || "{}");
         throw new Error(errData.error || `Failed to fetch pipelines for organization ${orgId}: ${response.statusText} - ${errText}`);
       }
-      pipelines = await response.json();
+      const data = await response.json();
+      pipelines = data.items ?? data; // fallback if backend returns plain list
+      currentPage = data.page ?? 1;
+      pipelinesPerPage = data.per_page ?? pipelinesPerPage;
+      totalPipelines = data.total_items ?? pipelines.length;
+      totalPipelinePages = data.total_pages ?? 1;
     } catch (e: any) {
       error = e.message;
       pipelines = [];
@@ -62,7 +79,7 @@
 
   onMount(() => {
     if (orgId) {
-        loadPipelines();
+        loadPipelines(1);
     } else if (loggedIn) {
         // User is logged in but no orgId in session, which is unexpected for pipeline management.
         error = "Organization ID is missing from your session. Unable to load pipelines.";
@@ -73,7 +90,7 @@
     }
 
     pipelinesUpdatedHandler = () => {
-        loadPipelines();
+        loadPipelines(currentPage);
     };
     document.body.addEventListener('pipelinesUpdated', pipelinesUpdatedHandler);
   });
@@ -151,19 +168,41 @@
       }
   }
 
+  function onSearchInput() {
+      clearTimeout(searchDebounce);
+      searchDebounce = window.setTimeout(() => {
+          loadPipelines(1);
+      }, 300);
+  }
+
+  function handlePageChange(event: CustomEvent<{ page: number }>) {
+      if (event.detail.page !== currentPage) {
+          loadPipelines(event.detail.page);
+      }
+  }
+
 </script>
 
 <div class="container mx-auto px-4 py-8 space-y-6" in:fade={{ duration: 200 }}>
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
         <h1 class="text-3xl font-semibold text-gray-100 dark:text-gray-50">Pipelines</h1>
-        {#if loggedIn && orgId}
+        <div class="flex items-center space-x-2">
+            <input
+                type="text"
+                placeholder="Search..."
+                bind:value={searchTerm}
+                on:input={onSearchInput}
+                class="glass-input w-48"
+            />
+            {#if loggedIn && orgId}
             <Button variant="primary" on:click={handleCreateNewPipeline} customClass="flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2">
                     <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                 </svg>
                 Create New Pipeline
             </Button>
-        {/if}
+            {/if}
+        </div>
     </div>
 
     {#if !loggedIn}
@@ -193,7 +232,7 @@
         <GlassCard title="Error Loading Pipelines" padding="p-6">
             <p class="text-red-400 text-center py-4">{error}</p>
             <div class="text-center mt-4">
-                <Button variant="secondary" on:click={loadPipelines}>Try Again</Button>
+                <Button variant="secondary" on:click={() => loadPipelines(1)}>Try Again</Button>
             </div>
         </GlassCard>
     {:else}
@@ -202,6 +241,10 @@
             items={tablePipelines}
             keyField="id"
             tableSortable={true}
+            currentPage={currentPage}
+            totalPages={totalPipelinePages}
+            totalItems={totalPipelines}
+            itemsPerPage={pipelinesPerPage}
             emptyStateMessage="No pipelines configured yet for this organization."
             emptyStateIconPath="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H16.5m-6 6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H10.5"
             tableContainerClass="bg-neutral-800/40 backdrop-blur-sm shadow-lg rounded-xl border border-neutral-700/50 overflow-hidden"
@@ -223,6 +266,9 @@
             </span>
             <span slot="cell-created_at" let:item class="text-xs text-gray-400">{item.created_at}</span>
             <span slot="cell-updated_at" let:item class="text-xs text-gray-400">{item.updated_at}</span>
+            <div slot="paginationControls" let:currentPageProps let:totalPagesProps>
+                <PaginationControls currentPage={currentPageProps} totalPages={totalPagesProps} on:pageChange={handlePageChange}/>
+            </div>
         </DataTable>
     {/if}
 </div>

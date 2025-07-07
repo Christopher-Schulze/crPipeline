@@ -6,7 +6,7 @@ use actix_web::{delete, get, http::StatusCode, post, put, web, HttpResponse, Res
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use redis::AsyncCommands;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -60,6 +60,22 @@ pub struct PipelineInput {
     pub org_id: Uuid,
     pub name: String,
     pub stages: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+pub struct PipelineListQuery {
+    pub search: Option<String>,
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct PaginatedPipelines {
+    pub items: Vec<Pipeline>,
+    pub total_items: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub total_pages: i64,
 }
 
 #[post("/pipelines")]
@@ -117,32 +133,52 @@ async fn create_pipeline(
 }
 
 #[get("/pipelines/{org_id}")]
-#[tracing::instrument(skip(pool, user))]
+#[tracing::instrument(skip(pool, user, query))]
 async fn list_pipelines(
     path: web::Path<Uuid>,
+    query: web::Query<PipelineListQuery>,
     user: AuthUser,
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
     if *path != user.org_id {
         return ApiError::new("Unauthorized", StatusCode::UNAUTHORIZED).error_response();
     }
-    if let Some(cached) = cache_get(*path).await {
-        return HttpResponse::Ok().json(cached);
-    }
-    match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE org_id=$1")
-        .bind(*path)
-        .fetch_all(pool.as_ref())
-        .await
-    {
-        Ok(list) => {
-            cache_set(*path, &list).await;
-            HttpResponse::Ok().json(list)
+
+    // If no pagination/search params provided, keep old behaviour with caching
+    if query.search.is_none() && query.page.is_none() && query.limit.is_none() {
+        if let Some(cached) = cache_get(*path).await {
+            return HttpResponse::Ok().json(cached);
         }
-        Err(_) => ApiError::new(
-            "Failed to list pipelines",
-            StatusCode::INTERNAL_SERVER_ERROR,
-        )
-        .error_response(),
+        match sqlx::query_as::<_, Pipeline>("SELECT * FROM pipelines WHERE org_id=$1")
+            .bind(*path)
+            .fetch_all(pool.as_ref())
+            .await
+        {
+            Ok(list) => {
+                cache_set(*path, &list).await;
+                HttpResponse::Ok().json(list)
+            }
+            Err(_) => {
+                ApiError::new("Failed to list pipelines", StatusCode::INTERNAL_SERVER_ERROR).error_response()
+            }
+        }
+    } else {
+        let page = query.page.unwrap_or(1).max(1);
+        let limit = query.limit.unwrap_or(20).max(1).min(100);
+
+        match Pipeline::list_paginated(pool.as_ref(), *path, query.search.clone(), page, limit).await {
+            Ok((items, total)) => {
+                let total_pages = (total as f64 / limit as f64).ceil() as i64;
+                HttpResponse::Ok().json(PaginatedPipelines {
+                    items,
+                    total_items: total,
+                    page,
+                    per_page: limit,
+                    total_pages,
+                })
+            }
+            Err(_) => ApiError::new("Failed to list pipelines", StatusCode::INTERNAL_SERVER_ERROR).error_response(),
+        }
     }
 }
 
