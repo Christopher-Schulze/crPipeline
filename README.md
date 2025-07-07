@@ -22,11 +22,10 @@ See [PLAN.md](PLAN.md) for the project roadmap.
 
 ## CI/CD secret generation
 
-Automated pipelines can run `scripts/generate_secrets.sh` to create the `.env` file used by the backend. Pass `--k8s` to also emit a Kubernetes Secret manifest which can be applied directly:
+Automated pipelines can run `scripts/generate_secrets.sh` to create the `.env` file used by the backend. Pass `--k8s` to emit a Kubernetes Secret and `--apply` to automatically apply it:
 
 ```bash
-scripts/generate_secrets.sh backend/.env.prod --k8s > k8s/backend-secret.yaml
-kubectl apply -f k8s/backend-secret.yaml
+scripts/generate_secrets.sh backend/.env.prod --k8s --apply
 ```
 
 ## License
