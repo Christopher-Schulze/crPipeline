@@ -106,4 +106,23 @@
       on:dragend={handleDragEnd}
     />
   {/each}
+  <div
+    class="h-10 flex items-center justify-center border-2 border-dashed rounded-lg text-sm text-gray-400"
+    class:drag-target-active={dragState.draggedOverIndex === stages.length}
+    on:dragover={(e) => handleDragOver(e, stages.length)}
+    on:dragenter={(e) => handleDragEnter(e, stages.length)}
+    on:dragleave={handleDragLeave}
+    on:drop={(e) => handleDrop(e, stages.length)}
+  >
+    {#if dragState.draggedItemId && dragState.draggedOverIndex === stages.length}
+      Drop here to add at end
+    {/if}
+  </div>
 </div>
+
+<style>
+  .drag-target-active {
+    border-color: var(--fallback-bc,theme(colors.accent));
+    background-color: rgb(59 130 246 / 0.1);
+  }
+</style>
