@@ -6,12 +6,11 @@
   import * as Diff from 'diff'; // Import the diff library
   import { apiFetch } from '$lib/utils/apiUtils';
   import { errorStore } from '$lib/utils/errorStore';
-  import { createReconnectingEventSource, type ReconnectingEventSource } from '$lib/utils/eventSourceUtils';
+  import { createEventStreamWithFallback, type EventStream } from '$lib/utils/eventSourceUtils';
 
   export let jobId: string;
 
-  let eventSource: ReconnectingEventSource | null = null;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let eventStream: EventStream | null = null;
 
   // Updated TypeScript Interfaces
   interface StageOutput {
@@ -173,21 +172,6 @@
     }
   }
 
-  function startPolling() {
-    if (pollTimer) return;
-    if (jobId) {
-      fetchJobDetails(jobId);
-      pollTimer = setInterval(() => fetchJobDetails(jobId), 10000);
-    }
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
   function handleEvent(e: MessageEvent) {
     try {
       const data = JSON.parse(e.data);
@@ -199,17 +183,11 @@
   }
 
   function startStream() {
-    if (!jobId || typeof EventSource === 'undefined') {
-      startPolling();
-      return;
-    }
-    startPolling();
-    eventSource = createReconnectingEventSource(
+    if (!jobId) return;
+    eventStream = createEventStreamWithFallback(
       `/api/jobs/${jobId}/detail_events`,
       handleEvent,
-      1000,
-      () => stopPolling(),
-      () => startPolling()
+      () => fetchJobDetails(jobId)
     );
   }
 
@@ -223,8 +201,7 @@
   });
 
   onDestroy(() => {
-    eventSource?.close();
-    stopPolling();
+    eventStream?.close();
   });
 
   // Reactive fetch if jobId changes (optional, as App.svelte remounts it)
