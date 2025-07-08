@@ -43,6 +43,7 @@ prometheus = "0.14"
 url = "2"
 log = "0.4"
 async-trait = "0.1"
+bytes = "1"
 
 [features]
 worker-bin = []
