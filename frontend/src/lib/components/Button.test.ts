@@ -36,6 +36,12 @@ describe('Button.svelte', () => {
     expect(button.classList.contains('btn-ghost')).toBe(true);
   });
 
+  it('applies danger variant classes', () => {
+    render(Button, { props: { variant: 'danger' } });
+    const button = screen.getByRole('button');
+    expect(button.classList.contains('btn-error')).toBe(true);
+  });
+
   it('is disabled when disabled prop is true', () => {
     render(Button, { props: { disabled: true } });
     const button = screen.getByRole('button');
