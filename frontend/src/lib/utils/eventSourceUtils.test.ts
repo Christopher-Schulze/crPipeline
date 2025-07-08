@@ -5,6 +5,7 @@ class MockEventSource {
   static instances: MockEventSource[] = [];
   onerror: (() => void) | null = null;
   onmessage: ((e: MessageEvent) => void) | null = null;
+  onopen: (() => void) | null = null;
   constructor(public url: string) {
     MockEventSource.instances.push(this);
   }
@@ -30,23 +31,25 @@ describe('createReconnectingEventSource', () => {
     const { getEventSource, close } = createReconnectingEventSource('/test', () => {}, 500, onOpen, onError);
 
     expect(MockEventSource.instances.length).toBe(1);
-    expect(onOpen).toHaveBeenCalledTimes(1);
-
     const first = getEventSource() as unknown as MockEventSource;
+    first.onopen && first.onopen();
+    expect(onOpen).toHaveBeenCalledTimes(1);
     first.onerror && first.onerror();
     expect(onError).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(500);
 
     expect(MockEventSource.instances.length).toBe(2);
+    const second = getEventSource() as unknown as MockEventSource;
+    second.onopen && second.onopen();
     expect(onOpen).toHaveBeenCalledTimes(2);
 
     close();
 
-    const second = getEventSource() as unknown as MockEventSource;
     second.onerror && second.onerror();
     vi.advanceTimersByTime(500);
-    expect(onError).toHaveBeenCalledTimes(2);
+    // After closing the stream, further errors should not invoke the handler
+    expect(onError).toHaveBeenCalledTimes(1);
     expect(MockEventSource.instances.length).toBe(2);
   });
 });
