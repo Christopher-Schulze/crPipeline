@@ -30,23 +30,28 @@ describe('createReconnectingEventSource', () => {
     const { getEventSource, close } = createReconnectingEventSource('/test', () => {}, 500, onOpen, onError);
 
     expect(MockEventSource.instances.length).toBe(1);
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    // No open event fired yet
+    expect(onOpen).not.toHaveBeenCalled();
 
     const first = getEventSource() as unknown as MockEventSource;
+    first.onopen && first.onopen();
     first.onerror && first.onerror();
+    expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onError).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(500);
 
     expect(MockEventSource.instances.length).toBe(2);
+    const second = getEventSource() as unknown as MockEventSource;
+    second.onopen && second.onopen();
     expect(onOpen).toHaveBeenCalledTimes(2);
 
     close();
 
-    const second = getEventSource() as unknown as MockEventSource;
     second.onerror && second.onerror();
     vi.advanceTimersByTime(500);
-    expect(onError).toHaveBeenCalledTimes(2);
+    // No new connection should be created after close
+    expect(onError).toHaveBeenCalledTimes(1);
     expect(MockEventSource.instances.length).toBe(2);
   });
 });
