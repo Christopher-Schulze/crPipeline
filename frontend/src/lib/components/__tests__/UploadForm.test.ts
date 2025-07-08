@@ -32,5 +32,7 @@ test('displays error message on failed upload', async () => {
   });
   await fireEvent.change(input);
   await tick();
-  expect(showSpy).toHaveBeenCalled();
+  await waitFor(() => {
+    expect(showSpy).toHaveBeenCalled();
+  });
 });

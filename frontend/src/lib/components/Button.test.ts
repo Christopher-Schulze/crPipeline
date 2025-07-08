@@ -9,8 +9,8 @@ describe('Button.svelte', () => {
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
     expect(button).not.toBeDisabled();
-    // Check for a class that is part of the primary variant and baseClasses
-    expect(button.classList.contains('bg-accent')).toBe(true);
+    // Should use the primary variant styling by default
+    expect(button.classList.contains('btn-primary')).toBe(true);
     expect(button.classList.contains('extra-class')).toBe(true);
     expect(button.getAttribute('type')).toBe('button'); // Default type
   });
@@ -26,22 +26,22 @@ describe('Button.svelte', () => {
   it('applies secondary variant classes', () => {
     render(Button, { props: { variant: 'secondary' } });
     const button = screen.getByRole('button');
-    expect(button.classList.contains('bg-white/70')).toBe(true);
-    expect(button.classList.contains('bg-accent')).toBe(false);
+    expect(button.classList.contains('btn-secondary')).toBe(true);
+    expect(button.classList.contains('btn-primary')).toBe(false);
   });
 
   it('applies ghost variant classes', () => {
     render(Button, { props: { variant: 'ghost' } });
     const button = screen.getByRole('button');
-    expect(button.classList.contains('bg-transparent')).toBe(true);
+    expect(button.classList.contains('btn-ghost')).toBe(true);
   });
 
   it('is disabled when disabled prop is true', () => {
     render(Button, { props: { disabled: true } });
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
-    // Check for a disabled-specific class from Tailwind (e.g., disabled:bg-gray-300 for primary)
-    expect(button.classList.contains('disabled:bg-gray-300')).toBe(true);
+    // Disabled buttons keep the primary styling
+    expect(button.classList.contains('btn-primary')).toBe(true);
   });
 
   it('emits a click event when clicked', async () => {
